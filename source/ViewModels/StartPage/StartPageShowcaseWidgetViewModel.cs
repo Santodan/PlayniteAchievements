@@ -4,7 +4,6 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Overview;
 using PlayniteAchievements.Services.Showcase;
-using PlayniteAchievements.Services.StartPage;
 
 namespace PlayniteAchievements.ViewModels.StartPage
 {
@@ -15,11 +14,12 @@ namespace PlayniteAchievements.ViewModels.StartPage
         // widget's settings editor writes to the live one.
         private readonly Func<ShowcaseWidgetInstanceSettings> _resolveInstance;
         private OverviewDataSnapshot _latestSnapshot;
+        private IDisposable _unlockNextRequest;
         private ShowcaseWidgetProjection _projection;
 
         public StartPageShowcaseWidgetViewModel(
             Func<ShowcaseWidgetInstanceSettings> resolveInstance,
-            StartPageDataCoordinator dataCoordinator,
+            Services.Widgets.WidgetDataCoordinator dataCoordinator,
             PlayniteAchievementsSettings settings,
             ILogger logger)
             : base(dataCoordinator, settings, logger)
@@ -36,17 +36,39 @@ namespace PlayniteAchievements.ViewModels.StartPage
 
         protected override void ApplySnapshot(OverviewDataSnapshot snapshot)
         {
-            _latestSnapshot = snapshot ?? new OverviewDataSnapshot();
+            var current = snapshot ?? new OverviewDataSnapshot();
+            _latestSnapshot = current;
+            var instance = _resolveInstance();
+
+            // An Unlock Next widget waits for its pool, read once per snapshot when a shown
+            // widget first asks; until then it keeps what it shows.
+            var maxPerGame = ShowcaseWidgetOptions.GetUnlockNextMaxPerGame(instance);
+            if (current.NeedsUnlockNextRead(maxPerGame))
+            {
+                _unlockNextRequest?.Dispose();
+                _unlockNextRequest = current.RequestUnlockNextPool(maxPerGame, () =>
+                {
+                    _unlockNextRequest = null;
+                    if (ReferenceEquals(current, _latestSnapshot))
+                    {
+                        ApplySnapshot(current);
+                    }
+                });
+                return;
+            }
+
             Projection = ShowcaseWidgetProjectionService.Build(
-                _latestSnapshot,
+                current,
                 PersistedSettings?.Showcase,
-                _resolveInstance(),
+                instance,
                 gridOptions: PersistedSettings?.GridOptions);
         }
 
         public override void Dispose()
         {
             ShowcaseConfigurationEvents.Changed -= ShowcaseConfigurationEvents_Changed;
+            _unlockNextRequest?.Dispose();
+            _unlockNextRequest = null;
             base.Dispose();
         }
 

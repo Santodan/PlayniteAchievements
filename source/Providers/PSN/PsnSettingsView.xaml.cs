@@ -49,9 +49,6 @@ namespace PlayniteAchievements.Providers.PSN
             ConnectionLabel.Text = string.Format(
                 ResourceProvider.GetString("LOCPlayAch_Settings_ProviderConnection"),
                 ResourceProvider.GetString("LOCPlayAch_Provider_PSN"));
-            AuthLabel.Text = string.Format(
-                ResourceProvider.GetString("LOCPlayAch_Settings_ProviderAuth"),
-                ResourceProvider.GetString("LOCPlayAch_Provider_PSN"));
         }
 
         public override void Initialize(IProviderSettings settings)

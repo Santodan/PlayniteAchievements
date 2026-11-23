@@ -57,12 +57,12 @@ namespace PlayniteAchievements.Tests.Views
             var hydrator = File.ReadAllText(FindRepoFile(
                 "source", "Services", "Hydration", "GameDataHydrator.cs"));
 
-            // Both Hydrate and HydrateForOverview must copy the selection.
+            // The hydrate path must copy the selection.
             var occurrences = CountOccurrences(
                 hydrator,
                 "data.GameSummaryCategory = customData.GameSummaryCategory;");
-            Assert.AreEqual(2, occurrences,
-                "Both hydrate paths must copy GameSummaryCategory onto the game data.");
+            Assert.AreEqual(1, occurrences,
+                "The hydrate path must copy GameSummaryCategory onto the game data.");
         }
 
         [TestMethod]

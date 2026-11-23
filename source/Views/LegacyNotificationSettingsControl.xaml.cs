@@ -782,7 +782,8 @@ namespace PlayniteAchievements.Views
                 {
                     _plugin.SavePluginSettings(_settingsViewModel.Settings);
                     NotificationPublisher.ClosePersistentSettingsPreview();
-                });
+                },
+                _plugin.DiscoveredThemes);
             _startPageCompatibility = new StartPageCompatibilityService(_logger, _plugin, plugin.PlayniteApi);
 
             _notificationAutoPopupPreviewTimer = new DispatcherTimer
@@ -6751,9 +6752,8 @@ namespace PlayniteAchievements.Views
                 AvailableThemes.Clear();
                 RevertableThemes.Clear();
 
-                var cache = _settingsViewModel?.Settings?.Persisted?.ThemeMigrationVersionCache;
                 var themes = _themeDiscovery
-                    .DiscoverDefaultThemes(cache)
+                    .DiscoverDefaultThemes()
                     .Where(theme => !IsExcludedTheme(theme))
                     .ToList();
                 if (themes.Count == 0)

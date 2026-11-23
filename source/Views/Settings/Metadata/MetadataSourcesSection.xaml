@@ -1,6 +1,7 @@
 <UserControl x:Class="PlayniteAchievements.Views.Settings.Metadata.MetadataSourcesSection"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
              xmlns:local="clr-namespace:PlayniteAchievements.Views.Settings.Metadata"
              xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              xmlns:settings="clr-namespace:PlayniteAchievements.Models.Settings"
@@ -12,13 +13,13 @@
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/SettingsScopedControlStyles.xaml"/>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+                <helpers:SharedResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/SettingsScopedControlStyles.xaml"/>
+                <helpers:SharedResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
             </ResourceDictionary.MergedDictionaries>
 
         </ResourceDictionary>
     </UserControl.Resources>
-    <Grid Background="{DynamicResource PlayAch.Brush.Panel}">
+    <Grid Background="Transparent">
         <!-- The Metadata tab's Sources page: the grid fills the page and scrolls itself. -->
                 <Border Style="{StaticResource SectionBorderStyle}">
                     <DockPanel LastChildFill="True">

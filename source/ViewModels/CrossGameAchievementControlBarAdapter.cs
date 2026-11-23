@@ -7,6 +7,7 @@ using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.Database;
 using PlayniteAchievements.Services.Overview;
 using PlayniteAchievements.Services.Search;
 using PlayniteAchievements.ViewModels.Items;
@@ -94,9 +95,8 @@ namespace PlayniteAchievements.ViewModels
         private readonly RarityTrophyControlBarFilters _tierFilters;
 
         // Tags, which the game, chart and pie bars share. Its options read the picked games' own
-        // tags from the rows of the last filter pass.
+        // tags from their tallies.
         private readonly TagControlBarFilter _tagFilter;
-        private IReadOnlyList<AchievementDisplayItem> _tagOptionRows = Array.Empty<AchievementDisplayItem>();
 
         public IReadOnlyList<string> TagOptions => _tagFilter.TagOptions;
 
@@ -124,9 +124,9 @@ namespace PlayniteAchievements.ViewModels
             _tagFilter = new TagControlBarFilter(
                 RaiseFilterChanged,
                 () => GameFilter.SelectedGameIds,
-                gameId => _tagOptionRows
-                    .Where(row => row?.PlayniteGameId == gameId)
-                    .SelectMany(row => AchievementTagHelper.GetComponents(row.Tags)));
+                gameId => _gamesById.TryGetValue(gameId, out var game)
+                    ? (game.Tallies ?? Array.Empty<AchievementTally>()).SelectMany(tally => tally.Tags)
+                    : Enumerable.Empty<string>());
             ControlBar = CreateControlBar();
         }
 
@@ -295,7 +295,6 @@ namespace PlayniteAchievements.ViewModels
                     AchievementCategoryHelper.NormalizeCategoryOrDefault(item.CategoryLabel)));
             }
 
-            _tagOptionRows = items;
             if (_tagFilter.HasSelection)
             {
                 filtered = filtered.Where(_tagFilter.MatchesRow);
@@ -316,6 +315,47 @@ namespace PlayniteAchievements.ViewModels
             }
 
             return filtered.ToList();
+        }
+
+        /// <summary>
+        /// <paramref name="query"/> narrowed by the bar as <see cref="Apply"/> narrows rows, so a
+        /// widget reads only the rows the bar keeps. The query lists the games it reads.
+        /// </summary>
+        internal AchievementQuery ApplyTo(AchievementQuery query)
+        {
+            if (SearchQuery.From(SearchText).HasValue)
+            {
+                query = query.WhereSearch(SearchText);
+            }
+
+            if (!_locksRows && (_unlockedFrom.HasValue || _unlockedTo.HasValue))
+            {
+                query = query.WhereUnlockedBetween(_unlockedFrom, _unlockedTo);
+            }
+
+            if (_categoryOptions.Count > 0 && _selectedCategories.Count > 0)
+            {
+                query = query.WhereCategory(_selectedCategories);
+            }
+
+            if (_tagFilter.HasSelection)
+            {
+                query = query.WhereClassification(_tagFilter.SelectedTags);
+            }
+
+            query = _tierFilters.ApplyTo(query);
+            var platforms = (ProviderFilterGroups ?? Enumerable.Empty<ProviderFilterGroup>()).Any(group => group?.HasAnySelected == true);
+            if (!GameFilter.HasSelection && !platforms)
+            {
+                return query;
+            }
+
+            var passing = platforms
+                ? new HashSet<Guid>(OverviewGameSummaryFilters.ApplyProviderPlatformFilter(_gamesById.Values, ProviderFilterGroups)
+                    .Select(game => game.PlayniteGameId.Value))
+                : null;
+            return query.ForGames((query.GameIds ?? _gamesById.Keys.ToList())
+                .Where(id => GameFilter.Matches(id) && (passing == null || passing.Contains(id))));
         }
 
         /// <summary>

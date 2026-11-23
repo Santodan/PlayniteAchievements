@@ -39,6 +39,8 @@ namespace PlayniteAchievements.Views
         private Settings.Notifications.NotificationsSettingsTab _notificationsSettingsTab;
         private Settings.Workshop.WorkshopSettingsTab _workshopSettingsTab;
         private Settings.Metadata.MetadataSettingsTab _metadataSettingsTab;
+        private bool _friendsSettingsTabBuilt;
+        private string _pendingWorkshopPageKey;
 
         /// <summary>
         /// The place the next SettingsControl should open on. Set by the plugin before it asks
@@ -132,79 +134,19 @@ namespace PlayniteAchievements.Views
             ForkPerformanceSettingsContent.Content = new ForkPerformanceSettingsSection();
             ForkGeneralSettingsContent.Content = new ForkGeneralSettingsSection(
                 _settingsViewModel.Settings, _plugin);
-            if (FriendsSettingsContent != null)
-            {
-                FriendsSettingsContent.Content = new FriendsSettingsTab(
-                    _settingsViewModel.Settings,
-                    _plugin,
-                    _providerRegistry,
-                    _logger);
-            }
-
-            if (MetadataSettingsContent != null)
-            {
-                MetadataSettingsContent.Content = _metadataSettingsTab = new Settings.Metadata.MetadataSettingsTab(
-                    _settingsViewModel.Settings,
-                    _plugin,
-                    _providerRegistry);
-            }
-
             _themeMigrationController = new ThemeMigrationController(
                 _settingsViewModel.Settings,
                 _plugin,
                 _logger);
 
-            if (DisplaySettingsContent != null)
-            {
-                _displaySettingsTab = new DisplaySettingsTab(
-                    _settingsViewModel.Settings,
-                    _plugin,
-                    _logger,
-                    _pickColor,
-                    _themeMigrationController,
-                    () => _themesSettingsTab?.RefreshAfterDisplaySettingsReset());
-                DisplaySettingsContent.Content = _displaySettingsTab;
-            }
-
-            if (ThemesSettingsContent != null)
-            {
-                _themesSettingsTab = new Settings.Themes.ThemesSettingsTab(
-                    _settingsViewModel.Settings,
-                    _themeMigrationController);
-                ThemesSettingsContent.Content = _themesSettingsTab;
-            }
-
-            if (GeneralSettingsContent != null)
-            {
-                _generalSettingsTab = new GeneralSettingsTab(
-                    _settingsViewModel.Settings,
-                    _plugin,
-                    _logger,
-                    JumpToTab);
-                GeneralSettingsContent.Content = _generalSettingsTab;
-            }
-
-            if (NotificationsSettingsContent != null)
-            {
-                _notificationsSettingsTab = new Settings.Notifications.NotificationsSettingsTab(
-                    _settingsViewModel.Settings,
-                    _plugin,
-                    _logger);
-                NotificationsSettingsContent.Content = _notificationsSettingsTab;
-            }
-
+            // Tabs are built the first time they are shown, so opening settings builds only the
+            // visible tab instead of every tab and its first page.
             var pending = PendingNavigation;
             PendingNavigation = null;
-
-            if (WorkshopSettingsContent != null)
-            {
-                _workshopSettingsTab = new Settings.Workshop.WorkshopSettingsTab(
-                    _settingsViewModel.Settings,
-                    _plugin,
-                    _logger,
-                    string.Equals(pending?.TabKey, SettingsNavigationRequest.WorkshopTab, StringComparison.Ordinal) ? pending.PageKey : null);
-                WorkshopSettingsContent.Content = _workshopSettingsTab;
-            }
+            _pendingWorkshopPageKey = string.Equals(pending?.TabKey, SettingsNavigationRequest.WorkshopTab, StringComparison.Ordinal)
+                ? pending.PageKey
+                : null;
+            EnsureTabContent(SettingsTabControl.SelectedItem as TabItem ?? GeneralTab);
 
             NavigateTo(pending);
 
@@ -577,18 +519,37 @@ namespace PlayniteAchievements.Views
         {
             if (!(sender is TabControl) || !ReferenceEquals(e.OriginalSource, sender)) return;
 
+            // SelectionChanged bubbles up from lists and dropdowns inside the tabs.
+            // Santodan-Fork: the nested Santodan-Fork tab strip builds its pages here too.
+            if (!ReferenceEquals(e.OriginalSource, SettingsTabControl) &&
+                !ReferenceEquals(e.OriginalSource, ForkSettingsTabControl)) return;
+
             // Inspect the newly selected TabItem by name (uses x:Name from XAML)
             if (e.AddedItems == null || e.AddedItems.Count == 0) return;
             if (e.AddedItems[0] is not TabItem selected) return;
+
+            EnsureTabContent(selected);
 
             var name = selected.Name ?? string.Empty;
 
             if (ReferenceEquals(selected, SantodanForkTab))
             {
-                if (ReferenceEquals(ForkSettingsTabControl?.SelectedItem, ForkThemeMigrationTab))
+                // The sub-page already selected inside the Santodan-Fork tab raises no change of
+                // its own, so build it here.
+                var forkPage = ForkSettingsTabControl?.SelectedItem;
+                if (ReferenceEquals(forkPage, ForkThemeMigrationTab))
                 {
                     EnsureLegacyNotificationSettingsContent();
                     _legacyNotificationSettingsControl?.RefreshThemeMigrationContent();
+                }
+                else if (ReferenceEquals(forkPage, ForkPlatformsTab))
+                {
+                    BuildProviderNavigationItems(selectDefault: string.IsNullOrWhiteSpace(PendingNavigationProviderKey));
+                    NavigateToPendingProvider();
+                }
+                else if (ReferenceEquals(forkPage, AchievementNotificationsTab))
+                {
+                    EnsureLegacyNotificationSettingsContent();
                 }
             }
             else if (string.Equals(name, "ProvidersTab", StringComparison.OrdinalIgnoreCase) ||
@@ -636,6 +597,80 @@ namespace PlayniteAchievements.Views
             {
                 ForkThemeMigrationContent.Content =
                     _legacyNotificationSettingsControl.DetachThemeMigrationContent();
+            }
+        }
+
+        /// <summary>
+        /// Builds a tab's content the first time the tab is shown. Each tab keeps its content
+        /// once built.
+        /// </summary>
+        private void EnsureTabContent(TabItem tab)
+        {
+            if (tab == null)
+            {
+                return;
+            }
+
+            if (ReferenceEquals(tab, GeneralTab) && _generalSettingsTab == null && GeneralSettingsContent != null)
+            {
+                _generalSettingsTab = new GeneralSettingsTab(
+                    _settingsViewModel.Settings,
+                    _plugin,
+                    _logger,
+                    JumpToTab);
+                GeneralSettingsContent.Content = _generalSettingsTab;
+            }
+            else if (ReferenceEquals(tab, FriendsTab) && !_friendsSettingsTabBuilt && FriendsSettingsContent != null)
+            {
+                _friendsSettingsTabBuilt = true;
+                FriendsSettingsContent.Content = new FriendsSettingsTab(
+                    _settingsViewModel.Settings,
+                    _plugin,
+                    _providerRegistry,
+                    _logger);
+            }
+            else if (ReferenceEquals(tab, MetadataTab) && _metadataSettingsTab == null && MetadataSettingsContent != null)
+            {
+                MetadataSettingsContent.Content = _metadataSettingsTab = new Settings.Metadata.MetadataSettingsTab(
+                    _settingsViewModel.Settings,
+                    _plugin,
+                    _providerRegistry);
+            }
+            else if (ReferenceEquals(tab, DisplayTab) && _displaySettingsTab == null && DisplaySettingsContent != null)
+            {
+                _displaySettingsTab = new DisplaySettingsTab(
+                    _settingsViewModel.Settings,
+                    _plugin,
+                    _logger,
+                    _pickColor,
+                    _themeMigrationController,
+                    () => _themesSettingsTab?.RefreshAfterDisplaySettingsReset());
+                DisplaySettingsContent.Content = _displaySettingsTab;
+            }
+            else if (ReferenceEquals(tab, ThemesTab) && _themesSettingsTab == null && ThemesSettingsContent != null)
+            {
+                _themesSettingsTab = new Settings.Themes.ThemesSettingsTab(
+                    _settingsViewModel.Settings,
+                    _themeMigrationController);
+                ThemesSettingsContent.Content = _themesSettingsTab;
+            }
+            else if (ReferenceEquals(tab, NotificationsTab) && _notificationsSettingsTab == null && NotificationsSettingsContent != null)
+            {
+                _notificationsSettingsTab = new Settings.Notifications.NotificationsSettingsTab(
+                    _settingsViewModel.Settings,
+                    _plugin,
+                    _logger);
+                NotificationsSettingsContent.Content = _notificationsSettingsTab;
+            }
+            else if (ReferenceEquals(tab, WorkshopTab) && _workshopSettingsTab == null && WorkshopSettingsContent != null)
+            {
+                _workshopSettingsTab = new Settings.Workshop.WorkshopSettingsTab(
+                    _settingsViewModel.Settings,
+                    _plugin,
+                    _logger,
+                    _pendingWorkshopPageKey);
+                _pendingWorkshopPageKey = null;
+                WorkshopSettingsContent.Content = _workshopSettingsTab;
             }
         }
 
@@ -693,6 +728,7 @@ namespace PlayniteAchievements.Views
             }
 
             SettingsTabControl.SelectedItem = tab;
+            EnsureTabContent(tab);
             if (ReferenceEquals(tab, ProvidersTab))
             {
                 BuildProviderNavigationItems();

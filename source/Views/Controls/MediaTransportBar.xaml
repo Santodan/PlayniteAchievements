@@ -21,7 +21,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" CornerRadius="4" Background="Transparent">
+                        <Border x:Name="Bd" CornerRadius="{DynamicResource PlayAch.Radius.Layout}" Background="Transparent">
                             <TextBlock Text="{TemplateBinding Content}"
                                        FontFamily="{TemplateBinding FontFamily}"
                                        FontSize="{TemplateBinding FontSize}"
@@ -44,7 +44,7 @@
     </UserControl.Resources>
 
     <Border Background="#B0000000"
-            CornerRadius="6"
+            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
             Padding="6,3">
         <Grid>
             <Grid.ColumnDefinitions>

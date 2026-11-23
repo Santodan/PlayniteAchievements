@@ -878,15 +878,14 @@ namespace PlayniteAchievements.Providers.RetroAchievements
 
             try
             {
-                // Use the same API call as hash index store to get raw JSON
-                var json = await _api.GetGameListPageAsync(consoleId, offset: 0, count: 99999, cancel).ConfigureAwait(false);
+                var json = await _api.GetGameTitleListAsync(consoleId, cancel).ConfigureAwait(false);
 
                 if (string.IsNullOrWhiteSpace(json))
                 {
                     return new List<Models.RaGameListWithTitle>();
                 }
 
-                // Try to deserialize as array first (API returns array when h=1 is used); an
+                // Try to deserialize as array first, then the object form; an
                 // empty array is a console with no games, not a parse failure.
                 List<Models.RaGameListWithTitle> games = null;
                 try

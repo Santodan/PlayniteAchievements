@@ -171,7 +171,8 @@ namespace PlayniteAchievements.Views.Helpers
 
         /// <summary>
         /// Builds the "Open" submenu shared by every game row menu: "Game" launches the game through
-        /// Playnite, "Library" runs the caller's existing select-in-library action. "Game" is disabled
+        /// Playnite, "Library" runs the caller's existing select-in-library action, and "Details" opens
+        /// Playnite's edit dialog for the game. "Game" is disabled
         /// when the game is not installed, where IPlayniteAPI.StartGame starts the install flow instead
         /// of launching.
         /// </summary>
@@ -191,6 +192,8 @@ namespace PlayniteAchievements.Views.Helpers
             openMenu.Items.Add(gameItem);
 
             openMenu.Items.Add(CreateMenuItem(resourceOwner, "LOCPlayAch_Common_Library", () => openInLibrary?.Invoke()));
+            openMenu.Items.Add(CreateMenuItem(resourceOwner, "LOCPlayAch_Common_Details",
+                () => OpenGameDetails(playniteApi, gameId, logger)));
             if (openInOverview != null)
             {
                 openMenu.Items.Add(CreateMenuItem(resourceOwner, "LOCPlayAch_Common_Overview", openInOverview));
@@ -270,6 +273,23 @@ namespace PlayniteAchievements.Views.Helpers
             catch (Exception ex)
             {
                 logger?.Error(ex, $"Failed to start game: {gameId}");
+            }
+        }
+
+        private static void OpenGameDetails(IPlayniteAPI playniteApi, Guid gameId, ILogger logger)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return;
+            }
+
+            try
+            {
+                (playniteApi ?? API.Instance)?.MainView?.OpenEditDialog(gameId);
+            }
+            catch (Exception ex)
+            {
+                logger?.Error(ex, $"Failed to open game details: {gameId}");
             }
         }
 

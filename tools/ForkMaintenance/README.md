@@ -1,5 +1,47 @@
 # Fork maintenance bundle
 
+## v4.3.2 integration - 2026-11-23
+
+Integrated upstream v4.3.2 (`9ae07a4dcae40c13c9c6246ba3598e9414f0766f`) with the
+in-place Update; v4.3.2 is the pending merge parent. The fork extension and helper
+versions are `4.3.2.1`. Upstream replaced the overview/theme read side with resolved
+SQL reads (`AchievementQuery`, `PagedRows`, `AchievementDataFeed`), deleted
+`LibraryProjectionService` and the overview warm, and moved settings tabs and theme
+discovery to lazy, shared builds. Resolved 19 conflicted files and ported the fork onto
+the new model:
+
+- Overview: the Achievements grid is upstream's paged query; the fork's saved custom
+  sort and Display/source order map into `ApplyRecentSort` (one query column, so an
+  additive click sorts by that column alone). The sidebar All Achievements tab keeps its
+  control-bar filters and additive sorts, reading its rows through `CacheReads.Reads`
+  only while shown (`OverviewViewModel.SantodanSidebarAll.cs`).
+- Notification scores read summary rows; the fork cache is invalidated by
+  `Feed.AchievementDataChanged`.
+- Theme discovery keeps both theme roots and the fork native/repair detection inside
+  upstream's `CreateThemeInfo`; `ThemeDiscoveryCache.Scan` uses `DiscoverDefaultThemes`,
+  and the fork migration service refreshes the shared cache.
+- Settings: upstream's new tab-change guard dropped `ForkSettingsTabControl` events and
+  left Platforms, Achievement Notification and Theme Migration empty without any
+  conflict or log entry. The guard now admits the nested fork tab strip, and selecting
+  Santodan-Fork builds its current sub-page.
+- No longer applicable: `BuildOverviewOnDemand` and `SuppressCustomPollingOverviewWarm`
+  (no warm to gate). The legacy Local user predicate is not in upstream's new read SQL.
+
+Tooling fixes found by this update: Export compared Git-read (LF) baselines with raw
+CRLF files, so untouched multi-line strings became localization entries (24 removed by
+this export) and blocked keys upstream later removed; values now compare
+newline-insensitively in Export and Apply, and Apply skips entries equal to their base.
+Apply now names patch targets the checkout lacks (files deleted upstream) instead of
+letting `git apply` reject the whole patch with `does not exist in index`.
+
+Validation: Release rebuild passed (0 errors); 6339 of 6342 tests passed, one skipped,
+two failures are upstream tests in unchanged upstream files (`DayCounts_...` buckets by
+local calendar day, `BundledToastTemplate_...` cannot resolve `RoundedClip` in the test
+host). Exported against v4.3.2; preflight and actual replay on a clean v4.3.2 worktree
+matched the working tree (localization files after removing redundant `xmlns` noise the
+old recipes had written). Live Playnite checks remain for the Overview sorts and sidebar
+tab, notification score totals, theme migration, and every Santodan-Fork sub-tab.
+
 ## Native emulator and PC-port sources, locations and icons - 2026-11-20
 
 Preserve the fork's native Local readers for KytyPS5, PS3/PS4/Xbox 360
@@ -998,6 +1040,15 @@ stage and commit normally in VS Code or Git: that commit will have the previous
 fork tip and the selected upstream commit as its two parents, so GitHub will not
 report the fork as behind those upstream commits. Use `-SkipFetch` only when the
 selected upstream ref is already current locally.
+
+If preflight names files the fork patch edits but the checkout lacks, upstream
+deleted them: port each fork change to the upstream replacement (or drop it), remove
+those sections from the bundle and export again after the update. Overlay partials of
+deleted upstream classes must be removed the same way.
+
+Conflict-free does not mean wired: after resolving, compare fork hooks in shared files
+whose upstream code was rewritten (event guards, lazy builders) and click through every
+Santodan-Fork sub-tab, since a dropped hook fails silently.
 
 If the patch reports conflicts, resolve and stage those files, then resume the
 same in-place workflow without resetting the checkout again:

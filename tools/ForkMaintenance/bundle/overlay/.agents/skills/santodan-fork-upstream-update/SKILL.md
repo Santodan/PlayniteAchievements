@@ -55,6 +55,13 @@ upstream changes and the fork's behavior together. Use fork partials/helpers and
 small routing hooks. Do not blindly choose ours/theirs or force overlay/semantic
 replacement. Git rerere may assist but its results still need review.
 
+When preflight names patch targets the checkout lacks, upstream deleted those files:
+port each fork change to the upstream replacement (or drop it), remove those patch
+sections and any overlay partial of the deleted class from the bundle, and rebuild
+the bundle hashes before running Update. A clean merge is not proof of wiring: after
+upstream rewrites a shared file (event guards, lazy builders, read models), re-check the
+fork hooks it hosts and click through every Santodan-Fork sub-tab in Playnite.
+
 Stage only the conflict resolutions necessary for resume; this is distinct from
 permission to commit or stage unrelated work. Then resume without restarting or
 resetting the update:
@@ -90,6 +97,9 @@ identity/polling, Steam authentication and public schemas, custom-data migration
 capstones, notification/capture behavior, saved settings, and theme adapters.
 Do not claim live Playnite verification from compilation or replay alone.
 
+Before exporting, update the `santodan-fork-*` skills to match the integrated code
+in `.agents/skills/` and `~/.claude/skills/`, as described in
+`santodan-fork-maintenance` step 4; the export carries them into the bundle overlay.
 Export a fresh bundle with the newly selected upstream baseline explicitly, then
 preflight and actually replay onto an isolated checkout of that exact commit.
 Compare intended captured source, verify hashes/protected files, and record the

@@ -35,10 +35,10 @@
                     <Setter.Value>
                         <ControlTemplate TargetType="ToggleButton">
                             <Border x:Name="Seg"
-                                    Background="{DynamicResource PlayAch.Brush.Button.Background}"
-                                    BorderBrush="{DynamicResource PlayAch.Brush.Button.Border}"
+                                    Background="{DynamicResource PlayAch.Brush.Input.Background}"
+                                    BorderBrush="{DynamicResource PlayAch.Brush.Input.Border}"
                                     BorderThickness="1"
-                                    CornerRadius="4"
+                                    CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                                     Padding="8,0"
                                     SnapsToDevicePixels="True">
                                 <Viewbox Width="15" Height="15" VerticalAlignment="Center">
@@ -53,7 +53,7 @@
                                     <Setter TargetName="Seg" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
                                 </Trigger>
                                 <DataTrigger Binding="{Binding Connected}" Value="True">
-                                    <Setter TargetName="Seg" Property="CornerRadius" Value="0,4,4,0"/>
+                                    <Setter TargetName="Seg" Property="CornerRadius" Value="{DynamicResource PlayAch.Radius.Layout.Right}"/>
                                 </DataTrigger>
                                 <Trigger Property="IsChecked" Value="True">
                                     <Setter TargetName="Seg" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Selected}"/>
@@ -85,7 +85,7 @@
                                     Background="{TemplateBinding Background}"
                                     BorderBrush="Transparent"
                                     BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                                    CornerRadius="3"
+                                    CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                                     SnapsToDevicePixels="True">
                                 <Grid Margin="4,5,10,5">
                                     <Grid.ColumnDefinitions>
@@ -98,7 +98,7 @@
                                                 Background="{DynamicResource PlayAch.Brush.Control.Background}"
                                                 BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                                                 BorderThickness="1"
-                                                CornerRadius="3"/>
+                                                CornerRadius="{DynamicResource PlayAch.Radius.Layout}"/>
                                         <Path x:Name="CheckMark"
                                               Data="M 3.5 8 L 6.5 11 L 12.5 5"
                                               Stroke="{DynamicResource PlayAch.Brush.Accent}"
@@ -156,7 +156,7 @@
                         <ControlTemplate TargetType="ToggleButton">
                             <Border x:Name="ChevronBorder"
                                     Background="Transparent"
-                                    CornerRadius="3"
+                                    CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                                     SnapsToDevicePixels="True">
                                 <Path x:Name="Arrow"
                                       Width="8" Height="5"
@@ -232,7 +232,7 @@
                             <Border Background="{TemplateBinding Background}"
                                     BorderBrush="{TemplateBinding BorderBrush}"
                                     BorderThickness="1"
-                                    CornerRadius="5"
+                                    CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                                     Padding="4"
                                     SnapsToDevicePixels="True">
                                 <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="400">
@@ -465,7 +465,7 @@
                                     Background="{TemplateBinding Background}"
                                     BorderBrush="{TemplateBinding BorderBrush}"
                                     BorderThickness="{TemplateBinding BorderThickness}"
-                                    CornerRadius="4">
+                                    CornerRadius="{DynamicResource PlayAch.Radius.Layout}">
                                 <TextBlock Text="{TemplateBinding Content}"
                                            Margin="{TemplateBinding Padding}"
                                            VerticalAlignment="Center"
@@ -529,7 +529,7 @@
                         <Border Background="{DynamicResource PlayAch.Brush.PopupSurface}"
                                 BorderBrush="{DynamicResource PlayAch.Brush.PopupBorder}"
                                 BorderThickness="1"
-                                CornerRadius="5"
+                                CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                                 Padding="10">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -628,10 +628,10 @@
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
                             <Border x:Name="Seg"
-                                    Background="{DynamicResource PlayAch.Brush.Button.Background}"
-                                    BorderBrush="{DynamicResource PlayAch.Brush.Button.Border}"
+                                    Background="{DynamicResource PlayAch.Brush.Input.Background}"
+                                    BorderBrush="{DynamicResource PlayAch.Brush.Input.Border}"
                                     BorderThickness="1"
-                                    CornerRadius="0,4,4,0"
+                                    CornerRadius="{DynamicResource PlayAch.Radius.Layout.Right}"
                                     Padding="8,0"
                                     SnapsToDevicePixels="True">
                                 <Viewbox Width="13" Height="13" VerticalAlignment="Center">
@@ -799,7 +799,7 @@
         <Border Background="{DynamicResource PlayAch.Brush.PopupSurface}"
                 BorderBrush="{DynamicResource PlayAch.Brush.PopupBorder}"
                 BorderThickness="1"
-                CornerRadius="5"
+                CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                 Padding="10"
                 KeyDown="FiltersPanel_KeyDown"
                 controls:GridControlBarControl.PanelItemWidth="200">

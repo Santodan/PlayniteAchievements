@@ -413,6 +413,83 @@ namespace PlayniteAchievements.ThemeMigration.Tests
             }
         }
 
+        [TestMethod]
+        public async Task DiscoveryCache_MigrationRefreshesOnlyThatThemeInPlace()
+        {
+            var configRoot = CreateConfigRoot(out var themesRoot);
+
+            try
+            {
+                var first = CreateLegacyTheme(themesRoot, "First_ab123456");
+                var second = CreateLegacyTheme(themesRoot, "Second_ab123456");
+                var cache = new ThemeDiscoveryCache(new FakeLogger(), new FakePlayniteApi(new FakePlaynitePaths(configRoot)));
+
+                var before = await cache.GetThemesAsync();
+                Assert.IsTrue(before.All(t => t.NeedsMigration));
+
+                var service = new ThemeMigrationService(new FakeLogger(), discoveredThemes: cache);
+                var result = await service.MigrateThemeAsync(first, MigrationMode.Limited);
+                Assert.IsTrue(result.Success);
+
+                var after = await cache.GetThemesAsync();
+                CollectionAssert.AreEqual(new[] { first, second }, after.Select(t => t.Path).ToArray());
+                Assert.IsTrue(after[0].HasBackup);
+                Assert.IsFalse(after[0].NeedsMigration);
+                Assert.AreSame(before[1], after[1]);
+            }
+            finally
+            {
+                DeleteDirectory(configRoot);
+            }
+        }
+
+        [TestMethod]
+        public async Task DiscoveryCache_RefreshDropsThemeWhoseFolderIsGone()
+        {
+            var configRoot = CreateConfigRoot(out var themesRoot);
+
+            try
+            {
+                var first = CreateLegacyTheme(themesRoot, "First_ab123456");
+                var second = CreateLegacyTheme(themesRoot, "Second_ab123456");
+                var cache = new ThemeDiscoveryCache(new FakeLogger(), new FakePlayniteApi(new FakePlaynitePaths(configRoot)));
+                await cache.GetThemesAsync();
+
+                DeleteDirectory(first);
+                await cache.RefreshThemeAsync(first);
+
+                var after = await cache.GetThemesAsync();
+                CollectionAssert.AreEqual(new[] { second }, after.Select(t => t.Path).ToArray());
+            }
+            finally
+            {
+                DeleteDirectory(configRoot);
+            }
+        }
+
+        private static string CreateConfigRoot(out string themesRoot)
+        {
+            var root = Path.Combine(
+                Path.GetTempPath(),
+                "PlayniteAchievementsTests",
+                nameof(ThemeDiscoveryServiceTests),
+                Guid.NewGuid().ToString("N"));
+
+            themesRoot = Path.Combine(root, "Themes");
+            Directory.CreateDirectory(Path.Combine(themesRoot, "Desktop"));
+            Directory.CreateDirectory(Path.Combine(themesRoot, "Fullscreen"));
+            return root;
+        }
+
+        private static string CreateLegacyTheme(string themesRoot, string folderName)
+        {
+            var themePath = Path.Combine(themesRoot, "Desktop", folderName);
+            Directory.CreateDirectory(themePath);
+            File.WriteAllText(Path.Combine(themePath, "theme.yaml"), "Name: " + folderName + "\nVersion: 1.0.0\n");
+            File.WriteAllText(Path.Combine(themePath, "View.xaml"), "<TextBlock Text=\"SuccessStory\" />");
+            return themePath;
+        }
+
         [DataTestMethod]
         [DataRow("<!-- List//HoyoverseGames -->")]
         [DataRow("<!-- List: HoyoverseGames -->")]
@@ -591,15 +668,33 @@ namespace PlayniteAchievements.ThemeMigration.Tests
             }
         }
 
+        private sealed class FakePlaynitePaths : IPlaynitePathsAPI
+        {
+            public FakePlaynitePaths(string configurationPath)
+            {
+                ConfigurationPath = configurationPath;
+            }
+
+            public bool IsPortable => false;
+            public string ApplicationPath => null;
+            public string ConfigurationPath { get; }
+            public string ExtensionsDataPath => null;
+        }
+
         private sealed class FakePlayniteApi : IPlayniteAPI
         {
+            public FakePlayniteApi(IPlaynitePathsAPI paths = null)
+            {
+                Paths = paths;
+            }
+
             public IMainViewAPI MainView => null;
 
             public IGameDatabaseAPI Database => null;
 
             public IDialogsFactory Dialogs => null;
 
-            public IPlaynitePathsAPI Paths => null;
+            public IPlaynitePathsAPI Paths { get; }
 
             public INotificationsAPI Notifications => null;
 

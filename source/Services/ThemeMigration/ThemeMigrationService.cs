@@ -22,6 +22,7 @@ namespace PlayniteAchievements.Services.ThemeMigration
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly Action _saveSettings;
+        private readonly ThemeDiscoveryCache _discoveredThemes;
         private const string BackupFolderName = "PlayniteAchievements_backup";
         private const string ManifestFileName = "backup_manifest.txt";
 
@@ -56,11 +57,16 @@ namespace PlayniteAchievements.Services.ThemeMigration
             ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx"
         };
 
-        public ThemeMigrationService(ILogger logger, PlayniteAchievementsSettings settings = null, Action saveSettings = null)
+        public ThemeMigrationService(
+            ILogger logger,
+            PlayniteAchievementsSettings settings = null,
+            Action saveSettings = null,
+            ThemeDiscoveryCache discoveredThemes = null)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _settings = settings;
             _saveSettings = saveSettings;
+            _discoveredThemes = discoveredThemes;
         }
 
         /// <summary>
@@ -74,6 +80,16 @@ namespace PlayniteAchievements.Services.ThemeMigration
             string themePath,
             MigrationMode mode = MigrationMode.Limited,
             CustomMigrationSelection customSelection = null)
+        {
+            var result = await MigrateThemeCoreAsync(themePath, mode, customSelection);
+            await RefreshDiscoveredThemeAsync(themePath);
+            return result;
+        }
+
+        private async Task<MigrationResult> MigrateThemeCoreAsync(
+            string themePath,
+            MigrationMode mode,
+            CustomMigrationSelection customSelection)
         {
             if (string.IsNullOrWhiteSpace(themePath))
             {
@@ -1282,6 +1298,34 @@ namespace PlayniteAchievements.Services.ThemeMigration
         /// <param name="themePath">Full path to the theme directory.</param>
         /// <returns>Migration result with status and details.</returns>
         public async Task<MigrationResult> RevertThemeAsync(string themePath)
+        {
+            var result = await RevertThemeCoreAsync(themePath);
+            await RefreshDiscoveredThemeAsync(themePath);
+            return result;
+        }
+
+        /// <summary>
+        /// Updates the shared discovery result for a theme this service may have changed, so the
+        /// theme lists match the files without a full rescan.
+        /// </summary>
+        private async Task RefreshDiscoveredThemeAsync(string themePath)
+        {
+            if (_discoveredThemes == null || string.IsNullOrWhiteSpace(themePath))
+            {
+                return;
+            }
+
+            try
+            {
+                await _discoveredThemes.RefreshThemeAsync(themePath);
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, $"Failed to refresh the discovered theme: {themePath}");
+            }
+        }
+
+        private async Task<MigrationResult> RevertThemeCoreAsync(string themePath)
         {
             if (string.IsNullOrWhiteSpace(themePath))
             {

@@ -10,10 +10,8 @@ namespace PlayniteAchievements.Services.Cache
 
         public List<CachedRecentUnlockData> RecentUnlocks { get; set; } = new List<CachedRecentUnlockData>();
 
-        // Full visible detail rows are populated by unbounded overview/widget reads.
-        // Bounded theme reads keep this empty and materialize only RecentUnlocks.
-        public List<CachedRecentUnlockData> Achievements { get; set; } =
-            new List<CachedRecentUnlockData>();
+        /// <summary>The unlocks per game, day and tally facets, which the day counts below sum.</summary>
+        public List<Overview.UnlockFact> Unlocks { get; set; } = new List<Overview.UnlockFact>();
 
         // Keys are local calendar days produced by Services.Overview.UnlockDayCounts.DayOf
         // (00:00, Kind Unspecified; compare by value).
@@ -22,8 +20,6 @@ namespace PlayniteAchievements.Services.Cache
 
         public Dictionary<Guid, Dictionary<DateTime, int>> UnlockCountsByDateByGame { get; set; } =
             new Dictionary<Guid, Dictionary<DateTime, int>>();
-
-        public bool HasMoreRecentUnlocks { get; set; }
     }
 
     internal sealed class CachedGameSummaryData
@@ -143,6 +139,10 @@ namespace PlayniteAchievements.Services.Cache
         public const string PlatinumApiNameSeparator = "~|~";
 
         public DateTime? LastUnlockUtc { get; set; }
+
+        public DateTime? LastCapstoneUnlockUtc { get; set; }
+
+        public DateTime? FirstPlatinumUnlockUtc { get; set; }
     }
 
     internal sealed class CachedRecentUnlockData : Models.Achievements.IAchievementOverrideTarget
@@ -194,6 +194,15 @@ namespace PlayniteAchievements.Services.Cache
         public bool IsCapstone { get; set; }
 
         public string AchievementNote { get; set; }
+
+        /// <summary>The position in the game's goal list; null when not a goal.</summary>
+        public int? GoalOrder { get; set; }
+
+        /// <summary>The category's position in the game's category order; null when it has none.</summary>
+        public int? CategoryOrder { get; set; }
+
+        /// <summary>The user's image for the category; null when it has none.</summary>
+        public string CategoryArtPath { get; set; }
 
         public double? GlobalPercentUnlocked { get; set; }
 

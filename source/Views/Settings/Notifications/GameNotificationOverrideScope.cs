@@ -159,8 +159,7 @@ namespace PlayniteAchievements.Views.Settings.Notifications
                 _store.Update(
                     _gameId,
                     data => _write(data, copy),
-                    affectsSummaryData: false,
-                    affectsOverrideMirror: false);
+                    affectsSummaryData: false);
             }
             catch (Exception ex)
             {

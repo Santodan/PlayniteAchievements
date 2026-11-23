@@ -35,6 +35,9 @@ are large: search by the symbol names below instead of reading whole files.
    Fork partials: `NotificationPublisher.Santodan{BrowserStartup,Effects,Scores}.cs`.
    Score level/tier notifications: `NotificationPublisher.SantodanScores.cs`,
    `source/Services/Achievements/AchievementDataService.SantodanNotifications.cs`.
+   Library totals come from summary rows (`GetCachedSummaryDataForOverview`):
+   `GetNotificationGameSummaries` (cached, invalidated by `CacheReads.Feed.AchievementDataChanged`)
+   when `UseForkNotificationSummaryCache` is on, else `LoadNotificationGameSummaries` (read now).
 4. **Memories capture** (screenshots/clips), active only when enabled on the fork page:
    - Screenshots: `source/Services/UI/ToastNotificationService.cs`,
      `ResolveEffectiveScreenshotSettings` maps `LocalSettings.Screenshot*` onto a cloned

@@ -4,6 +4,7 @@ using System.Linq;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Friends;
 using PlayniteAchievements.Services.Achievements;
+using SqlNado;
 
 namespace PlayniteAchievements.Services.Database
 {
@@ -44,6 +45,49 @@ namespace PlayniteAchievements.Services.Database
 
             return storedHasRarity;
         }
+
+        // The stored state a current-user save of cacheKey writes, as text: every column, except the
+        // LastUpdatedUtc and UpdatedUtc stamps, of the progress rows with that key, their users,
+        // their games and the Playnite game's, those games' definitions and metadata layers, and
+        // the progress rows' unlocks. Equal readings before and after a save mean it changed
+        // nothing a reader sees.
+        public static string SavedGameState(SQLiteDatabase db, string cacheKey, string playniteGameId)
+        {
+            const string games = "SELECT GameId FROM UserGameProgress WHERE CacheKey = ?1 UNION SELECT Id FROM Games WHERE PlayniteGameId = ?2";
+            var scopes = new[]
+            {
+                ("UserGameProgress", "CacheKey = ?1"),
+                ("Users", "Id IN (SELECT UserId FROM UserGameProgress WHERE CacheKey = ?1)"),
+                ("Games", "Id IN (" + games + ")"),
+                ("PlatformDefinitions", "GameId IN (" + games + ")"),
+                ("AchievementMetadataLayer", "AchievementDefinitionId IN (SELECT Id FROM PlatformDefinitions WHERE GameId IN (" + games + "))"),
+                ("UserAchievements", "UserGameProgressId IN (SELECT Id FROM UserGameProgress WHERE CacheKey = ?1)")
+            };
+            return string.Join("\n", scopes.Select(scope =>
+            {
+                var args = scope.Item2.Contains("?2")
+                    ? new object[] { cacheKey, (object)playniteGameId ?? DBNull.Value }
+                    : new object[] { cacheKey };
+                var columns = db.LoadRows("PRAGMA table_info(" + scope.Item1 + ");")
+                    .Select(row => (string)row["name"])
+                    .Where(name => name != "LastUpdatedUtc" && name != "UpdatedUtc")
+                    .Select(name => "quote(" + name + ")");
+                return db.ExecuteScalar<string>(
+                    "SELECT group_concat(" + string.Join(" || ',' || ", columns) + ", char(10)) FROM (SELECT * FROM " +
+                    scope.Item1 + " WHERE " + scope.Item2 + " ORDER BY rowid);",
+                    args);
+            }));
+        }
+
+        // Readers take the newest of the current user's progress rows for a Playnite game, by
+        // LastUpdatedUtc, so with several a save that only moves that stamp can change what they read.
+        public static bool HasSeveralCurrentUserProgressRows(SQLiteDatabase db, string playniteGameId) =>
+            playniteGameId != null && db.ExecuteScalar<long>(
+                @"SELECT COUNT(*) FROM UserGameProgress up
+                  INNER JOIN Users u ON u.Id = up.UserId AND u.IsCurrentUser = 1
+                  INNER JOIN Games g ON g.Id = up.GameId
+                  WHERE g.PlayniteGameId = ?;",
+                new object[] { playniteGameId }) > 1;
 
         // Game-level companion to ShouldKeepStoredRarity. A write without a source (a re-save of
         // loaded data, a legacy import) keeps the stored one, and an incoming None does not

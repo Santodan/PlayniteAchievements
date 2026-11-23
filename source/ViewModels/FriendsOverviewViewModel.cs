@@ -5,6 +5,7 @@ using PlayniteAchievements.Models.Friends;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.Database;
 using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Services.Overview;
@@ -17,7 +18,6 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Collections.ObjectModel;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -28,10 +28,19 @@ using RelayCommand = PlayniteAchievements.Common.RelayCommand;
 
 namespace PlayniteAchievements.ViewModels
 {
+    /// <summary>
+    /// The Friends Overview window. Its friend and game grids come from one lists read with the
+    /// unlocked totals per friend and game; its achievements grid is a <see cref="PagedRows{T}"/>
+    /// over the query of the current selection, filters, search, sort and compare pick. Every
+    /// read reruns from the change feed.
+    /// </summary>
     internal sealed class FriendsOverviewViewModel :
         ObservableObject, IDisposable, IOverviewRefreshHeaderViewModel, IFriendSummariesFilterSource
     {
         private readonly IFriendCacheManager _friendCache;
+        private readonly IFriendsOverviewReads _reads;
+        private readonly IReadScheduler _scheduler;
+        private readonly Services.Cache.FeedGate _gate = new Services.Cache.FeedGate();
         private readonly RefreshEntryPoint _refreshCoordinator;
         private readonly RefreshRuntime _refreshRuntime;
         private readonly PlayniteAchievementsSettings _settings;
@@ -39,51 +48,36 @@ namespace PlayniteAchievements.ViewModels
         private readonly ILogger _logger;
         private readonly IPlayniteAPI _playniteApi;
         private readonly Func<Guid?, string, FriendCustomRefreshOptions> _showCustomRefreshDialog;
-        private readonly FriendsOverviewDataCoordinator _friendsOverviewDataCoordinator;
-        private readonly bool _ownsFriendsOverviewDataCoordinator;
         private readonly SearchTextIndex<FriendSummaryItem> _friendSearchIndex =
             new SearchTextIndex<FriendSummaryItem>(item => SearchTextBuilder.FromValues(
                 new[] { item?.DisplayName, item?.ProviderKey }.Concat(item?.MemberProviderKeys ?? Enumerable.Empty<string>())));
         private readonly SearchTextIndex<FriendGameSummaryItem> _gameSearchIndex =
             new SearchTextIndex<FriendGameSummaryItem>(item => SearchTextBuilder.FromValues(item?.GameName, item?.ProviderKey));
-        private readonly SearchTextIndex<FriendAchievementDisplayItem> _achievementSearchIndex =
-            new SearchTextIndex<FriendAchievementDisplayItem>(item => SearchTextBuilder.FromValues(
-                item?.FriendName,
-                item?.GameName,
-                item?.DisplayName,
-                item?.Description,
-                item?.TagsDisplay,
-                item?.CategoryLabel,
-                item?.ProviderKey));
 
-        private List<FriendSummaryItem> _allFriends = new List<FriendSummaryItem>();
-        private List<FriendGameSummaryItem> _allGames = new List<FriendGameSummaryItem>();
-        private List<FriendAchievementDisplayItem> _allRecentUnlocks = new List<FriendAchievementDisplayItem>();
-        private List<FriendAchievementDisplayItem> _allAchievements = new List<FriendAchievementDisplayItem>();
-        private List<FriendAchievementDisplayItem> _allUnlockedAchievements = new List<FriendAchievementDisplayItem>();
+        // The reads: the lists with friend scores, the favorites' games, the bar's options for a
+        // selected game, the pair's whole row list for category rollups, and the grid's rows.
+        private LiveQuery<FriendsOverviewLists> _lists;
+        private FriendsOverviewLists _current = FriendsOverviewLists.Empty;
+        private LiveQuery<IReadOnlyList<AchievementTotalsRecord>> _favoriteGames;
+        private string _favoriteGamesKey;
+        private LiveQuery<AchievementBarOptions> _barOptions;
+        private string _barOptionsKey;
+        private LiveQuery<IReadOnlyList<FriendAchievementDisplayItem>> _pairRows;
+        private string _pairRowsKey;
+        private PagedRows<FriendAchievementDisplayItem> _achievements;
+        private string _achievementsKey;
+        private string _achievementsScopeKey;
+        private int? _achievementsCap;
+        private volatile RowDecoration _rowDecoration;
 
-        // On-demand rows for the friend+game pair comparison. The overview snapshot carries
-        // unlocked rows only, so the selected game's full definition rows (locked included,
-        // all friends) are fetched once per game selection and swapped in when they land;
-        // until then the pair view falls back to the snapshot's unlocked rows.
-        private List<FriendAchievementDisplayItem> _pairGameAchievements;
-        private string _pairGameKey;
-        private string _pairGameKeyInFlight;
-        private int _pairFetchVersion;
-        internal Task PairAchievementsFetchTask { get; private set; }
         private List<FriendSummaryItem> _filteredFriendsList = new List<FriendSummaryItem>();
         private List<FriendGameSummaryItem> _filteredGamesList = new List<FriendGameSummaryItem>();
-        private List<FriendAchievementDisplayItem> _filteredAchievementsList = new List<FriendAchievementDisplayItem>();
         private string _friendSortPath;
         private ListSortDirection _friendSortDirection;
         private string _gameSortPath;
         private ListSortDirection _gameSortDirection;
         private string _achievementSortPath;
         private ListSortDirection _achievementSortDirection;
-        private FriendOverviewProjection _projection = new FriendOverviewProjection(null);
-        // Shared achievements control bar: type/category options with canonical normalization
-        // and ordering, the compare slot, and the unlock-state toggles all live here. Only the
-        // search slot is swapped for the overview's own prebuilt multi-field pipeline.
         private readonly AchievementGridControlBarAdapter _achievementsBar = new AchievementGridControlBarAdapter();
         // Compare selection for the achievement grid in each of its four views. It is dropped
         // whenever the selected friend or game changes, and the pick remembered for the view the
@@ -105,93 +99,84 @@ namespace PlayniteAchievements.ViewModels
         private FriendSummaryItem _selectedFriend;
         private FriendGameSummaryItem _selectedGame;
         private bool _isApplyingFilters;
+        private bool _notifyingSelection;
+        private bool _barOptionsOffered = true;
         private bool _isRefreshing;
         private bool _disposed;
-        private int _loadVersion;
-        private int _suppressCoordinatorInvalidationReload;
-        private readonly object _loadQueueSync = new object();
-        private Task _loadQueueTask;
-        private bool _loadAgainRequested;
-        private bool _isLoading;
+
+        // The friend entries and merge groups as of the last read; see OnPluginSettingsSaved.
+        private string _readFriendSettingsKey;
         private string _statusText;
         private string _friendSearchText;
         private string _gameSearchText;
         private string _achievementSearchText;
         private string _selectedRefreshMode = RefreshModeType.FriendsRecent.GetKey();
         private readonly RefreshHeaderProgressTracker _progressTracker;
-        private readonly TimeSpan _cacheInvalidationDebounceInterval;
-        private readonly TimeSpan _activeRefreshInvalidationInterval;
-        private DateTime _lastCacheReloadUtc = DateTime.MinValue;
-        private System.Windows.Threading.DispatcherTimer _cacheInvalidationDebounceTimer;
+        private int _searchVersion;
 
+        private static readonly TimeSpan SearchDelay = TimeSpan.FromMilliseconds(250);
+
+        // How long after a change the reads rerun while friends refresh: a refresh writes every
+        // few hundred milliseconds.
+        private static readonly TimeSpan RefreshingWindow = TimeSpan.FromSeconds(3);
+
+        /// <param name="reads">The window's reads; null shows no data.</param>
+        /// <param name="scheduler">Where reads run and apply; the application dispatcher by default.</param>
         public FriendsOverviewViewModel(
             IFriendCacheManager friendCache,
+            IFriendsOverviewReads reads,
             RefreshEntryPoint refreshCoordinator,
             RefreshRuntime refreshRuntime,
             PlayniteAchievementsSettings settings,
             ILogger logger,
             IPlayniteAPI playniteApi = null,
             Func<Guid?, string, FriendCustomRefreshOptions> showCustomRefreshDialog = null,
-            TimeSpan? cacheInvalidationDebounceInterval = null,
-            TimeSpan? activeRefreshInvalidationInterval = null,
-            FriendsOverviewDataCoordinator friendsOverviewDataCoordinator = null)
+            IReadScheduler scheduler = null)
         {
             _friendCache = friendCache;
+            _reads = reads;
+            _scheduler = scheduler ?? new DispatcherReadScheduler(
+                System.Windows.Application.Current?.Dispatcher ?? System.Windows.Threading.Dispatcher.CurrentDispatcher);
             _refreshCoordinator = refreshCoordinator;
             _refreshRuntime = refreshRuntime;
             _settings = settings;
             _logger = logger;
             _playniteApi = playniteApi;
             _showCustomRefreshDialog = showCustomRefreshDialog;
-            _ownsFriendsOverviewDataCoordinator = friendsOverviewDataCoordinator == null;
-            _friendsOverviewDataCoordinator = friendsOverviewDataCoordinator ??
-                new FriendsOverviewDataCoordinator(friendCache, () => _settings?.Persisted, logger);
-            if (!_ownsFriendsOverviewDataCoordinator)
-            {
-                // A shared coordinator retains its snapshot only while views (or a
-                // friend-consuming theme) hold it; an owned instance is disposed wholesale.
-                _friendsOverviewDataCoordinator.AddViewConsumer();
-            }
-            _friendsOverviewDataCoordinator.SnapshotInvalidated += OnFriendsOverviewSnapshotInvalidated;
-            _cacheInvalidationDebounceInterval = cacheInvalidationDebounceInterval ?? TimeSpan.FromMilliseconds(300);
-            // Matches the FriendsOverviewDataCoordinator invalidation-event throttle: each reload
-            // during an active friend refresh rebuilds the full friend display graph, so the two
-            // cadences are kept aligned.
-            _activeRefreshInvalidationInterval = activeRefreshInvalidationInterval ?? TimeSpan.FromSeconds(15);
 
-            if (_cacheInvalidationDebounceInterval > TimeSpan.Zero ||
-                _activeRefreshInvalidationInterval > TimeSpan.Zero)
-            {
-                _cacheInvalidationDebounceTimer = new System.Windows.Threading.DispatcherTimer
-                {
-                    Interval = _cacheInvalidationDebounceInterval > TimeSpan.Zero
-                        ? _cacheInvalidationDebounceInterval
-                        : _activeRefreshInvalidationInterval
-                };
-                _cacheInvalidationDebounceTimer.Tick += OnCacheInvalidationDebounceTimerTick;
-            }
-
+            // Skeleton rows in every grid until the lists land (the display syncs keep them).
             FilteredFriends = new BulkObservableCollection<FriendSummaryItem>();
+            FilteredFriends.ReplaceAll(PlaceholderRows.Create(() => new FriendSummaryItem { IsPlaceholder = true }));
             FilteredGames = new BulkObservableCollection<FriendGameSummaryItem>();
-            DisplayedAchievements = new BulkObservableCollection<FriendAchievementDisplayItem>();
+            FilteredGames.ReplaceAll(PlaceholderRows.Create(() => new FriendGameSummaryItem { IsPlaceholder = true }));
+            _achievementPlaceholders = PlaceholderRows.Create(() => new FriendAchievementDisplayItem { IsPlaceholder = true });
             SelectedFriendGameAllAchievements = new BulkObservableCollection<FriendAchievementDisplayItem>();
             OwnershipFilterOptions = new ObservableCollection<string>();
             FriendProviderFilterOptions = new ObservableCollection<string>();
             FriendSummariesControlBar = CreateFriendSummariesControlBar();
             GameSummariesControlBar = CreateGameSummariesControlBar();
-            // The pair row source spans every game, so the comparison is scoped to the selected one.
             _friendCompare = new FriendVsFriendCompareController(
                 () => SelectedFriend,
                 GetCompareFriendOptions,
-                row => SelectedGame == null || IsSameGame(row, SelectedGame),
-                () => _friendCache?.LoadCurrentUserIdentities(),
-                logger,
-                (friend, row) => _projection?.HasFriendGameData(friend, row) == true);
-            _achievementsBar.FilterChanged += (_, __) => ApplyFilters();
+                loadCurrentUserIdentities: () => _friendCache?.LoadCurrentUserIdentities(),
+                logger: logger,
+                hasPairData: HasCompareGameData,
+                scopeProviderKey: () => SelectedGame?.ProviderKey ??
+                    (SelectedFriend?.IsMergedFriend == false ? SelectedFriend.ProviderKey : null));
+            // A pick in the Compare dropdown, or the signed-in accounts arriving for the self
+            // entry, rereads the rows; a selection change rereads them once it has settled. The
+            // accounts arrive off the UI thread.
+            _friendCompare.PropertyChanged += (_, __) =>
+            {
+                if (!_notifyingSelection && !_isApplyingFilters)
+                {
+                    _scheduler.Post(UpdateAchievementQueries);
+                }
+            };
+            _achievementsBar.FilterChanged += (_, __) => UpdateAchievementQueries();
             _achievementsBar.AttachFriendCompare(_friendCompare);
-            // The overview keeps its own achievement search: the shared index spans
-            // friend/game/category/provider fields and is prebuilt off the UI thread, so the
-            // adapter's name+description search stays unused (its SearchText remains empty).
+            // The overview keeps its own achievement search over friend, game, achievement,
+            // category and provider fields, run in the query; the adapter's search stays empty.
             _achievementsBar.ControlBar.Search = new GridSearchControl(
                 this,
                 nameof(AchievementSearchText),
@@ -219,12 +204,6 @@ namespace PlayniteAchievements.ViewModels
                 _progressTracker = new RefreshHeaderProgressTracker(_refreshRuntime, logger);
                 _progressTracker.PropertyChanged += OnProgressTrackerChanged;
                 _refreshRuntime.RebuildProgress += OnRebuildProgress;
-                _refreshRuntime.CacheInvalidated += OnCacheInvalidated;
-                _refreshRuntime.FriendCacheInvalidated += OnFriendCacheInvalidated;
-            }
-            else if (_friendCache != null)
-            {
-                _friendCache.FriendCacheInvalidated += OnFriendCacheInvalidated;
             }
 
             if (_settings != null)
@@ -238,20 +217,30 @@ namespace PlayniteAchievements.ViewModels
                     () => OnPersistedSettingsChanged(this, new PropertyChangedEventArgs(null)));
             }
 
+            _readFriendSettingsKey = FriendSettingsKey();
             PlayniteAchievementsPlugin.SettingsSaved += OnPluginSettingsSaved;
         }
 
         public BulkObservableCollection<FriendSummaryItem> FilteredFriends { get; }
         public BulkObservableCollection<FriendGameSummaryItem> FilteredGames { get; }
-        public BulkObservableCollection<FriendAchievementDisplayItem> DisplayedAchievements { get; }
 
-        // Unfiltered friend+game comparison rows in canonical definition order feeding the grid's
-        // CategorySummarySource so category ordering does not follow the configured or live sort.
+        /// <summary>
+        /// The achievements grid's rows, loaded page by page; replaced when the row cap changes.
+        /// Null until <see cref="LoadAsync"/>.
+        /// </summary>
+        public PagedRows<FriendAchievementDisplayItem> DisplayedAchievements => _achievements;
+
+        /// <summary>What the achievements grid shows: its rows, or skeleton rows until the lists land.</summary>
+        public System.Collections.IList AchievementRows => (System.Collections.IList)_achievements ?? _achievementPlaceholders;
+
+        private List<FriendAchievementDisplayItem> _achievementPlaceholders;
+
+        // The selected friend and game's every row in definition order, feeding the grid's
+        // CategorySummarySource so category rollups follow neither the filters nor the sort.
         public BulkObservableCollection<FriendAchievementDisplayItem> SelectedFriendGameAllAchievements { get; }
 
         public BulkObservableCollection<FriendSummaryItem> Friends => FilteredFriends;
         public BulkObservableCollection<FriendGameSummaryItem> Games => FilteredGames;
-        public BulkObservableCollection<FriendAchievementDisplayItem> RecentUnlocks => DisplayedAchievements;
 
         public string FriendSortPath => _friendSortPath;
 
@@ -329,6 +318,13 @@ namespace PlayniteAchievements.ViewModels
             get => _selectedFriend;
             set
             {
+                if (value?.IsPlaceholder == true)
+                {
+                    // A skeleton row is not a friend.
+                    OnPropertyChanged(nameof(SelectedFriend));
+                    return;
+                }
+
                 if (SetValueAndReturn(ref _selectedFriend, value))
                 {
                     NotifySelectionStateChanged();
@@ -345,6 +341,13 @@ namespace PlayniteAchievements.ViewModels
             get => _selectedGame;
             set
             {
+                if (value?.IsPlaceholder == true)
+                {
+                    // A skeleton row is not a game.
+                    OnPropertyChanged(nameof(SelectedGame));
+                    return;
+                }
+
                 if (SetValueAndReturn(ref _selectedGame, value))
                 {
                     NotifySelectionStateChanged();
@@ -361,16 +364,22 @@ namespace PlayniteAchievements.ViewModels
         public bool HasAnySelection => SelectedFriend != null || SelectedGame != null;
         public bool HasFriendGameSelection => SelectedFriend != null && SelectedGame != null;
 
-        // Friends other than the selected one, those with cached data for the selected game
-        // first when there is one. The controller caches this, so it is walked once per
-        // selection or row rebuild.
+        // Friends other than the selected one, those with data for the selected game first when
+        // there is one. The controller caches this, so it is walked once per selection or reload.
         private IReadOnlyList<FriendSummaryItem> GetCompareFriendOptions()
         {
             return FriendSurfaceControlBars.GetCompareFriendOptions(
-                _allFriends,
+                _current.Friends,
                 SelectedFriend,
-                friend => SelectedGame == null || HasFriendGamePairData(friend, SelectedGame));
+                HasCompareGameData);
         }
+
+        // With no game selected the rows span every game, so every friend counts.
+        private bool HasCompareGameData(FriendSummaryItem friend)
+        {
+            return SelectedGame == null || HasFriendGamePairData(friend, SelectedGame);
+        }
+
         public string AchievementColumnSettingsKey
         {
             get
@@ -442,7 +451,15 @@ namespace PlayniteAchievements.ViewModels
             {
                 if (SetValueAndReturn(ref _achievementSearchText, value))
                 {
-                    ApplyFilters();
+                    // The rows are read again once typing pauses.
+                    var version = ++_searchVersion;
+                    _scheduler.PostAfter(SearchDelay, () =>
+                    {
+                        if (version == _searchVersion)
+                        {
+                            UpdateAchievementQueries();
+                        }
+                    });
                 }
             }
         }
@@ -480,15 +497,15 @@ namespace PlayniteAchievements.ViewModels
             : RefreshActionButtonText;
 
         public string RefreshOrCancelButtonGlyph => IsRefreshing
-            ? "\uEEE4"
+            ? ""
             : string.Equals(SelectedRefreshMode, RefreshModeType.FriendsCustom.GetKey(), StringComparison.Ordinal)
-                ? "\uEFE1"
-                : "\uEFD1";
+                ? ""
+                : "";
 
         public bool IsRefreshing
         {
             get => _isRefreshing;
-            private set
+            internal set
             {
                 if (SetValueAndReturn(ref _isRefreshing, value))
                 {
@@ -536,15 +553,7 @@ namespace PlayniteAchievements.ViewModels
 
         public bool HasStatusText => !string.IsNullOrWhiteSpace(StatusText);
 
-        // True while the initial data load is in flight (before any data is shown), so the view
-        // can display a loading indicator. Set only for empty-state loads, so routine reloads
-        // over already-populated grids do not flash the overlay.
-        public bool IsLoading
-        {
-            get => _isLoading;
-            private set => SetValue(ref _isLoading, value);
-        }
-        public bool HasData => _allFriends.Count > 0 || _allGames.Count > 0 || _allRecentUnlocks.Count > 0 || _allAchievements.Count > 0 || _allUnlockedAchievements.Count > 0;
+        public bool HasData => _current.HasData || (_achievements != null && !_achievements.IsPending && _achievements.Count > 0);
         public bool IsProviderDisabled => false;
 
         // Single selection shows the localized provider name (options carry raw provider keys so
@@ -694,9 +703,118 @@ namespace PlayniteAchievements.ViewModels
             return controlBar;
         }
 
+        /// <summary>
+        /// Starts the window's reads on the first call; reruns every read on later calls, for
+        /// writes that do not reach the change feed (settings the rows read).
+        /// </summary>
         public Task LoadAsync()
         {
-            return LoadFromCacheAsync();
+            if (_disposed)
+            {
+                return Task.CompletedTask;
+            }
+
+            if (_lists == null)
+            {
+                Start();
+            }
+            else
+            {
+                Reload();
+            }
+
+            return Task.CompletedTask;
+        }
+
+        private void Start()
+        {
+            if (_reads == null)
+            {
+                FilteredFriends.Clear();
+                FilteredGames.Clear();
+                _achievementPlaceholders = new List<FriendAchievementDisplayItem>();
+                OnPropertyChanged(nameof(AchievementRows));
+                StatusText = ResourceProvider.GetString("LOCPlayAch_FriendsOverview_NoData");
+                return;
+            }
+
+            UpdateRowDecoration();
+            _lists = new LiveQuery<FriendsOverviewLists>(
+                _reads.Feed,
+                AchievementQuery.AllFriends,
+                LoadLists,
+                _scheduler,
+                ReadWindow,
+                ex => OnReadFailed(ex, "Failed to load friends overview lists."),
+                gate: _gate);
+            _lists.PropertyChanged += OnListsChanged;
+        }
+
+        /// <summary>
+        /// Whether the view is shown. While it is not, a data change only marks its reads stale,
+        /// and showing it again reads each stale one once. UI thread.
+        /// </summary>
+        public void SetActive(bool active) => _gate.IsOpen = active;
+
+        // Every read again, with the same queries.
+        private void Reload()
+        {
+            _readFriendSettingsKey = FriendSettingsKey();
+            UpdateRowDecoration();
+            _lists?.SetQuery(_lists.Query);
+            _favoriteGames?.SetQuery(_favoriteGames.Query);
+            _barOptions?.SetQuery(_barOptions.Query);
+            _pairRows?.SetQuery(_pairRows.Query);
+            _achievements?.SetQuery(_achievements.Query);
+        }
+
+        private FriendsOverviewLists LoadLists(AchievementQuery query)
+        {
+            using (PerfScope.Start(_logger, "FriendsOverview.LoadLists", thresholdMs: 25))
+            {
+                return FriendsOverviewLists.Load(_reads, _settings?.Persisted);
+            }
+        }
+
+        private TimeSpan ReadWindow() => IsRefreshing ? RefreshingWindow : LiveQuery<object>.DefaultWindow;
+
+        private void OnListsChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (_disposed || e.PropertyName != nameof(LiveQuery<FriendsOverviewLists>.Result))
+            {
+                return;
+            }
+
+            _current = _lists.Result ?? FriendsOverviewLists.Empty;
+            using (PerfScope.Start(_logger, "FriendsOverview.ApplyLists", thresholdMs: 15))
+            {
+                _friendSearchIndex.Rebuild(_current.Friends);
+                _gameSearchIndex.Rebuild(_current.Games);
+                UpdateRowDecoration();
+                UpdateFilterOptions();
+                ApplyFilters(preserveSelections: true);
+            }
+
+            StatusText = HasData ? null : ResourceProvider.GetString("LOCPlayAch_FriendsOverview_NoData");
+            OnPropertyChanged(nameof(HasData));
+            OnPropertyChanged(nameof(IsProviderDisabled));
+        }
+
+        private void OnReadFailed(Exception ex, string message)
+        {
+            _logger?.Error(ex, message);
+            _scheduler.Post(() =>
+            {
+                if (_disposed)
+                {
+                    return;
+                }
+
+                if (!HasData)
+                {
+                    StatusText = ResourceProvider.GetString("LOCPlayAch_FriendsOverview_LoadFailed");
+                }
+            });
         }
 
         public void ClearFriendSearch()
@@ -921,6 +1039,7 @@ namespace PlayniteAchievements.ViewModels
                 "Friend refresh failed.").ConfigureAwait(true);
         }
 
+        // The refresh's writes reach the grids through the change feed.
         private async Task ExecuteFriendRefreshRequestAsync(RefreshRequest request, string errorLogMessage)
         {
             if (_refreshCoordinator == null)
@@ -943,7 +1062,6 @@ namespace PlayniteAchievements.ViewModels
                         SwallowExceptions = false,
                         ErrorLogMessage = errorLogMessage ?? "Friend refresh failed."
                     }).ConfigureAwait(true);
-                await LoadFromCacheAsync().ConfigureAwait(true);
             }
             catch (Exception ex)
             {
@@ -1208,6 +1326,8 @@ namespace PlayniteAchievements.ViewModels
             return false;
         }
 
+        // Progress display is handled by the shared tracker; here only the friend-scoped
+        // refreshing state (button and command semantics) is kept.
         private void OnRebuildProgress(object sender, ProgressReport report)
         {
             if (report?.Mode?.IsFriendRefreshMode() != true)
@@ -1215,340 +1335,7 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
-            // Progress display is handled by the shared tracker; here we only track the
-            // friend-scoped refreshing state (button/command semantics) and refresh the
-            // friends snapshot when a friend refresh completes.
             IsRefreshing = _refreshRuntime?.IsRebuilding == true;
-
-            if (_refreshRuntime?.IsFinalProgressReport(report) == true)
-            {
-                InvalidateFriendsOverviewSnapshot(forceImmediate: true);
-            }
-        }
-
-        private void OnCacheInvalidated(object sender, EventArgs e)
-        {
-            if (!ShouldReloadFromCacheInvalidation())
-            {
-                return;
-            }
-
-            InvalidateFriendsOverviewSnapshot(forceImmediate: false);
-        }
-
-        private void OnFriendCacheInvalidated(object sender, FriendCacheInvalidatedEventArgs e)
-        {
-            if (_disposed)
-            {
-                return;
-            }
-
-            // Not forceImmediate: friend scans flush cache invalidations every ~2s, and each
-            // immediate reload is a full multi-second snapshot rebuild. The scheduled path
-            // applies the active-refresh interval during scans (and the short idle debounce
-            // otherwise), so scan progress still surfaces on a bounded cadence. The change
-            // scope is passed through so the coordinator can patch instead of fully reloading.
-            InvalidateFriendsOverviewSnapshot(forceImmediate: false, e);
-        }
-
-        private void OnFriendsOverviewSnapshotInvalidated(object sender, EventArgs e)
-        {
-            if (_disposed || Volatile.Read(ref _suppressCoordinatorInvalidationReload) > 0)
-            {
-                return;
-            }
-
-            ScheduleCacheInvalidationReloadOnDispatcher(forceImmediate: false);
-        }
-
-        private void InvalidateFriendsOverviewSnapshot(bool forceImmediate, FriendCacheInvalidatedEventArgs args = null)
-        {
-            if (_disposed)
-            {
-                return;
-            }
-
-            Interlocked.Increment(ref _suppressCoordinatorInvalidationReload);
-            try
-            {
-                _friendsOverviewDataCoordinator?.Invalidate(args);
-            }
-            finally
-            {
-                Interlocked.Decrement(ref _suppressCoordinatorInvalidationReload);
-            }
-
-            ScheduleCacheInvalidationReloadOnDispatcher(forceImmediate);
-        }
-
-        private void ScheduleCacheInvalidationReloadOnDispatcher(bool forceImmediate)
-        {
-            var dispatcher = System.Windows.Application.Current?.Dispatcher;
-            if (dispatcher != null)
-            {
-                dispatcher.InvokeIfNeeded(() => ScheduleCacheInvalidationReload(forceImmediate));
-            }
-            else
-            {
-                ScheduleCacheInvalidationReload(forceImmediate);
-            }
-        }
-
-        private bool ShouldReloadFromCacheInvalidation()
-        {
-            if (_disposed)
-            {
-                return false;
-            }
-
-            if (_refreshRuntime?.IsRebuilding == true)
-            {
-                return _refreshRuntime.GetLastRebuildProgress()?.Mode?.IsFriendRefreshMode() == true;
-            }
-
-            return true;
-        }
-
-        private void ScheduleCacheInvalidationReload(bool forceImmediate)
-        {
-            if (_disposed)
-            {
-                return;
-            }
-
-            var delay = forceImmediate
-                ? TimeSpan.Zero
-                : GetCacheInvalidationReloadDelay();
-
-            if (delay <= TimeSpan.Zero ||
-                _cacheInvalidationDebounceTimer == null)
-            {
-                _cacheInvalidationDebounceTimer?.Stop();
-                _ = LoadFromCacheAsync();
-                return;
-            }
-
-            _cacheInvalidationDebounceTimer.Stop();
-            _cacheInvalidationDebounceTimer.Interval = delay;
-            _cacheInvalidationDebounceTimer.Start();
-        }
-
-        private TimeSpan GetCacheInvalidationReloadDelay()
-        {
-            if (IsActiveFriendRefresh())
-            {
-                if (_activeRefreshInvalidationInterval <= TimeSpan.Zero)
-                {
-                    return TimeSpan.Zero;
-                }
-
-                var elapsed = DateTime.UtcNow - _lastCacheReloadUtc;
-                return elapsed >= _activeRefreshInvalidationInterval
-                    ? TimeSpan.Zero
-                    : _activeRefreshInvalidationInterval - elapsed;
-            }
-
-            return _cacheInvalidationDebounceInterval;
-        }
-
-        private bool IsActiveFriendRefresh()
-        {
-            return _refreshRuntime?.IsRebuilding == true &&
-                   _refreshRuntime.GetLastRebuildProgress()?.Mode?.IsFriendRefreshMode() == true;
-        }
-
-        private async void OnCacheInvalidationDebounceTimerTick(object sender, EventArgs e)
-        {
-            _cacheInvalidationDebounceTimer?.Stop();
-            try
-            {
-                await LoadFromCacheAsync().ConfigureAwait(true);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, "Failed to reload friends overview after cache invalidation.");
-            }
-        }
-
-        private Task LoadFromCacheAsync()
-        {
-            Task queueTask;
-            bool startedNewLoad = false;
-            lock (_loadQueueSync)
-            {
-                if (_disposed)
-                {
-                    return Task.CompletedTask;
-                }
-
-                if (_loadQueueTask == null || _loadQueueTask.IsCompleted)
-                {
-                    _loadAgainRequested = false;
-                    _loadQueueTask = RunLoadFromCacheQueueAsync();
-                    startedNewLoad = true;
-                }
-                else
-                {
-                    _loadAgainRequested = true;
-                }
-
-                queueTask = _loadQueueTask;
-            }
-
-            // Show the loading indicator only for an initial (empty) load, so it fills the blank
-            // window while the first snapshot builds without covering already-populated grids on
-            // routine reloads. It is cleared once the queue drains (RunLoadFromCacheQueueAsync).
-            if (startedNewLoad && !HasData)
-            {
-                SetIsLoadingOnUiThread(true);
-            }
-
-            return queueTask;
-        }
-
-        private void SetIsLoadingOnUiThread(bool value)
-        {
-            var dispatcher = System.Windows.Application.Current?.Dispatcher;
-            if (dispatcher != null && !dispatcher.CheckAccess())
-            {
-                dispatcher.BeginInvoke(new Action(() => IsLoading = value));
-                return;
-            }
-
-            IsLoading = value;
-        }
-
-        private async Task RunLoadFromCacheQueueAsync()
-        {
-            while (true)
-            {
-                lock (_loadQueueSync)
-                {
-                    _loadAgainRequested = false;
-                }
-
-                await LoadFromCacheOnceAsync().ConfigureAwait(false);
-
-                lock (_loadQueueSync)
-                {
-                    if (!_loadAgainRequested || _disposed)
-                    {
-                        _loadQueueTask = null;
-                        SetIsLoadingOnUiThread(false);
-                        return;
-                    }
-                }
-            }
-        }
-
-        private async Task LoadFromCacheOnceAsync()
-        {
-            // Latest-wins guard: a newer load supersedes any in-flight one so its
-            // (possibly stale) results are discarded when they arrive on the UI thread.
-            var version = Interlocked.Increment(ref _loadVersion);
-            _lastCacheReloadUtc = DateTime.UtcNow;
-
-            FriendsOverviewLoadResult result;
-            try
-            {
-                var snapshot = await _friendsOverviewDataCoordinator
-                    .GetSnapshotAsync(CancellationToken.None)
-                    .ConfigureAwait(false);
-
-                if (snapshot == null)
-                {
-                    result = null;
-                }
-                else
-                {
-                    result = await Task
-                        .Run(() =>
-                        {
-                            using (PerfScope.Start(_logger, "FriendsOverview.PrepareSnapshot", thresholdMs: 25))
-                            {
-                                return new FriendsOverviewLoadResult
-                                {
-                                    Projection = snapshot.Projection,
-                                    Friends = snapshot.Friends,
-                                    Games = snapshot.Games,
-                                    RecentUnlocks = snapshot.RecentUnlocks,
-                                    AllAchievements = snapshot.AllAchievements,
-                                    AllUnlockedAchievements = snapshot.AllUnlockedAchievements,
-                                    FriendSearchEntries = _friendSearchIndex.BuildEntries(snapshot.Friends),
-                                    GameSearchEntries = _gameSearchIndex.BuildEntries(snapshot.Games),
-                                    AchievementSearchEntries = _achievementSearchIndex.BuildEntries(
-                                        snapshot.RecentUnlocks.Concat(snapshot.AllAchievements))
-                                };
-                            }
-                        })
-                        .ConfigureAwait(false);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, "Failed to load friends overview cache data.");
-                result = null;
-            }
-
-            void Apply()
-            {
-                if (_disposed || version != Volatile.Read(ref _loadVersion))
-                {
-                    return;
-                }
-
-                if (result != null)
-                {
-                    _projection = result.Projection;
-                    _allFriends = result.Friends;
-                    _allGames = result.Games;
-                    _allRecentUnlocks = result.RecentUnlocks;
-                    _allAchievements = result.AllAchievements;
-                    _allUnlockedAchievements = result.AllUnlockedAchievements;
-                    ResetPairAchievements();
-
-                    using (PerfScope.Start(_logger, "FriendsOverview.ApplyOnUiThread", thresholdMs: 15))
-                    {
-                        _friendSearchIndex.LoadEntries(result.FriendSearchEntries);
-                        _gameSearchIndex.LoadEntries(result.GameSearchEntries);
-                        _achievementSearchIndex.LoadEntries(result.AchievementSearchEntries);
-                        UpdateFilterOptions();
-                        ApplyFilters(preserveSelections: true);
-                    }
-
-                    StatusText = HasData
-                        ? null
-                        : ResourceProvider.GetString("LOCPlayAch_FriendsOverview_NoData");
-                    OnPropertyChanged(nameof(HasData));
-                    OnPropertyChanged(nameof(IsProviderDisabled));
-                }
-                else
-                {
-                    _allFriends = new List<FriendSummaryItem>();
-                    _allGames = new List<FriendGameSummaryItem>();
-                    _allRecentUnlocks = new List<FriendAchievementDisplayItem>();
-                    _allAchievements = new List<FriendAchievementDisplayItem>();
-                    _allUnlockedAchievements = new List<FriendAchievementDisplayItem>();
-                    ResetPairAchievements();
-                    _projection = new FriendOverviewProjection(null);
-                    CollectionHelper.Replace(FilteredFriends, Array.Empty<FriendSummaryItem>());
-                    CollectionHelper.Replace(FilteredGames, Array.Empty<FriendGameSummaryItem>());
-                    CollectionHelper.Replace(SelectedFriendGameAllAchievements, Array.Empty<FriendAchievementDisplayItem>());
-                    CollectionHelper.Replace(DisplayedAchievements, Array.Empty<FriendAchievementDisplayItem>());
-                    StatusText = ResourceProvider.GetString("LOCPlayAch_FriendsOverview_LoadFailed");
-                    OnPropertyChanged(nameof(HasData));
-                }
-            }
-
-            var dispatcher = System.Windows.Application.Current?.Dispatcher;
-            if (dispatcher != null)
-            {
-                dispatcher.InvokeIfNeeded(Apply);
-            }
-            else
-            {
-                Apply();
-            }
         }
 
         private void ApplyFilters(bool preserveSelections = false)
@@ -1574,9 +1361,8 @@ namespace PlayniteAchievements.ViewModels
 
                 var friendQuery = SearchQuery.From(FriendSearchText);
                 var gameQuery = SearchQuery.From(GameSearchText);
-                var achievementQuery = SearchQuery.From(AchievementSearchText);
 
-                var friends = _allFriends
+                var friends = _current.Friends
                     .Where(friend => friend != null)
                     .Where(friend => _friendSearchIndex.Matches(friend, friendQuery));
                 if (_selectedFriendProviderFilters.Count > 0)
@@ -1603,11 +1389,13 @@ namespace PlayniteAchievements.ViewModels
 
                 // With no friend selected the favorites view is its own aggregate: the games at
                 // least one favorite has data for, with the friend columns computed over them.
+                // Its read may still be on its way; the selection waits for it.
+                var gamesPending = false;
                 var gameSource = SelectedFriend != null
-                    ? GetSelectedFriendGames(SelectedFriend)
+                    ? _current.GamesOf(SelectedFriend)
                     : FavoritesOnly
-                        ? _projection?.FavoriteAggregateGames ?? (IReadOnlyList<FriendGameSummaryItem>)Array.Empty<FriendGameSummaryItem>()
-                        : _allGames;
+                        ? GetFavoriteGames(out gamesPending)
+                        : _current.Games;
 
                 // No unlock gating here: the games list is ownership-driven and the cache only holds
                 // ownership rows that should display (owned games unconditionally; provider-only games
@@ -1660,7 +1448,7 @@ namespace PlayniteAchievements.ViewModels
                     var matchingGame = gameList.FirstOrDefault(game => IsSameGame(game, SelectedGame));
                     if (matchingGame == null)
                     {
-                        if (preserveSelections)
+                        if (preserveSelections || gamesPending)
                         {
                             gameList.Insert(0, SelectedGame);
                         }
@@ -1687,74 +1475,8 @@ namespace PlayniteAchievements.ViewModels
                     return;
                 }
 
-                // Locked rows only make sense in the single friend + single game comparison view;
-                // every aggregated view (friend-only, game-only) shows unlocked rows, and no
-                // selection keeps the recent-unlocks feed. Pair rows (locked included) load on
-                // demand per selected game.
-                IReadOnlyList<FriendAchievementDisplayItem> achievementSource = HasFriendGameSelection
-                    ? ResolvePairAchievementSource()
-                    : HasAnySelection
-                        ? _allUnlockedAchievements
-                        : _allRecentUnlocks;
-
-                IEnumerable<FriendAchievementDisplayItem> scoped = achievementSource;
-                if (SelectedFriend != null)
-                {
-                    scoped = scoped.Where(achievement => IsSameFriend(achievement, SelectedFriend));
-                }
-                else if (FavoritesOnly)
-                {
-                    // Matched through the friend rows rather than the achievement's own favorite
-                    // flag, so the three grids agree on who counts as a favorite.
-                    var favoriteKeys = new HashSet<string>(
-                        _allFriends.Where(friend => friend?.IsFavorite == true)
-                            .Select(FriendOverviewProjection.GetFriendScopeKey)
-                            .Where(key => !string.IsNullOrWhiteSpace(key)),
-                        StringComparer.OrdinalIgnoreCase);
-                    scoped = scoped.Where(achievement =>
-                        favoriteKeys.Contains(FriendOverviewProjection.GetFriendScopeKey(achievement)));
-                }
-
-                if (SelectedGame != null)
-                {
-                    scoped = scoped.Where(achievement => IsSameGame(achievement, SelectedGame));
-                }
-
-                var scopedList = scoped.ToList();
-
-                // Unlock-state toggles only apply in the pair comparison view; every other source
-                // is unlocked rows only, so the buttons auto-hide once UpdateOptions finds no
-                // locked rows and the adapter stops filtering by them.
-                // Type and category options only make sense once a single game is selected
-                // (achievement types/categories are game-specific vocabulary); with no game
-                // selected they're cleared, which auto-hides the dropdowns.
-                _achievementsBar.UpdateOptions(SelectedGame != null ? scopedList : null);
-
-                if (HasFriendGameSelection && !ReferenceEquals(achievementSource, _pairGameAchievements))
-                {
-                    // The on-demand pair row load has not landed yet (or loaded empty), so the
-                    // toggles must not wait on it: the friend-scoped game summary already carries
-                    // the exact unlocked/total counts. Hidden-locked existence is only knowable
-                    // from rows, so it is assumed alongside locked rows and settled by the exact
-                    // pass when the fetch completes.
-                    var summary = GetSelectedFriendGameForHeader();
-                    var unlocked = summary?.UnlockedAchievements ?? 0;
-                    var total = summary?.TotalAchievements ?? 0;
-                    _achievementsBar.OverrideUnlockStateAvailability(
-                        unlocked > 0,
-                        total > unlocked,
-                        total > unlocked);
-                }
-
-                var achievementList = _achievementsBar
-                    .Apply(scopedList.Where(achievement =>
-                        _achievementSearchIndex.Matches(achievement, achievementQuery)))
-                    .OfType<FriendAchievementDisplayItem>()
-                    .ToList();
-
                 _filteredFriendsList = friendList;
                 _filteredGamesList = gameList;
-                _filteredAchievementsList = achievementList;
 
                 if (!string.IsNullOrEmpty(_friendSortPath))
                 {
@@ -1787,50 +1509,10 @@ namespace PlayniteAchievements.ViewModels
                         GameSummariesSortSurface.FriendsOverview);
                 }
 
-                if (!string.IsNullOrEmpty(_achievementSortPath))
-                {
-                    var achievementSortDirection = (ListSortDirection?)_achievementSortDirection;
-                    if (AchievementSortHelper.TrySortItems(
-                            _filteredAchievementsList,
-                            _achievementSortPath,
-                            _achievementSortDirection,
-                            AchievementSortScope.RecentAchievements,
-                            ref _achievementSortPath,
-                            ref achievementSortDirection) &&
-                        achievementSortDirection.HasValue)
-                    {
-                        _achievementSortDirection = achievementSortDirection.Value;
-                    }
-                }
-                else
-                {
-                    ApplyAchievementConfiguredDefaultSort();
-                }
-
-                var persisted = _settings?.Persisted;
-                CollectionHelper.Replace(FilteredFriends, DisplayGridRowLimitHelper.Limit(
-                    _filteredFriendsList,
-                    persisted?.FriendsOverviewFriendSummariesGridMaxRows));
-                CollectionHelper.Replace(FilteredGames, DisplayGridRowLimitHelper.Limit(
-                    _filteredGamesList,
-                    persisted?.FriendsOverviewGameSummariesGridMaxRows));
-                // Keep the unfiltered category-summary source current; achievement filters and grid
-                // sorts never touch it, so the category fallback order stays the definition-ordered
-                // snapshot loaded from the cache. Replaced before DisplayedAchievements so the grid's
-                // items-source reset rebuilds category rollups from the new selection's rows.
-                CollectionHelper.Replace(SelectedFriendGameAllAchievements, HasFriendGameSelection
-                    ? achievementSource.Where(achievement =>
-                        IsSameFriend(achievement, SelectedFriend) &&
-                        IsSameGame(achievement, SelectedGame))
-                    : Enumerable.Empty<FriendAchievementDisplayItem>());
-                CollectionHelper.Replace(DisplayedAchievements, DisplayGridRowLimitHelper.Limit(
-                    _filteredAchievementsList,
-                    persisted?.FriendsOverviewAchievementsGridMaxRows));
-                // The pair rows hold every friend's state for the game; the other views list
-                // unlocked rows only, and the compare side is read from all of them.
-                UpdateCompareState(
-                    HasFriendGameSelection ? achievementSource : _allUnlockedAchievements,
-                    scopedList);
+                SyncFriendsDisplay();
+                SyncGamesDisplay();
+                UpdateCompareScope();
+                UpdateAchievementQueries();
                 OnPropertyChanged(nameof(AchievementCountText));
                 OnPropertyChanged(nameof(HasData));
             }
@@ -1840,119 +1522,432 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        // Returns the pair comparison's achievement source: the on-demand full rows when they
-        // are loaded (or loaded-empty, falling back), otherwise the snapshot's unlocked rows
-        // while a fetch for the selected game runs.
-        private IReadOnlyList<FriendAchievementDisplayItem> ResolvePairAchievementSource()
+        // The favorites' games, from their read; empty with pending set while it runs.
+        private IReadOnlyList<FriendGameSummaryItem> GetFavoriteGames(out bool pending)
         {
-            var key = FriendOverviewProjection.GetGameScopeKey(SelectedGame);
-            if (string.IsNullOrWhiteSpace(key) ||
-                string.Equals(key, FriendOverviewProjection.AllScopeKey, StringComparison.OrdinalIgnoreCase))
-            {
-                return _allAchievements;
-            }
-
-            if (_pairGameAchievements != null &&
-                string.Equals(_pairGameKey, key, StringComparison.OrdinalIgnoreCase))
-            {
-                // A loaded-but-empty result (no cached definitions for the game) falls back to
-                // the unlocked rows instead of blanking the grid; it is cached either way so
-                // filter churn does not re-query.
-                return _pairGameAchievements.Count > 0 ? _pairGameAchievements : _allAchievements;
-            }
-
-            BeginPairAchievementsFetch(key, SelectedGame);
-            return _allAchievements;
+            var totals = _favoriteGames?.Result;
+            pending = totals == null;
+            return totals == null
+                ? Array.Empty<FriendGameSummaryItem>()
+                : _current.GamesOf(_current.FavoriteAccounts(), totals);
         }
 
-        private void BeginPairAchievementsFetch(string key, FriendGameSummaryItem game)
+        /// <summary>
+        /// The friends and game the achievements grid shows, and whether its rows are unlocked
+        /// only: every friend's recent unlocks, a friend's or a game's unlocks, or a friend and
+        /// game's every achievement. Favorites stand in for every friend.
+        /// </summary>
+        internal AchievementQuery BuildScopeQuery()
         {
-            if (_friendCache == null ||
-                game == null ||
-                string.Equals(_pairGameKeyInFlight, key, StringComparison.OrdinalIgnoreCase))
-            {
-                return;
-            }
+            var query = SelectedFriend == null && FavoritesOnly
+                ? AchievementQuery.AllFriends.ForFriendAccounts(_current.FavoriteAccounts())
+                : AchievementQuery.AllFriends;
+            query = FriendsOverviewLists.Scope(query, SelectedFriend, SelectedGame);
 
-            _pairGameKeyInFlight = key;
-            var version = Interlocked.Increment(ref _pairFetchVersion);
-            var gameScope = FriendCacheChange.ForGameDefinition(
-                game.ProviderKey,
-                game.AppId,
-                game.ProviderGameKey);
-            PairAchievementsFetchTask = FetchPairAchievementsAsync(version, key, gameScope);
+            // Locked rows show only for one friend and one game; the recent feed lists the
+            // unlocks that have a time.
+            return HasFriendGameSelection
+                ? query
+                : HasAnySelection
+                    ? query.WhereUnlocked(true)
+                    : query.WhereUnlocked(true).WhereUnlockTimeKnown();
         }
 
-        private async Task FetchPairAchievementsAsync(int version, string key, FriendCacheChange gameScope)
+        /// <summary>The grid's query: the scope, the bar's filters, search, sort and compare.</summary>
+        internal AchievementQuery BuildAchievementQuery(AchievementQuery scope)
         {
-            List<FriendAchievementDisplayItem> rows = null;
-            try
+            var query = _achievementsBar.ApplyTo(scope).WithFriendNames(_current.FriendNames);
+            if (SearchQuery.From(AchievementSearchText).HasValue)
             {
-                rows = await Task
-                    .Run(() => FriendOverviewProjection.ApplyMergeIdentity(
-                        _friendCache.LoadFriendGameAchievementData(gameScope),
-                        _settings?.Persisted))
-                    .ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, "Failed to load friend pair achievement rows.");
+                query = query.WhereSearch(AchievementSearchText);
             }
 
-            void Apply()
+            var compareFriend = _friendCompare.IsSelfSelected ? null : _friendCompare.CompareFriend;
+            if (compareFriend != null)
             {
-                if (_disposed || version != Volatile.Read(ref _pairFetchVersion))
-                {
-                    return;
-                }
-
-                _pairGameKeyInFlight = null;
-                _pairGameKey = key;
-                _pairGameAchievements = rows ?? new List<FriendAchievementDisplayItem>();
-                ApplyFilters(preserveSelections: true);
+                query = query.CompareWith(FriendsOverviewLists.AccountsOf(compareFriend));
             }
 
-            var dispatcher = System.Windows.Application.Current?.Dispatcher;
-            if (dispatcher != null)
-            {
-                dispatcher.InvokeIfNeeded(Apply);
-            }
-            else
-            {
-                Apply();
-            }
+            return ApplyAchievementSort(query, scope);
         }
 
-        // Drops the on-demand pair rows and discards any in-flight fetch result; the next
-        // pair-scoped ApplyFilters re-fetches against the fresh cache state.
-        private void ResetPairAchievements()
+        // The column sort, else the configured default, else the scope's own order: newest
+        // unlocks first for the recent feed, friend, game and definition order otherwise.
+        private AchievementQuery ApplyAchievementSort(AchievementQuery query, AchievementQuery scope)
         {
-            Interlocked.Increment(ref _pairFetchVersion);
-            _pairGameAchievements = null;
-            _pairGameKey = null;
-            _pairGameKeyInFlight = null;
-        }
+            if (!string.IsNullOrEmpty(_achievementSortPath) && AchievementQuery.SortOfColumn(_achievementSortPath) is AchievementSort column)
+            {
+                return query.OrderBy(column, _achievementSortDirection == ListSortDirection.Descending);
+            }
 
-        private void ApplyAchievementConfiguredDefaultSort()
-        {
-            var configuredSort = AchievementSortHelper.GetConfiguredDefaultSort(
+            var configured = AchievementSortHelper.GetConfiguredDefaultSort(
                 _settings?.Persisted,
                 AchievementSortSurface.FriendsOverviewRecentAchievements);
-            if (configuredSort.PreservesSourceOrder)
+            if (!configured.PreservesSourceOrder && AchievementQuery.SortOfColumn(configured.SortMemberPath) is AchievementSort configuredSort)
+            {
+                return query.OrderBy(configuredSort, configured.Direction == ListSortDirection.Descending);
+            }
+
+            return scope.RequireUnlockTime
+                ? query.OrderBy(AchievementSort.UnlockTime, descending: true)
+                : query.OrderBy(AchievementSort.Display);
+        }
+
+        /// <summary>
+        /// Points every read at the current selection, filters, search, sort and compare pick;
+        /// a read whose query is unchanged is left alone. Nothing reads before the lists land:
+        /// the queries name the friends and favorites the lists bring.
+        /// </summary>
+        private void UpdateAchievementQueries()
+        {
+            if (_disposed || _lists?.Result == null)
             {
                 return;
             }
 
-            var comparison = AchievementSortHelper.GetComparison(
-                configuredSort.SortMemberPath,
-                configuredSort.Direction,
-                AchievementSortScope.RecentAchievements);
-            if (comparison == null)
+            var scope = BuildScopeQuery();
+            UpdateFavoriteGamesRead();
+            UpdateBarOptionsRead(scope);
+            UpdatePairRowsRead(scope);
+            UpdateRowDecoration();
+
+            var query = BuildAchievementQuery(scope);
+            var key = KeyOf(query) + "|" + _rowDecoration.Key;
+            var scopeKey = KeyOf(scope);
+            var cap = PersistedSettings.NormalizeGridMaxRows(_settings?.Persisted?.FriendsOverviewAchievementsGridMaxRows);
+            if (_achievements == null || cap != _achievementsCap)
+            {
+                _achievements?.Dispose();
+                _achievementsCap = cap;
+                _achievementsKey = key;
+                _achievementsScopeKey = scopeKey;
+                _achievements = new PagedRows<FriendAchievementDisplayItem>(
+                    _reads.Feed,
+                    query,
+                    LoadKeys,
+                    LoadRows,
+                    () => new FriendAchievementDisplayItem { IsPlaceholder = true },
+                    _scheduler,
+                    cap ?? 0,
+                    ReadWindow,
+                    ex => OnReadFailed(ex, "Failed to load friend achievement rows."),
+                    (kept, fresh) => kept.RefreshFrom(fresh),
+                    PlaceholderRows.Count,
+                    gate: _gate);
+                OnPropertyChanged(nameof(DisplayedAchievements));
+                OnPropertyChanged(nameof(AchievementRows));
+                return;
+            }
+
+            if (!string.Equals(key, _achievementsKey, StringComparison.Ordinal))
+            {
+                // A new selection lists other rows from their top; a filter, search or sort keeps
+                // the place the grid is at.
+                var fromStart = !string.Equals(scopeKey, _achievementsScopeKey, StringComparison.Ordinal);
+                _achievementsKey = key;
+                _achievementsScopeKey = scopeKey;
+                _achievements.SetQuery(query, fromStart);
+            }
+        }
+
+        private IReadOnlyList<AchievementQuerySql.RowKey> LoadKeys(AchievementQuery query)
+        {
+            using (PerfScope.Start(_logger, "FriendsOverview.LoadKeys", thresholdMs: 25))
+            {
+                return _reads.SortedKeys(query);
+            }
+        }
+
+        private IReadOnlyList<FriendAchievementDisplayItem> LoadRows(AchievementQuery query, IReadOnlyList<AchievementQuerySql.RowKey> keys)
+        {
+            using (PerfScope.Start(_logger, "FriendsOverview.LoadRows", thresholdMs: 25, context: "rows=" + keys.Count))
+            {
+                var rows = _reads.Rows(query, keys) ?? Array.Empty<FriendAchievementDisplayItem>();
+                _rowDecoration.Apply(rows);
+                return rows;
+            }
+        }
+
+        // With no friend selected, the favorites' games read; dropped otherwise.
+        private void UpdateFavoriteGamesRead()
+        {
+            if (SelectedFriend != null || !FavoritesOnly)
+            {
+                _favoriteGames?.Dispose();
+                _favoriteGames = null;
+                _favoriteGamesKey = null;
+                return;
+            }
+
+            var query = AchievementQuery.AllFriends
+                .ForFriendAccounts(_current.FavoriteAccounts())
+                .WhereUnlocked(true)
+                .CountDistinctAchievements();
+            var key = KeyOf(query);
+            if (_favoriteGames != null && string.Equals(key, _favoriteGamesKey, StringComparison.Ordinal))
             {
                 return;
             }
 
-            _filteredAchievementsList.Sort(comparison);
+            _favoriteGamesKey = key;
+            if (_favoriteGames != null)
+            {
+                _favoriteGames.SetQuery(query);
+                return;
+            }
+
+            _favoriteGames = new LiveQuery<IReadOnlyList<AchievementTotalsRecord>>(
+                _reads.Feed,
+                query,
+                read => _reads.Totals(read, AchievementGroup.ProviderGame),
+                _scheduler,
+                ReadWindow,
+                ex => OnReadFailed(ex, "Failed to load favorite friends' games."),
+                gate: _gate);
+            _favoriteGames.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(LiveQuery<object>.Result) && !_disposed)
+                {
+                    ApplyFilters(preserveSelections: true);
+                }
+            };
+        }
+
+        // Type, category, unlock-state and trophy options are a game's vocabulary: offered while
+        // a game is selected, from totals of the grid's scope.
+        private void UpdateBarOptionsRead(AchievementQuery scope)
+        {
+            if (SelectedGame == null)
+            {
+                _barOptions?.Dispose();
+                _barOptions = null;
+                _barOptionsKey = null;
+                if (_barOptionsOffered)
+                {
+                    _barOptionsOffered = false;
+                    _achievementsBar.UpdateOptions((AchievementBarOptions)null);
+                }
+
+                return;
+            }
+
+            _barOptionsOffered = true;
+
+            var key = KeyOf(scope);
+            if (_barOptions != null && string.Equals(key, _barOptionsKey, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _barOptionsKey = key;
+            if (_barOptions != null)
+            {
+                _barOptions.SetQuery(scope);
+                return;
+            }
+
+            _barOptions = new LiveQuery<AchievementBarOptions>(
+                _reads.Feed,
+                scope,
+                LoadBarOptions,
+                _scheduler,
+                ReadWindow,
+                ex => OnReadFailed(ex, "Failed to load friend achievement filter options."),
+                gate: _gate);
+            _barOptions.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(LiveQuery<object>.Result) && !_disposed)
+                {
+                    _achievementsBar.UpdateOptions(_barOptions?.Result);
+                    UpdateAchievementQueries();
+                }
+            };
+        }
+
+        private AchievementBarOptions LoadBarOptions(AchievementQuery scope)
+        {
+            var categories = _reads.Totals(scope, AchievementGroup.Category);
+            var tags = _reads.Totals(scope, AchievementGroup.Tag);
+            long count = 0, unlocked = 0, hiddenLocked = 0, trophies = 0;
+            var orders = new Dictionary<string, long>(StringComparer.Ordinal);
+            var firstRows = new Dictionary<string, string>(StringComparer.Ordinal);
+            var labels = new List<string>();
+            foreach (var total in categories)
+            {
+                count += total.Count;
+                unlocked += total.UnlockedCount;
+                hiddenLocked += total.HiddenLockedCount;
+                trophies += total.PlatinumCount + total.GoldCount + total.SilverCount + total.BronzeCount;
+                var label = AchievementCategoryHelper.NormalizeCategoryOrDefault(total.Key);
+                if (!orders.TryGetValue(label, out var order))
+                {
+                    labels.Add(label);
+                    orders[label] = total.MinCategoryOrder ?? long.MaxValue;
+                    firstRows[label] = total.FirstDisplayOrder ?? string.Empty;
+                    continue;
+                }
+
+                orders[label] = Math.Min(order, total.MinCategoryOrder ?? long.MaxValue);
+                if (string.CompareOrdinal(total.FirstDisplayOrder ?? string.Empty, firstRows[label]) < 0)
+                {
+                    firstRows[label] = total.FirstDisplayOrder;
+                }
+            }
+
+            return new AchievementBarOptions
+            {
+                HasUnlocked = unlocked > 0,
+                HasLocked = count > unlocked,
+                HasHiddenLocked = hiddenLocked > 0,
+                HasTrophies = trophies > 0,
+                GameId = SelectedGameIdOf(scope),
+                Tags = tags.Where(total => total.Key != null).Select(total => total.Key).ToList(),
+                // The custom category order first, then the rest in definition order.
+                CategoryLabels = labels
+                    .OrderBy(label => orders[label])
+                    .ThenBy(label => firstRows[label], StringComparer.Ordinal)
+                    .ToList()
+            };
+        }
+
+        private static Guid? SelectedGameIdOf(AchievementQuery scope) =>
+            scope.GameIds?.Count == 1 ? scope.GameIds[0] : (Guid?)null;
+
+        // The friend and game's every row, unfiltered, in definition order, for the category
+        // rollups; only while both are selected.
+        private void UpdatePairRowsRead(AchievementQuery scope)
+        {
+            if (!HasFriendGameSelection)
+            {
+                _pairRows?.Dispose();
+                _pairRows = null;
+                _pairRowsKey = null;
+                CollectionHelper.Replace(SelectedFriendGameAllAchievements, Array.Empty<FriendAchievementDisplayItem>());
+                return;
+            }
+
+            var query = scope.OrderBy(AchievementSort.Display);
+            var key = KeyOf(query);
+            if (_pairRows != null && string.Equals(key, _pairRowsKey, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _pairRowsKey = key;
+            if (_pairRows != null)
+            {
+                _pairRows.SetQuery(query);
+                return;
+            }
+
+            _pairRows = new LiveQuery<IReadOnlyList<FriendAchievementDisplayItem>>(
+                _reads.Feed,
+                query,
+                read =>
+                {
+                    var rows = _reads.Rows(read) ?? Array.Empty<FriendAchievementDisplayItem>();
+                    _rowDecoration.Lists.StampIdentity(rows, _rowDecoration.Settings);
+                    return rows;
+                },
+                _scheduler,
+                ReadWindow,
+                ex => OnReadFailed(ex, "Failed to load friend pair rows."),
+                gate: _gate);
+            _pairRows.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(LiveQuery<object>.Result) && !_disposed)
+                {
+                    CollectionHelper.Replace(
+                        SelectedFriendGameAllAchievements,
+                        _pairRows?.Result ?? Array.Empty<FriendAchievementDisplayItem>());
+                }
+            };
+        }
+
+        private static string KeyOf(AchievementQuery query) => AchievementQuerySql.KeyOf(query);
+
+        // What loaded rows are given beyond their columns: the friend identity and the compare
+        // side's names. Replaced, never changed, so a read off the UI thread sees one whole.
+        private void UpdateRowDecoration()
+        {
+            var compareSelf = _friendCompare.IsSelfSelected;
+            _rowDecoration = new RowDecoration(
+                _current,
+                _settings?.Persisted,
+                compareSelf ? null : _friendCompare.CompareFriend,
+                compareSelf ? _friendCompare : null,
+                SelectedFriend);
+        }
+
+        private sealed class RowDecoration
+        {
+            private readonly FriendSummaryItem _compareFriend;
+            private readonly FriendVsFriendCompareController _self;
+            private readonly FriendSummaryItem _owner;
+
+            public RowDecoration(
+                FriendsOverviewLists lists,
+                PersistedSettings settings,
+                FriendSummaryItem compareFriend,
+                FriendVsFriendCompareController self,
+                FriendSummaryItem owner)
+            {
+                Lists = lists ?? FriendsOverviewLists.Empty;
+                Settings = settings;
+                _compareFriend = compareFriend;
+                _self = self;
+                _owner = owner;
+                Key = (compareFriend != null ? "friend:" + FriendOverviewProjection.GetFriendScopeKey(compareFriend) + "|" + compareFriend.DisplayName : string.Empty) +
+                      (self != null ? "self:" + self.IdentityVersion : string.Empty) +
+                      (compareFriend != null || self != null ? "|owner:" + owner?.DisplayName : string.Empty);
+            }
+
+            public FriendsOverviewLists Lists { get; }
+
+            public PersistedSettings Settings { get; }
+
+            /// <summary>Which names and comparison the rows are given; a change reloads them.</summary>
+            public string Key { get; }
+
+            public void Apply(IReadOnlyList<FriendAchievementDisplayItem> rows)
+            {
+                Lists.StampIdentity(rows, Settings);
+                foreach (var row in rows)
+                {
+                    if (_self != null)
+                    {
+                        // The self identity follows each row's provider; a game the user has no
+                        // progress for reads N/A, not Locked.
+                        row.ApplyComparison(
+                            _self.SelfLabel(row.ProviderKey),
+                            _self.SelfAvatarPath(row.ProviderKey),
+                            row.SelfUnlockTimeUtc,
+                            row.UnlockedBySelf,
+                            _owner?.DisplayName ?? row.FriendName,
+                            _owner?.AvatarPath ?? row.FriendAvatarPath,
+                            row.SelfHasGameData);
+                    }
+                    else if (_compareFriend != null)
+                    {
+                        // A friend is not compared with themself: with no friend selected the
+                        // compare friend's own rows are listed too, and stay as they are.
+                        if (FriendOverviewProjection.IsSameFriend(row, _compareFriend))
+                        {
+                            row.ClearComparison();
+                            continue;
+                        }
+
+                        row.ApplyComparison(
+                            _compareFriend.DisplayName,
+                            _compareFriend.AvatarPath,
+                            row.ComparisonUnlockTimeUtc,
+                            row.ComparisonUnlocked,
+                            _owner?.DisplayName ?? row.FriendName,
+                            _owner?.AvatarPath ?? row.FriendAvatarPath,
+                            row.ComparisonApplicable);
+                    }
+                }
+            }
         }
 
         public void SortDataGrid(DataGrid dataGrid, string sortMemberPath, ListSortDirection direction)
@@ -1970,10 +1965,6 @@ namespace PlayniteAchievements.ViewModels
             else if (itemsSource == FilteredGames)
             {
                 SortGames(sortMemberPath, direction);
-            }
-            else if (itemsSource == DisplayedAchievements)
-            {
-                SortAchievements(sortMemberPath, direction);
             }
         }
 
@@ -2007,26 +1998,17 @@ namespace PlayniteAchievements.ViewModels
             SyncGamesDisplay();
         }
 
-        private void SortAchievements(string sortMemberPath, ListSortDirection direction)
+        /// <summary>Sorts the achievements grid by a column; a column with no query order is ignored.</summary>
+        public void SortAchievements(string sortMemberPath, ListSortDirection direction)
         {
-            var achievementSortDirection = (ListSortDirection?)_achievementSortDirection;
-            if (!AchievementSortHelper.TrySortItems(
-                    _filteredAchievementsList,
-                    sortMemberPath,
-                    direction,
-                    AchievementSortScope.RecentAchievements,
-                    ref _achievementSortPath,
-                    ref achievementSortDirection))
+            if (AchievementQuery.SortOfColumn(sortMemberPath) == null)
             {
                 return;
             }
 
-            if (achievementSortDirection.HasValue)
-            {
-                _achievementSortDirection = achievementSortDirection.Value;
-            }
-
-            SyncAchievementsDisplay();
+            _achievementSortPath = sortMemberPath;
+            _achievementSortDirection = direction;
+            UpdateAchievementQueries();
         }
 
         public void ApplyDefaultFriendSort()
@@ -2044,11 +2026,17 @@ namespace PlayniteAchievements.ViewModels
         public void ApplyDefaultAchievementSort()
         {
             _achievementSortPath = null;
-            ApplyFilters(preserveSelections: true);
+            UpdateAchievementQueries();
         }
 
+        // The skeleton rows stay until the lists land.
         private void SyncFriendsDisplay()
         {
+            if (_lists?.Result == null)
+            {
+                return;
+            }
+
             CollectionHelper.Replace(FilteredFriends, DisplayGridRowLimitHelper.Limit(
                 _filteredFriendsList,
                 _settings?.Persisted?.FriendsOverviewFriendSummariesGridMaxRows));
@@ -2056,21 +2044,14 @@ namespace PlayniteAchievements.ViewModels
 
         private void SyncGamesDisplay()
         {
+            if (_lists?.Result == null)
+            {
+                return;
+            }
+
             CollectionHelper.Replace(FilteredGames, DisplayGridRowLimitHelper.Limit(
                 _filteredGamesList,
                 _settings?.Persisted?.FriendsOverviewGameSummariesGridMaxRows));
-        }
-
-        private void SyncAchievementsDisplay()
-        {
-            CollectionHelper.Replace(DisplayedAchievements, DisplayGridRowLimitHelper.Limit(
-                _filteredAchievementsList,
-                _settings?.Persisted?.FriendsOverviewAchievementsGridMaxRows));
-        }
-
-        private IReadOnlyList<FriendGameSummaryItem> GetSelectedFriendGames(FriendSummaryItem friend)
-        {
-            return _projection?.GetSelectedFriendGames(friend) ?? Array.Empty<FriendGameSummaryItem>();
         }
 
         private FriendGameSummaryItem GetSelectedFriendGameForHeader()
@@ -2080,24 +2061,19 @@ namespace PlayniteAchievements.ViewModels
                 return SelectedGame;
             }
 
-            return GetSelectedFriendGames(SelectedFriend)
+            return _current.GamesOf(SelectedFriend)
                 .FirstOrDefault(game => IsSameGame(game, SelectedGame)) ??
                    SelectedGame;
         }
 
         private bool HasFriendGamePairData(FriendSummaryItem friend, FriendGameSummaryItem game)
         {
-            return _projection?.HasFriendGamePairData(friend, game) == true;
+            return _current.HasPairData(friend, game);
         }
 
         private static bool IsSameFriend(FriendSummaryItem left, FriendSummaryItem right)
         {
             return FriendOverviewProjection.IsSameFriend(left, right);
-        }
-
-        private static bool IsSameFriend(FriendAchievementDisplayItem achievement, FriendSummaryItem friend)
-        {
-            return FriendOverviewProjection.IsSameFriend(achievement, friend);
         }
 
         private static bool IsSameGame(FriendGameSummaryItem left, FriendGameSummaryItem right)
@@ -2170,16 +2146,11 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        private static bool IsSameGame(FriendAchievementDisplayItem achievement, FriendGameSummaryItem game)
-        {
-            return FriendOverviewProjection.IsSameGame(achievement, game);
-        }
-
         private void UpdateFilterOptions()
         {
             ReplaceOptions(
                 FriendProviderFilterOptions,
-                _allFriends.SelectMany(GetProviderFilterKeys));
+                _current.Friends.SelectMany(GetProviderFilterKeys));
             PruneFilterSelections(_selectedFriendProviderFilters, FriendProviderFilterOptions);
             OnPropertyChanged(nameof(SelectedFriendProviderFilterText));
             FriendSummariesControlBar?.Refresh();
@@ -2203,8 +2174,8 @@ namespace PlayniteAchievements.ViewModels
             _gameFilterOptionsFriend = SelectedFriend;
 
             var source = SelectedFriend != null
-                ? GetSelectedFriendGames(SelectedFriend)
-                : _allGames;
+                ? _current.GamesOf(SelectedFriend)
+                : _current.Games;
 
             GamePlatformFilterGroups = ProviderFilterGroupBuilder.Rebuild(
                 source,
@@ -2248,14 +2219,10 @@ namespace PlayniteAchievements.ViewModels
             GameSummariesControlBar?.Refresh();
         }
 
-        // Keeps the compare enrichment in sync with the listed rows: drops the compare selection
-        // when the selected friend or game changes, switches to the pick remembered for the view
-        // the grid is now in, then hands the rows to the shared controller, which clears the
-        // previous comparison and applies the current one. The compare side is read from
-        // rowPool and drawn onto targetRows.
-        private void UpdateCompareState(
-            IReadOnlyList<FriendAchievementDisplayItem> rowPool,
-            IReadOnlyList<FriendAchievementDisplayItem> targetRows)
+        // Drops the compare selection when the selected friend or game changes and switches to
+        // the pick remembered for the view the grid is now in. The comparison itself is part of
+        // the grid's query.
+        private void UpdateCompareScope()
         {
             var scopeChanged =
                 (SelectedFriend == null
@@ -2282,7 +2249,7 @@ namespace PlayniteAchievements.ViewModels
                     state => _saveCompareSelection?.Invoke(surfaceKey, state));
             }
 
-            _friendCompare.UpdateRows(rowPool, targetRows);
+            _friendCompare.UpdateRows(null, null);
         }
 
         private static void ReplaceOptions(ObservableCollection<string> target, IEnumerable<string> values)
@@ -2375,7 +2342,15 @@ namespace PlayniteAchievements.ViewModels
             OnPropertyChanged(nameof(AchievementSectionTitle));
             OnPropertyChanged(nameof(AchievementCountText));
             // Both the option list and its availability follow the selection.
-            _friendCompare.Refresh();
+            _notifyingSelection = true;
+            try
+            {
+                _friendCompare.Refresh();
+            }
+            finally
+            {
+                _notifyingSelection = false;
+            }
         }
 
         private void RaiseRefreshCanExecuteChanged()
@@ -2395,22 +2370,23 @@ namespace PlayniteAchievements.ViewModels
             if (string.IsNullOrWhiteSpace(propertyName) ||
                 propertyName == nameof(PersistedSettings.ProviderColorOverrides))
             {
-                foreach (var friend in _allFriends)
+                foreach (var friend in _current.Friends)
                 {
                     friend?.RefreshProviderAppearance();
                 }
 
-                foreach (var game in _allGames)
+                foreach (var game in _current.Games)
                 {
                     game?.RefreshProviderAppearance();
                 }
             }
 
+            // The rows read spoilers and name display when they are mapped.
             if (string.IsNullOrWhiteSpace(propertyName) ||
                 propertyName == nameof(PersistedSettings.ShowFriendSpoilers) ||
                 propertyName == nameof(PersistedSettings.FriendNameDisplayMode))
             {
-                _friendsOverviewDataCoordinator?.Invalidate();
+                Reload();
             }
 
             if (string.IsNullOrWhiteSpace(propertyName) ||
@@ -2449,7 +2425,7 @@ namespace PlayniteAchievements.ViewModels
                 (string.IsNullOrWhiteSpace(propertyName) ||
                  AchievementSortHelper.IsConfiguredDefaultSortPropertyName(propertyName, AchievementSortSurface.FriendsOverviewRecentAchievements)))
             {
-                ApplyFilters();
+                UpdateAchievementQueries();
                 OnPropertyChanged(nameof(AchievementSortPath));
                 OnPropertyChanged(nameof(AchievementSortDirection));
             }
@@ -2517,20 +2493,8 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        private static List<FriendAchievementDisplayItem> ResolveAllAchievements(FriendsOverviewData data)
-        {
-            var all = data?.AllAchievements;
-            if (all != null && all.Count > 0)
-            {
-                return all;
-            }
-
-            return data?.AllUnlockedAchievements ?? new List<FriendAchievementDisplayItem>();
-        }
-
         public void Dispose()
         {
-            // Guards the shared coordinator's view-consumer count against double-decrement.
             if (_disposed)
             {
                 return;
@@ -2547,66 +2511,49 @@ namespace PlayniteAchievements.ViewModels
             if (_refreshRuntime != null)
             {
                 _refreshRuntime.RebuildProgress -= OnRebuildProgress;
-                _refreshRuntime.CacheInvalidated -= OnCacheInvalidated;
-                _refreshRuntime.FriendCacheInvalidated -= OnFriendCacheInvalidated;
-            }
-            else if (_friendCache != null)
-            {
-                _friendCache.FriendCacheInvalidated -= OnFriendCacheInvalidated;
-            }
-
-            if (_cacheInvalidationDebounceTimer != null)
-            {
-                _cacheInvalidationDebounceTimer.Stop();
-                _cacheInvalidationDebounceTimer.Tick -= OnCacheInvalidationDebounceTimerTick;
-                _cacheInvalidationDebounceTimer = null;
             }
 
             _persistedSubscription?.Dispose();
             _persistedSubscription = null;
 
             PlayniteAchievementsPlugin.SettingsSaved -= OnPluginSettingsSaved;
-            _friendsOverviewDataCoordinator.SnapshotInvalidated -= OnFriendsOverviewSnapshotInvalidated;
 
-            if (_ownsFriendsOverviewDataCoordinator)
+            if (_lists != null)
             {
-                _friendsOverviewDataCoordinator?.Dispose();
+                _lists.PropertyChanged -= OnListsChanged;
+                _lists.Dispose();
             }
-            else
-            {
-                _friendsOverviewDataCoordinator?.RemoveViewConsumer();
-            }
+
+            _favoriteGames?.Dispose();
+            _barOptions?.Dispose();
+            _pairRows?.Dispose();
+            _achievements?.Dispose();
         }
 
+        // Merge groups, nicknames and favorites live in the settings the rows are stamped from.
+        // Most saves are view state (a Showcase page, a window position, a column ratio), and
+        // re-reading every list for them stalled each page switch. A settings window save may
+        // change anything the rows are mapped with; any other save re-reads only when the friend
+        // entries or merge groups differ from the last read, since those change inside their
+        // collections without a property change.
         private void OnPluginSettingsSaved(object sender, EventArgs e)
         {
-            if (_disposed)
+            if (_disposed ||
+                (!ReferenceEquals(e, PlayniteAchievementsPlugin.SettingsWindowSave) &&
+                 FriendSettingsKey() == _readFriendSettingsKey))
             {
                 return;
             }
 
-            InvalidateFriendsOverviewSnapshot(forceImmediate: true);
+            _scheduler.Post(Reload);
         }
 
-        private sealed class FriendsOverviewLoadResult
+        private string FriendSettingsKey()
         {
-            public FriendOverviewProjection Projection { get; set; }
-
-            public List<FriendSummaryItem> Friends { get; set; }
-
-            public List<FriendGameSummaryItem> Games { get; set; }
-
-            public List<FriendAchievementDisplayItem> RecentUnlocks { get; set; }
-
-            public List<FriendAchievementDisplayItem> AllAchievements { get; set; }
-
-            public List<FriendAchievementDisplayItem> AllUnlockedAchievements { get; set; }
-
-            public Dictionary<FriendSummaryItem, string> FriendSearchEntries { get; set; }
-
-            public Dictionary<FriendGameSummaryItem, string> GameSearchEntries { get; set; }
-
-            public Dictionary<FriendAchievementDisplayItem, string> AchievementSearchEntries { get; set; }
+            var persisted = _settings?.Persisted;
+            return persisted == null
+                ? null
+                : Newtonsoft.Json.JsonConvert.SerializeObject(new { persisted.Friends, persisted.FriendMergeGroups });
         }
     }
 }

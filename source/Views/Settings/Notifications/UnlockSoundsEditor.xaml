@@ -12,8 +12,8 @@
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/SettingsScopedControlStyles.xaml"/>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+                <helpers:SharedResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/SettingsScopedControlStyles.xaml"/>
+                <helpers:SharedResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </UserControl.Resources>
@@ -27,8 +27,7 @@
                     <CheckBox IsChecked="{Binding Persisted.EnableUnlockSounds}"/>
                 </controls:SettingRow>
                 <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
-                            IsEnabled="{Binding Persisted.EnableUnlockSounds}"
-                            Grid.IsSharedSizeScope="True">
+                            IsEnabled="{Binding Persisted.EnableUnlockSounds}">
                     <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_UnlockSoundVolume}">
                         <StackPanel Orientation="Horizontal">
                             <Slider Style="{StaticResource SettingsSliderStyle}"
@@ -101,7 +100,7 @@
                                         Grid.Column="2"
                                         Style="{DynamicResource PlayAch.FilePickTarget.Style}"
                                         Background="Transparent"
-                                        CornerRadius="3"
+                                        CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                                         Padding="6,3"
                                         Margin="0,0,10,0"
                                         VerticalAlignment="Center"

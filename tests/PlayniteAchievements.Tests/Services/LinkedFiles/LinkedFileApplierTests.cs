@@ -20,12 +20,13 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
             return LinkedFileTable.Build(columns, rows);
         }
 
+        /// <summary>A mapping as a stored one reads: <see cref="LinkedFileSchema.Normalize"/> gives it its match column.</summary>
         private static LinkedFileSchema Schema(params (string column, LinkedFileField field)[] mappings)
         {
-            return new LinkedFileSchema
+            return LinkedFileSchema.Normalize(new LinkedFileSchema
             {
                 Columns = mappings.Select(mapping => new LinkedFileColumnMapping { Column = mapping.column, Field = mapping.field }).ToList()
-            };
+            });
         }
 
         private static ManualAchievementLink Link()
@@ -288,11 +289,11 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
 
             var emptyGame = LinkedFileApplier.Build(
                 Table(new[] { "name" }, new[] { "First" }),
-                new LinkedFileSchema
+                LinkedFileSchema.Normalize(new LinkedFileSchema
                 {
                     Columns = new List<LinkedFileColumnMapping> { new LinkedFileColumnMapping { Column = "name", Field = LinkedFileField.DisplayName } },
                     CreateUnmatchedRows = true
-                },
+                }),
                 null, new List<AchievementDetail>(), null, null, Now);
             Assert.AreEqual(1, emptyGame.Report.Created, "A game with no achievements yet can still be seeded from the file.");
             Assert.IsTrue(emptyGame.CustomDefinitions.Single().Unlocked);
@@ -336,6 +337,36 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
         }
 
         [TestMethod]
+        public void PlatformRowsOnlyAddUnlocksAndProgress()
+        {
+            var table = Table(
+                new[] { "id", "done", "num" },
+                new[] { "ach_one", "0", "" },
+                new[] { "ach_two", "1", "3" },
+                new[] { "c2", "0", "" });
+            var schema = Schema(("id", LinkedFileField.ApiName), ("done", LinkedFileField.Unlocked), ("num", LinkedFileField.ProgressNum));
+
+            var plan = LinkedFileApplier.Build(table, schema, null, Achievements(), null, Definitions(), Now);
+
+            var update = plan.PlatformUpdates.Single();
+            Assert.AreEqual("ach_two", update.ApiName, "A row that says locked leaves the platform's unlock alone.");
+            Assert.IsTrue(update.Unlocked);
+            Assert.AreEqual(Now, update.UnlockTimeUtc);
+            Assert.AreEqual(3, update.ProgressNum);
+            Assert.AreEqual(1, plan.Report.Unlocked);
+            Assert.AreEqual(1, plan.Report.Relocked, "Only the custom achievement is locked by its row.");
+            Assert.IsFalse(plan.ManualChanged);
+            Assert.IsFalse(plan.Report.Messages.Any(message => message.Contains("not tracked")));
+
+            var again = LinkedFileApplier.Build(
+                Table(new[] { "id", "done" }, new[] { "ach_one", "1" }),
+                Schema(("id", LinkedFileField.ApiName), ("done", LinkedFileField.Unlocked)),
+                null, Achievements(), null, Definitions(), Now);
+            Assert.AreEqual(0, again.PlatformUpdates.Count, "An achievement already unlocked keeps its state and time.");
+            Assert.AreEqual(0, again.Report.Unlocked);
+        }
+
+        [TestMethod]
         public void ProgressOnLinkedDefinitionRowsGoesToTheCachePlan()
         {
             var table = Table(new[] { "id", "num", "den" }, new[] { "ach_two", "2", "5" }, new[] { "c1", "1", "4" });
@@ -358,7 +389,7 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
         public void Validator_NamesWhatAMappingLacks()
         {
             CollectionAssert.AreEqual(
-                new[] { LinkedFileSchemaProblem.NoColumns },
+                new[] { LinkedFileSchemaProblem.NoMatchColumn },
                 LinkedFileSchemaValidator.Validate(new LinkedFileSchema()).ToArray());
             CollectionAssert.AreEqual(
                 new[] { LinkedFileSchemaProblem.NoColumns },
@@ -367,6 +398,8 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
             Assert.AreEqual(0, LinkedFileSchemaValidator.Validate(Schema(("id", LinkedFileField.ApiName), ("done", LinkedFileField.Unlocked))).Count);
             Assert.IsTrue(LinkedFileSchemaValidator.IsValid(Schema(("name", LinkedFileField.DisplayName))), "A listed row means unlocked.");
             Assert.IsTrue(LinkedFileSchemaValidator.IsValid(Schema(("done", LinkedFileField.Unlocked))), "Rows pair by order.");
+
+            Assert.IsTrue(LinkedFileSchemaValidator.IsValid(new LinkedFileSchema { MatchColumn = "id" }), "A list of ids needs no other column.");
 
             var create = Schema(("done", LinkedFileField.Unlocked));
             create.CreateUnmatchedRows = true;

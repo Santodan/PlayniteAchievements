@@ -26,26 +26,11 @@
         <Setter Property="Margin" Value="0,6,0,12"/>
     </Style>
 
-    <Style x:Key="SectionAccentRuleStyle" TargetType="Border">
-        <Setter Property="Height" Value="2"/>
-        <Setter Property="Width" Value="44"/>
-        <Setter Property="HorizontalAlignment" Value="Left"/>
-        <Setter Property="CornerRadius" Value="1"/>
-        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-        <Setter Property="Margin" Value="0,0,0,14"/>
-    </Style>
-
-    <Style x:Key="ContextLabelStyle" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="10"/>
-        <Setter Property="FontWeight" Value="Bold"/>
-        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-        <Setter Property="TextWrapping" Value="Wrap"/>
-        <Setter Property="Margin" Value="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
-    </Style>
+    <Style x:Key="SectionAccentRuleStyle" TargetType="Border" BasedOn="{StaticResource PlayAch.SectionAccentRuleStyle}"/>
 
     <Style x:Key="SettingGroupCardStyle" TargetType="Border">
-        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Surface}"/>
-        <Setter Property="CornerRadius" Value="{StaticResource PlayAch.Radius.Card}"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource PlayAch.Radius.Layout}"/>
         <Setter Property="Padding" Value="14"/>
         <Setter Property="Margin" Value="0,0,0,14"/>
         <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Border}"/>
@@ -112,7 +97,7 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="{StaticResource PlayAch.Radius.Section}"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             Padding="{TemplateBinding Padding}">
                         <Border.Effect>
                             <DropShadowEffect Color="{StaticResource PlayAch.Color.Shadow}" Opacity="0.06" BlurRadius="8" ShadowDepth="1"/>

@@ -147,13 +147,13 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             return new ObservableCollection<DynamicThemeOption>(options);
         }
 
-        public static ObservableCollection<DynamicThemeOption> CreateGameOptions(
-            IEnumerable<GameAchievementSummary> games,
-            string selectedKey,
-            ICommand applyCommand = null,
-            Func<string, object> commandParameterFactory = null)
+        /// <summary>
+        /// The games as the game options list them: one per game, in sorting-name order, none
+        /// selected. A library state's games never change in place, so callers keep this per state.
+        /// </summary>
+        public static List<DynamicThemeOption> SortGames(IEnumerable<GameAchievementSummary> games)
         {
-            var options = (games ?? Enumerable.Empty<GameAchievementSummary>())
+            return (games ?? Enumerable.Empty<GameAchievementSummary>())
                 .Where(game => game != null && game.GameId != Guid.Empty)
                 .GroupBy(game => game.GameId)
                 .Select(group =>
@@ -165,16 +165,30 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                         Option = new DynamicThemeOption(
                             key,
                             !string.IsNullOrWhiteSpace(game.Name) ? game.Name : key,
-                            game.AchievementCount,
-                            IsSelected(key, selectedKey),
-                            applyCommand,
-                            commandParameterFactory?.Invoke(key)),
+                            game.AchievementCount),
                         SortName = string.IsNullOrWhiteSpace(game.SortingName) ? game.Name : game.SortingName
                     };
                 })
                 .OrderBy(item => item.SortName, StringComparer.CurrentCultureIgnoreCase)
                 .ThenBy(item => item.Option.Label, StringComparer.CurrentCultureIgnoreCase)
                 .Select(item => item.Option)
+                .ToList();
+        }
+
+        public static ObservableCollection<DynamicThemeOption> CreateGameOptions(
+            IEnumerable<DynamicThemeOption> sortedGames,
+            string selectedKey,
+            ICommand applyCommand = null,
+            Func<string, object> commandParameterFactory = null)
+        {
+            var options = sortedGames
+                .Select(game => new DynamicThemeOption(
+                    game.Key,
+                    game.Label,
+                    game.Count,
+                    IsSelected(game.Key, selectedKey),
+                    applyCommand,
+                    commandParameterFactory?.Invoke(game.Key)))
                 .ToList();
 
             if (!string.IsNullOrWhiteSpace(selectedKey) &&

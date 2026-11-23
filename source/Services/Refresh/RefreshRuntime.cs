@@ -124,6 +124,13 @@ namespace PlayniteAchievements.Services.Refresh
                 return authContext;
             }
 
+            if (_refreshRequestPlanner?.NamesOnlyLinkedGames(request) == true)
+            {
+                _logger.Info("No platforms are authenticated; the requested games read linked files, so the refresh continues without a provider.");
+                authContext.CoveredByLinkedFiles = true;
+                return authContext;
+            }
+
             if (HasSteamTransientAuthFailure(authContext))
             {
                 _logger.Warn("Refresh skipped because Steam web authentication could not be verified; suppressing generic authentication modal.");
@@ -250,24 +257,6 @@ namespace PlayniteAchievements.Services.Refresh
         {
             add => _cacheService.CacheInvalidated += value;
             remove => _cacheService.CacheInvalidated -= value;
-        }
-
-        public event EventHandler<FriendCacheInvalidatedEventArgs> FriendCacheInvalidated
-        {
-            add
-            {
-                if (_cacheService is IFriendCacheManager friendCache)
-                {
-                    friendCache.FriendCacheInvalidated += value;
-                }
-            }
-            remove
-            {
-                if (_cacheService is IFriendCacheManager friendCache)
-                {
-                    friendCache.FriendCacheInvalidated -= value;
-                }
-            }
         }
 
         public RefreshRuntime(

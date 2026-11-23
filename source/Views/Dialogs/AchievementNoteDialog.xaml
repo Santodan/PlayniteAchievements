@@ -39,7 +39,7 @@
                     Background="{DynamicResource PlayAch.Brush.Panel}"
                     BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                     BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                    CornerRadius="4"
+                    CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                     ClipToBounds="True">
                 <Image x:Name="AchievementIconImage"
                        Width="46"
@@ -122,7 +122,7 @@
                     Background="{DynamicResource PlayAch.Brush.Panel}"
                     BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                     BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                    CornerRadius="4"
+                    CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                     Padding="10"
                     MinHeight="86"
                     ClipToBounds="True">

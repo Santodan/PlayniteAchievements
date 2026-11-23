@@ -1,5 +1,6 @@
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services.Cache;
+using PlayniteAchievements.Services.Database;
 using System;
 using System.Collections.Generic;
 
@@ -9,12 +10,16 @@ namespace PlayniteAchievements.Services.Achievements
     public class AchievementDataService
     {
         public Dictionary<Guid, GameAchievementData> GameDataById { get; } = new Dictionary<Guid, GameAchievementData>();
-        public List<GameAchievementData> AllGameData { get; set; } = new List<GameAchievementData>();
         public Dictionary<Guid, GameAchievementData> VisibleGameDataById { get; } = new Dictionary<Guid, GameAchievementData>();
-        public List<GameAchievementData> VisibleAllGameData { get; set; }
         internal CachedSummaryData CachedSummaryDataForTheme { get; set; }
         public int CachedSummaryDataForThemeCalls { get; private set; }
-        public int VisibleAllGameDataForThemeCalls { get; private set; }
+
+        /// <summary>The rows each read returns; none by default.</summary>
+        internal Func<AchievementQuery, List<CachedRecentUnlockData>> Rows { get; set; }
+
+        internal List<AchievementQuery> RowReads { get; } = new List<AchievementQuery>();
+
+        internal ICacheReadOptimizations CacheReads => null;
 
         public virtual GameAchievementData GetGameAchievementData(Guid playniteGameId)
         {
@@ -28,26 +33,25 @@ namespace PlayniteAchievements.Services.Achievements
                 : GetGameAchievementData(playniteGameId);
         }
 
-        public virtual List<GameAchievementData> GetAllGameAchievementData()
-        {
-            return AllGameData ?? new List<GameAchievementData>();
-        }
-
-        public virtual List<GameAchievementData> GetAllGameAchievementDataForTheme()
-        {
-            return GetAllGameAchievementData();
-        }
-
-        public virtual List<GameAchievementData> GetAllVisibleGameAchievementDataForTheme()
-        {
-            VisibleAllGameDataForThemeCalls++;
-            return VisibleAllGameData ?? GetAllGameAchievementDataForTheme();
-        }
-
         internal virtual CachedSummaryData GetCachedSummaryDataForTheme(int recentAchievementDetailLimit = 0)
         {
             CachedSummaryDataForThemeCalls++;
             return CachedSummaryDataForTheme;
+        }
+
+        /// <summary>The summary query each call returns; the summary rules alone by default.</summary>
+        internal Func<AchievementQuery> Summary { get; set; }
+
+        internal AchievementQuery SummaryQuery() => Summary?.Invoke() ?? AchievementQuery.CurrentUser.WithSummaryRules();
+
+        internal List<CachedRecentUnlockData> ReadRows(AchievementQuery query)
+        {
+            lock (RowReads)
+            {
+                RowReads.Add(query);
+            }
+
+            return Rows?.Invoke(query) ?? new List<CachedRecentUnlockData>();
         }
 
         public virtual List<string> GetCachedGameIds()

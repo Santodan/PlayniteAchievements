@@ -82,35 +82,6 @@ namespace PlayniteAchievements.Services.Hydration
         }
 
         /// <summary>
-        /// Hydrates overview-relevant runtime properties and applies capstone overlays
-        /// needed for completion calculations.
-        /// </summary>
-        public void HydrateForOverview(GameAchievementData data)
-        {
-            if (data?.PlayniteGameId == null)
-            {
-                return;
-            }
-
-            var gameId = data.PlayniteGameId.Value;
-            var customData = GameCustomDataLookup.ResolveGameCustomData(gameId, Persisted, _gameCustomDataStore);
-
-            data.ExcludedFromSummaries = customData.ExcludedFromSummaries;
-            data.UseSeparateLockedIconsWhenAvailable = customData.UseSeparateLockedIcons;
-            data.Game = GetGame(gameId);
-            data.AchievementCategoryOrder = customData.AchievementCategoryOrder != null && customData.AchievementCategoryOrder.Count > 0
-                ? new List<string>(customData.AchievementCategoryOrder)
-                : null;
-            data.AchievementCategoryImageOverrides = customData.AchievementCategoryImageOverrides != null &&
-                                                     customData.AchievementCategoryImageOverrides.Count > 0
-                ? CloneCategoryImageOverrideMap(customData.AchievementCategoryImageOverrides, gameId)
-                : null;
-            data.GameSummaryCategory = customData.GameSummaryCategory;
-
-            ApplyAchievementOverlays(data, gameId, customData);
-        }
-
-        /// <summary>
         /// Appends the game's custom achievement projections with no overlays applied. Custom
         /// achievements exist only in custom data, so a raw cache read omits them; callers that
         /// need the un-overlaid row set including custom rows go through here.
@@ -145,38 +116,6 @@ namespace PlayniteAchievements.Services.Hydration
                 () => GameCustomDataLookup.GetAchievementLockedIconOverrides(gameId));
         }
 
-        /// <summary>
-        /// Hydrates multiple GameAchievementData instances with non-persisted properties.
-        /// </summary>
-        public void HydrateAll(IEnumerable<GameAchievementData> games)
-        {
-            if (games == null)
-            {
-                return;
-            }
-
-            foreach (var game in games)
-            {
-                Hydrate(game);
-            }
-        }
-
-        /// <summary>
-        /// Hydrates multiple GameAchievementData instances for overview use only.
-        /// </summary>
-        public void HydrateAllForOverview(IEnumerable<GameAchievementData> games)
-        {
-            if (games == null)
-            {
-                return;
-            }
-
-            foreach (var game in games)
-            {
-                HydrateForOverview(game);
-            }
-        }
-
         private Playnite.SDK.Models.Game GetGame(Guid playniteGameId)
         {
             try
@@ -196,11 +135,5 @@ namespace PlayniteAchievements.Services.Hydration
                 source,
                 gameId,
                 PlayniteAchievementsPlugin.Instance?.ManagedCustomIconService);
-
-        private static string NormalizeText(string value)
-        {
-            var normalized = (value ?? string.Empty).Trim();
-            return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
-        }
     }
 }

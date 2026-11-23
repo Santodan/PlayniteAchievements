@@ -211,7 +211,7 @@ namespace PlayniteAchievements.Views.Showcase
         {
             PlayniteAchievementsPlugin.Instance?.PersistSettingsForUi();
             ShowcaseConfigurationEvents.RaiseChanged();
-            PlayniteAchievementsPlugin.Instance?.InvalidateStartPageDataForUi();
+            PlayniteAchievementsPlugin.Instance?.InvalidateStartPageDataForUi("showcase row options");
         }
     }
 }

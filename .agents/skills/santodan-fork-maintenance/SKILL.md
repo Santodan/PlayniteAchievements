@@ -113,6 +113,12 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/ForkMaintenance/Ap
   newline differences for text when needed; compare binary assets byte for byte.
 - Never use `-ForceOverlay`, `-ForceSemantic`, or `-AllowDirty` to suppress an
   unexplained failure. Inspect conflicts and independently changed upstream data.
+- Localization values compare newline-insensitively (`Test-FmSameXmlValue`): Export
+  records only real edits, and Apply skips entries equal to their base, so a key
+  upstream removed is not reintroduced by a no-op entry.
+- Apply stops before `git apply` and names patch targets the checkout lacks
+  (`Get-FmPatchEditsOfMissingFiles`), usually files deleted upstream; `git apply`
+  would otherwise reject the whole patch with `does not exist in index`.
 - Verify protected-file hashes and final diff. Add a concise maintenance note
   describing behavior, baseline, actual verification, and pending live checks.
   Avoid changing historical claims to look like new results.

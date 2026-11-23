@@ -18,7 +18,6 @@
             <ResourceDictionary.MergedDictionaries>
                 <helpers:SharedResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementResources.xaml"/>
             </ResourceDictionary.MergedDictionaries>
-            <converters:WholePercentToTextConverter x:Key="WholePercentToText"/>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -34,76 +33,12 @@
           UseLayoutRounding="True"
           SnapsToDevicePixels="True">
         <Grid.ToolTip>
+            <!-- The body is a shared template (AchievementControlStyles.xaml), built when it opens. -->
             <ToolTip x:Name="ItemToolTip"
                      MaxWidth="300"
-                     Closed="ItemToolTip_OnClosed">
-                <ToolTip.Content>
-                    <StackPanel>
-                        <!-- Title with hidden indicator -->
-                        <TextBlock FontWeight="SemiBold"
-                                   TextWrapping="Wrap">
-                            <Run Text="{Binding DisplayNameResolved, Mode=OneWay}"/>
-                            <Run Text="{Binding HiddenTitleSuffix, Mode=OneWay}"
-                                 FontStyle="Italic"
-                                 FontSize="{DynamicResource PlayAch.FontSize.Caption}"
-                                 Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"/>
-                        </TextBlock>
-
-                        <!-- Description -->
-                        <TextBlock Text="{Binding DescriptionResolved, Mode=OneWay}"
-                                   TextWrapping="Wrap"
-                                   Margin="{StaticResource PlayAch.Thickness.Top.Xs}"
-                                   Opacity="{StaticResource PlayAch.Opacity.Secondary}"/>
-
-                        <!-- Game name (if available) -->
-                        <TextBlock Text="{Binding GameName, Mode=OneWay}"
-                                   TextWrapping="Wrap"
-                                   Margin="{StaticResource PlayAch.Thickness.Top.Xs}"
-                                   FontSize="{DynamicResource PlayAch.FontSize.Caption}"
-                                   Opacity="{StaticResource PlayAch.Opacity.Muted}"/>
-
-                        <!-- Unlock date -->
-                        <TextBlock Text="{Binding UnlockTimeText, Mode=OneWay}"
-                                   Margin="{StaticResource PlayAch.Thickness.Top.Xs}"
-                                   FontSize="{DynamicResource PlayAch.FontSize.Caption}"
-                                   Opacity="{StaticResource PlayAch.Opacity.Muted}"
-                                   Visibility="{Binding Unlocked, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-
-                        <!-- Rarity info (only when percentage data is available) -->
-                        <StackPanel Orientation="Horizontal" Margin="{StaticResource PlayAch.Thickness.Top.Xs}"
-                                    Visibility="{Binding HasRarityPercent, Converter={StaticResource BooleanToVisibilityConverter}}">
-                            <TextBlock Text="{Binding RarityDetailText, Mode=OneWay}"
-                                       FontSize="{DynamicResource PlayAch.FontSize.Caption}"
-                                       Opacity="{StaticResource PlayAch.Opacity.Subtle}"/>
-                        </StackPanel>
-
-                        <!-- Progress info (for partial progress achievements) -->
-                        <StackPanel Orientation="Horizontal" Margin="{StaticResource PlayAch.Thickness.Top.Xs}"
-                                    Visibility="{Binding HasProgress, Converter={StaticResource BooleanToVisibilityConverter}}">
-                            <TextBlock Text="{Binding ProgressText, Mode=OneWay}"
-                                       FontSize="{DynamicResource PlayAch.FontSize.Caption}"
-                                       Opacity="{StaticResource PlayAch.Opacity.Subtle}"/>
-                            <TextBlock Text=" ("
-                                       FontSize="{DynamicResource PlayAch.FontSize.Caption}"
-                                       Opacity="{StaticResource PlayAch.Opacity.Placeholder}"/>
-                            <TextBlock Text="{Binding ProgressPercent, Mode=OneWay, Converter={StaticResource WholePercentToText}}"
-                                       FontSize="{DynamicResource PlayAch.FontSize.Caption}"
-                                       Opacity="{StaticResource PlayAch.Opacity.Subtle}"/>
-                            <TextBlock Text=")"
-                                       FontSize="{DynamicResource PlayAch.FontSize.Caption}"
-                                       Opacity="{StaticResource PlayAch.Opacity.Placeholder}"/>
-                        </StackPanel>
-
-                        <!-- Click to reveal hint for hidden achievements -->
-                        <TextBlock Text="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}"
-                                   Margin="{StaticResource PlayAch.Thickness.Top.Xs}"
-                                   FontSize="{DynamicResource PlayAch.FontSize.Caption}"
-                                   FontStyle="Italic"
-                                   Opacity="{StaticResource PlayAch.Opacity.Placeholder}"
-                                   Visibility="{Binding CanReveal, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                    </StackPanel>
-                </ToolTip.Content>
-            </ToolTip>
+                     Content="{Binding}"
+                     ContentTemplate="{StaticResource PlayAch.CompactItem.ToolTipTemplate}"
+                     Closed="ItemToolTip_OnClosed"/>
         </Grid.ToolTip>
 
         <!-- Achievement icon with glow effect - keep glow on a backing layer so the front icon stays sharp -->
@@ -115,154 +50,36 @@
             <!-- Rays glow style: arrows riding the icon's own silhouette, replacing the soft halo. -->
             <controls:RarityRayBurst Rarity="{Binding Rarity}"
                                      HasRarityData="{Binding HasRarityPercent}"
-                                     SubjectUri="{Binding DisplayIcon, Mode=OneWay}">
-                <controls:RarityRayBurst.Style>
-                    <Style TargetType="controls:RarityRayBurst">
-                        <Setter Property="Visibility" Value="Collapsed"/>
-                        <Style.Triggers>
-                            <MultiDataTrigger>
-                                <MultiDataTrigger.Conditions>
-                                    <Condition Binding="{Binding RarityGlowEligible, RelativeSource={RelativeSource AncestorType=controls:AchievementCompactItemControl}}" Value="True"/>
-                                </MultiDataTrigger.Conditions>
-                                <Setter Property="Visibility" Value="Visible"/>
-                            </MultiDataTrigger>
-                            <MultiDataTrigger>
-                                <MultiDataTrigger.Conditions>
-                                    <Condition Binding="{Binding RarityGlowEligible, RelativeSource={RelativeSource AncestorType=controls:AchievementCompactItemControl}}" Value="True"/>
-                                    <Condition Binding="{Binding AnimateRarityGlows, RelativeSource={RelativeSource AncestorType=controls:AchievementCompactItemControl}}" Value="True"/>
-                                </MultiDataTrigger.Conditions>
-                                <Setter Property="IsActive" Value="True"/>
-                            </MultiDataTrigger>
-                            <!-- Hardcore achievements use a solid border instead of any glow, unless
-                                 the user has turned that border off. -->
-                            <MultiDataTrigger>
-                                <MultiDataTrigger.Conditions>
-                                    <Condition Binding="{Binding IsHardcore}" Value="True"/>
-                                    <Condition Binding="{Binding ShowHardcoreBorder, RelativeSource={RelativeSource AncestorType=controls:AchievementCompactItemControl}}" Value="True"/>
-                                </MultiDataTrigger.Conditions>
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                                <Setter Property="IsActive" Value="False"/>
-                            </MultiDataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </controls:RarityRayBurst.Style>
-            </controls:RarityRayBurst>
-            <Image Stretch="Uniform"
-                   RenderOptions.BitmapScalingMode="HighQuality"
-                   SnapsToDevicePixels="True"
-                   Width="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                   Height="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                   IsHitTestVisible="False"
-                   CacheMode="BitmapCache"
-                   helpers:AsyncImage.Uri="{Binding DisplayIcon, Mode=OneWay}"
-                   helpers:AsyncImage.DecodePixel="256">
-                <Image.Style>
-                    <Style TargetType="Image">
-                        <Setter Property="Visibility" Value="Collapsed"/>
-                        <Setter Property="Effect" Value="{x:Null}"/>
-                        <Style.Triggers>
-                            <MultiDataTrigger>
-                                <MultiDataTrigger.Conditions>
-                                    <Condition Binding="{Binding RarityGlowEligible, RelativeSource={RelativeSource AncestorType=controls:AchievementCompactItemControl}}" Value="True"/>
-                                    <Condition Binding="{Binding UseLargeRarityGlow, RelativeSource={RelativeSource AncestorType=controls:AchievementCompactItemControl}}" Value="False"/>
-                                </MultiDataTrigger.Conditions>
-                                <Setter Property="Visibility" Value="Visible"/>
-                                <!-- Multi-bound so the glow follows the per-tier selection and
-                                     re-evaluates when that selection changes. -->
-                                <Setter Property="Effect">
-                                    <Setter.Value>
-                                        <MultiBinding Converter="{StaticResource RarityGlowForTiers}" ConverterParameter="8">
-                                            <Binding Path="Rarity"/>
-                                            <Binding Path="SoftGlowTiers" RelativeSource="{RelativeSource AncestorType=controls:AchievementCompactItemControl}"/>
-                                            <Binding Path="HasRarityPercent"/>
-                                        </MultiBinding>
-                                    </Setter.Value>
-                                </Setter>
-                            </MultiDataTrigger>
-                            <MultiDataTrigger>
-                                <MultiDataTrigger.Conditions>
-                                    <Condition Binding="{Binding RarityGlowEligible, RelativeSource={RelativeSource AncestorType=controls:AchievementCompactItemControl}}" Value="True"/>
-                                    <Condition Binding="{Binding UseLargeRarityGlow, RelativeSource={RelativeSource AncestorType=controls:AchievementCompactItemControl}}" Value="True"/>
-                                </MultiDataTrigger.Conditions>
-                                <Setter Property="Visibility" Value="Visible"/>
-                                <Setter Property="Effect">
-                                    <Setter.Value>
-                                        <MultiBinding Converter="{StaticResource RarityGlowForTiers}" ConverterParameter="20">
-                                            <Binding Path="Rarity"/>
-                                            <Binding Path="SoftGlowTiers" RelativeSource="{RelativeSource AncestorType=controls:AchievementCompactItemControl}"/>
-                                            <Binding Path="HasRarityPercent"/>
-                                        </MultiBinding>
-                                    </Setter.Value>
-                                </Setter>
-                            </MultiDataTrigger>
-                            <!-- Hardcore achievements use a solid border instead of the soft glow. -->
-                            <MultiDataTrigger>
-                                <MultiDataTrigger.Conditions>
-                                    <Condition Binding="{Binding RarityGlowEligible, RelativeSource={RelativeSource AncestorType=controls:AchievementCompactItemControl}}" Value="True"/>
-                                    <Condition Binding="{Binding IsHardcore}" Value="True"/>
-                                    <Condition Binding="{Binding ShowHardcoreBorder, RelativeSource={RelativeSource AncestorType=controls:AchievementCompactItemControl}}" Value="True"/>
-                                </MultiDataTrigger.Conditions>
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                                <Setter Property="Effect" Value="{x:Null}"/>
-                            </MultiDataTrigger>
-                            <!-- Fade in/out pulse on the cached glow layer when AnimateRarityGlows is on. -->
-                            <MultiDataTrigger>
-                                <MultiDataTrigger.Conditions>
-                                    <Condition Binding="{Binding RarityGlowEligible, RelativeSource={RelativeSource AncestorType=controls:AchievementCompactItemControl}}" Value="True"/>
-                                    <Condition Binding="{Binding AnimateRarityGlows, RelativeSource={RelativeSource AncestorType=controls:AchievementCompactItemControl}}" Value="True"/>
-                                </MultiDataTrigger.Conditions>
-                                <Setter Property="helpers:RarityGlowPulse.IsActive" Value="True"/>
-                            </MultiDataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Image.Style>
-            </Image>
+                                     SubjectUri="{Binding DisplayIcon, Mode=OneWay}"
+                                     CornerRadiusPx="{DynamicResource PlayAch.Radius.AchievementIcon}"
+                                     Style="{StaticResource PlayAch.CompactItem.RayBurst}"/>
+            <Border IsHitTestVisible="False"
+                    CacheMode="BitmapCache"
+                    Style="{StaticResource PlayAch.CompactItem.SoftGlow}">
+                <Image Stretch="Uniform"
+                       RenderOptions.BitmapScalingMode="HighQuality"
+                       SnapsToDevicePixels="True"
+                       Width="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                       Height="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                       helpers:AsyncImage.Uri="{Binding DisplayIcon, Mode=OneWay}"
+                       helpers:AsyncImage.DecodePixel="256"
+                       helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.AchievementIcon}"/>
+            </Border>
 
             <!-- Edge that comes with the rays: the same layer as the halo above at a blur small enough
                  to read as a line. A blur of the artwork, so it hugs the alpha on any shape. -->
-            <Image Stretch="Uniform"
-                   RenderOptions.BitmapScalingMode="HighQuality"
-                   SnapsToDevicePixels="True"
-                   Width="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                   Height="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                   IsHitTestVisible="False"
-                   CacheMode="BitmapCache"
-                   helpers:AsyncImage.Uri="{Binding DisplayIcon, Mode=OneWay}"
-                   helpers:AsyncImage.DecodePixel="256">
-                <Image.Style>
-                    <Style TargetType="Image">
-                        <Setter Property="Visibility" Value="Collapsed"/>
-                        <Setter Property="Effect" Value="{x:Null}"/>
-                        <Style.Triggers>
-                            <MultiDataTrigger>
-                                <MultiDataTrigger.Conditions>
-                                    <Condition Binding="{Binding RarityGlowEligible, RelativeSource={RelativeSource AncestorType=controls:AchievementCompactItemControl}}" Value="True"/>
-                                </MultiDataTrigger.Conditions>
-                                <Setter Property="Visibility" Value="Visible"/>
-                                <Setter Property="Effect">
-                                    <Setter.Value>
-                                        <MultiBinding Converter="{StaticResource RarityGlowForTiers}" ConverterParameter="3">
-                                            <Binding Path="Rarity"/>
-                                            <Binding Path="RayGlowTiers" RelativeSource="{RelativeSource AncestorType=controls:AchievementCompactItemControl}"/>
-                                            <Binding Path="HasRarityPercent"/>
-                                        </MultiBinding>
-                                    </Setter.Value>
-                                </Setter>
-                            </MultiDataTrigger>
-                            <!-- Hardcore keeps its solid border instead. -->
-                            <MultiDataTrigger>
-                                <MultiDataTrigger.Conditions>
-                                    <Condition Binding="{Binding RarityGlowEligible, RelativeSource={RelativeSource AncestorType=controls:AchievementCompactItemControl}}" Value="True"/>
-                                    <Condition Binding="{Binding IsHardcore}" Value="True"/>
-                                    <Condition Binding="{Binding ShowHardcoreBorder, RelativeSource={RelativeSource AncestorType=controls:AchievementCompactItemControl}}" Value="True"/>
-                                </MultiDataTrigger.Conditions>
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                                <Setter Property="Effect" Value="{x:Null}"/>
-                            </MultiDataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Image.Style>
-            </Image>
+            <Border IsHitTestVisible="False"
+                    CacheMode="BitmapCache"
+                    Style="{StaticResource PlayAch.CompactItem.RayEdge}">
+                <Image Stretch="Uniform"
+                       RenderOptions.BitmapScalingMode="HighQuality"
+                       SnapsToDevicePixels="True"
+                       Width="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                       Height="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                       helpers:AsyncImage.Uri="{Binding DisplayIcon, Mode=OneWay}"
+                       helpers:AsyncImage.DecodePixel="256"
+                       helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.AchievementIcon}"/>
+            </Border>
 
             <Image Stretch="Uniform"
                    RenderOptions.BitmapScalingMode="HighQuality"
@@ -270,50 +87,24 @@
                    Width="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
                    Height="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
                    helpers:AsyncImage.Uri="{Binding DisplayIcon, Mode=OneWay}"
-                   helpers:AsyncImage.DecodePixel="256"/>
+                   helpers:AsyncImage.DecodePixel="256"
+                   helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.AchievementIcon}"/>
 
             <!-- Solid rarity border for Hardcore achievements (replaces the glow).
                  Negative margin draws the border just OUTSIDE the icon so it never shrinks it. -->
             <Border Margin="-3"
                     BorderThickness="3"
+                    CornerRadius="{DynamicResource PlayAch.CornerRadius.AchievementIcon}"
                     Background="Transparent"
                     IsHitTestVisible="False"
                     SnapsToDevicePixels="True"
-                    BorderBrush="{Binding Rarity, Converter={StaticResource RarityToShineBrush}}">
-                <Border.Style>
-                    <Style TargetType="Border">
-                        <Setter Property="Visibility" Value="Collapsed"/>
-                        <Style.Triggers>
-                            <MultiDataTrigger>
-                                <MultiDataTrigger.Conditions>
-                                    <Condition Binding="{Binding RarityGlowEligible, RelativeSource={RelativeSource AncestorType=controls:AchievementCompactItemControl}}" Value="True"/>
-                                    <Condition Binding="{Binding IsHardcore}" Value="True"/>
-                                    <Condition Binding="{Binding ShowHardcoreBorder, RelativeSource={RelativeSource AncestorType=controls:AchievementCompactItemControl}}" Value="True"/>
-                                </MultiDataTrigger.Conditions>
-                                <Setter Property="Visibility" Value="Visible"/>
-                            </MultiDataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
-            </Border>
+                    BorderBrush="{Binding Rarity, Converter={StaticResource RarityToShineBrush}}"
+                    Style="{StaticResource PlayAch.CompactItem.HardcoreBorder}"/>
         </Grid>
 
         <!-- Rarity bar overlay at bottom - shows global unlock percentage -->
-        <Grid VerticalAlignment="Bottom">
-            <Grid.Style>
-                    <Style TargetType="Grid">
-                        <Setter Property="Visibility" Value="Collapsed"/>
-                        <Style.Triggers>
-                            <MultiDataTrigger>
-                                <MultiDataTrigger.Conditions>
-                                    <Condition Binding="{Binding HasRarityPercent}" Value="True"/>
-                                    <Condition Binding="{Binding RarityBarVisible, RelativeSource={RelativeSource AncestorType=controls:AchievementCompactItemControl}}" Value="True"/>
-                                </MultiDataTrigger.Conditions>
-                                <Setter Property="Visibility" Value="Visible"/>
-                            </MultiDataTrigger>
-                        </Style.Triggers>
-                </Style>
-            </Grid.Style>
+        <Grid VerticalAlignment="Bottom"
+              Style="{StaticResource PlayAch.CompactItem.RarityBarHost}">
             <ProgressBar Style="{StaticResource PlayAch.ProgressBar.RarityBar}"
                          Value="{Binding RarityPercentValue, Mode=OneWay}"/>
         </Grid>

@@ -32,8 +32,8 @@ namespace PlayniteAchievements.Tests.Services
 
             StringAssert.Contains(
                 body,
-                "SetAchievementFieldOverrides(_gameId, pending)",
-                "The batch must go to the store as one unit.");
+                "SetAchievementFieldOverrides(gameId, pending)",
+                "Each game's batch must go to the store as one unit.");
 
             Assert.IsFalse(
                 body.Contains("GroupBy"),
@@ -106,20 +106,17 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
-        public void TheMultiValueWriter_UnionsTheChangeFlagsOverTheBatch()
+        public void TheMultiValueWriter_ReportsTheSummaryAsAffected()
         {
             var body = Between(
                 ReadOverridesService(),
                 "public void SetAchievementFieldOverrides(",
                 "private static void ApplyFieldToEntry(");
 
-            // Understating either flag leaves the edit in the store with nothing on screen
-            // re-reading it, or leaves the override mirror stale for points and trophy type.
-            // Every field, the unlock time included, is shown on summary rows and moves their
-            // unlock-date counts, so the summary flag is unconditional.
-            StringAssert.Contains(body, "var affectsSummary = true;");
-            StringAssert.Contains(body, "write.Field == AchievementEditableField.Points");
-            StringAssert.Contains(body, "write.Field == AchievementEditableField.TrophyType");
+            // Understating the flag leaves the edit in the store with nothing on screen
+            // re-reading it. Every field, the unlock time included, is shown on summary rows and
+            // moves their unlock-date counts, so the summary flag is unconditional.
+            StringAssert.Contains(body, "affectsSummaryData: true);");
         }
 
         [TestMethod]

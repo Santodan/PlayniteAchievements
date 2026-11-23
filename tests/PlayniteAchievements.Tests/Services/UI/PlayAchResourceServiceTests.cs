@@ -101,6 +101,16 @@ namespace PlayniteAchievements.Tests.Services.UI
         }
 
         [TestMethod]
+        public void Apply_ResolvesPanelToTransparent_WhenThemeHasNoPanelOrCardBrush()
+        {
+            var resources = new ResourceDictionary();
+
+            PlayAchResourceService.Apply(resources, null);
+
+            AssertBrush(resources, "PlayAch.Brush.Panel", Color.FromArgb(0, 0, 0, 0));
+        }
+
+        [TestMethod]
         public void Apply_PublishesCompletedFillBrush()
         {
             var resources = new ResourceDictionary();
@@ -131,7 +141,7 @@ namespace PlayniteAchievements.Tests.Services.UI
                 }
             };
 
-            PlayAchResourceService.Apply(resources, null, settings);
+            PlayAchResourceService.Apply(resources, new Dictionary<string, ResourceOverrideSetting>(), settings);
 
             var completed = resources["PlayAch.Brush.Progress.CompletedFill"] as LinearGradientBrush;
             Assert.IsNotNull(completed);
@@ -322,6 +332,113 @@ namespace PlayniteAchievements.Tests.Services.UI
 
             Assert.IsFalse(loaded.ResourceOverrides.ContainsKey("PlayAch.Brush.GridSurface"));
             Assert.IsTrue(loaded.ResourceOverrides.ContainsKey("PlayAch.Brush.ControlSurface"));
+        }
+
+        [TestMethod]
+        public void Apply_PublishesCornerRadiusOnlyForEnabledKinds()
+        {
+            var resources = new ResourceDictionary();
+            var settings = new PersistedSettings
+            {
+                CornerRoundingRadius = 9,
+                RoundGameArtCorners = true,
+                RoundAchievementIconCorners = false
+            };
+
+            PlayAchResourceService.Apply(resources, new Dictionary<string, ResourceOverrideSetting>(), settings);
+
+            Assert.AreEqual(9d, resources[PlayAchResourceService.ArtCornerRadiusResourceKey]);
+            Assert.AreEqual(0d, resources[PlayAchResourceService.AchievementIconCornerRadiusResourceKey]);
+            Assert.AreEqual(new CornerRadius(9), resources[PlayAchResourceService.ArtCornerRadiusShapeResourceKey]);
+            Assert.AreEqual(new CornerRadius(0), resources[PlayAchResourceService.AchievementIconCornerRadiusShapeResourceKey]);
+        }
+
+        [TestMethod]
+        public void CornerRoundingRadius_ClampsNegativeToZero()
+        {
+            var settings = new PersistedSettings { CornerRoundingRadius = -5 };
+
+            Assert.AreEqual(0, settings.CornerRoundingRadius);
+            Assert.AreEqual(0d, PlayAchResourceService.ResolveCornerRadius(true, -5));
+        }
+
+        [TestMethod]
+        public void AchievementIconCornerRadius_TakesTheArtRadiusUntilSetThenStaysIndependent()
+        {
+            var json = JsonConvert.SerializeObject(new { CornerRoundingRadius = 12 });
+            var loaded = JsonConvert.DeserializeObject<PersistedSettings>(json);
+
+            Assert.AreEqual(12, loaded.AchievementIconCornerRadius);
+
+            loaded.CornerRoundingRadius = 3;
+            Assert.AreEqual(12, loaded.AchievementIconCornerRadius);
+
+            loaded.AchievementIconCornerRadius = -2;
+            Assert.AreEqual(0, loaded.AchievementIconCornerRadius);
+            Assert.AreEqual(3, loaded.CornerRoundingRadius);
+        }
+
+        [TestMethod]
+        public void Apply_PublishesSeparateArtAndIconRadii()
+        {
+            var resources = new ResourceDictionary();
+            var settings = new PersistedSettings
+            {
+                RoundGameArtCorners = true,
+                RoundAchievementIconCorners = true,
+                CornerRoundingRadius = 10,
+                AchievementIconCornerRadius = 5
+            };
+
+            PlayAchResourceService.Apply(resources, new Dictionary<string, ResourceOverrideSetting>(), settings);
+
+            Assert.AreEqual(10d, resources[PlayAchResourceService.ArtCornerRadiusResourceKey]);
+            Assert.AreEqual(5d, resources[PlayAchResourceService.AchievementIconCornerRadiusResourceKey]);
+        }
+
+        [TestMethod]
+        public void LayoutCornerRounding_DefaultsToOnAtFour()
+        {
+            var settings = new PersistedSettings();
+
+            Assert.IsTrue(settings.RoundLayoutCorners);
+            Assert.AreEqual(4, settings.LayoutCornerRadius);
+        }
+
+        [TestMethod]
+        public void Apply_PublishesLayoutCornerRadiusShapes()
+        {
+            var resources = new ResourceDictionary();
+            var settings = new PersistedSettings { RoundLayoutCorners = true, LayoutCornerRadius = 7 };
+
+            PlayAchResourceService.Apply(resources, new Dictionary<string, ResourceOverrideSetting>(), settings);
+
+            Assert.AreEqual(new CornerRadius(7), resources[PlayAchResourceService.LayoutCornerRadiusResourceKey]);
+            Assert.AreEqual(new CornerRadius(7, 0, 0, 7), resources[PlayAchResourceService.LayoutCornerRadiusLeftResourceKey]);
+            Assert.AreEqual(new CornerRadius(0, 7, 7, 0), resources[PlayAchResourceService.LayoutCornerRadiusRightResourceKey]);
+            Assert.AreEqual(7d, resources[PlayAchResourceService.LayoutCornerRadiusValueResourceKey]);
+        }
+
+        [TestMethod]
+        public void Apply_PublishesSquareLayoutCornersWhenOff()
+        {
+            var resources = new ResourceDictionary();
+            var settings = new PersistedSettings { RoundLayoutCorners = false, LayoutCornerRadius = 7 };
+
+            PlayAchResourceService.Apply(resources, new Dictionary<string, ResourceOverrideSetting>(), settings);
+
+            Assert.AreEqual(new CornerRadius(0), resources[PlayAchResourceService.LayoutCornerRadiusResourceKey]);
+            Assert.AreEqual(new CornerRadius(0), resources[PlayAchResourceService.LayoutCornerRadiusLeftResourceKey]);
+            Assert.AreEqual(new CornerRadius(0), resources[PlayAchResourceService.LayoutCornerRadiusRightResourceKey]);
+            Assert.AreEqual(0d, resources[PlayAchResourceService.LayoutCornerRadiusValueResourceKey]);
+        }
+
+        [TestMethod]
+        public void LayoutCornerRadius_ClampsNegativeToZero()
+        {
+            var settings = new PersistedSettings { LayoutCornerRadius = -5 };
+
+            Assert.AreEqual(0, settings.LayoutCornerRadius);
         }
 
         private static void AssertNoDescriptor(string resourceKey)

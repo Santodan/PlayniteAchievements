@@ -28,10 +28,19 @@ namespace PlayniteAchievements.Views.Showcase
         private IReadOnlyList<(int Row, int Column)> _cells = Array.Empty<(int Row, int Column)>();
         private bool _editing;
 
+        // The layout corner radius, held as a resource reference so a settings change redraws the layer.
+        private static readonly DependencyProperty SurfaceRadiusProperty =
+            DependencyProperty.Register(
+                "SurfaceRadius",
+                typeof(double),
+                typeof(ShowcaseCellLayer),
+                new FrameworkPropertyMetadata(0d, FrameworkPropertyMetadataOptions.AffectsRender));
+
         public ShowcaseCellLayer()
         {
             IsHitTestVisible = false;
             Focusable = false;
+            SetResourceReference(SurfaceRadiusProperty, "PlayAch.Radius.Layout.Value");
         }
 
         /// <summary>Raised on a left click while editing: the cell, and whether it hit the add button.</summary>
@@ -176,7 +185,7 @@ namespace PlayniteAchievements.Views.Showcase
 
             // Theme brushes are read per render and never frozen: a theme switch replaces them.
             var surface = TryFindResource("PlayAch.Brush.GridSurface") as Brush;
-            var radius = Radius(TryFindResource("PlayAch.Radius.Section"));
+            var radius = (double)GetValue(SurfaceRadiusProperty);
             var outline = _editing && TryFindResource("PlayAch.Brush.Border") is Brush border
                 ? new Pen(border, OutlineThickness)
                 : null;
@@ -291,19 +300,6 @@ namespace PlayniteAchievements.Views.Showcase
                 emSize,
                 brush,
                 VisualTreeHelper.GetDpi(this).PixelsPerDip);
-        }
-
-        private static double Radius(object resource)
-        {
-            switch (resource)
-            {
-                case CornerRadius corner:
-                    return corner.TopLeft;
-                case double value:
-                    return value;
-                default:
-                    return 0;
-            }
         }
     }
 }

@@ -2694,15 +2694,10 @@ namespace PlayniteAchievements.Services.Tests
             }
             public List<FriendIdentity> CachedFriends { get; set; } = new List<FriendIdentity>();
 
-            public event EventHandler<FriendCacheInvalidatedEventArgs> FriendCacheInvalidated;
+            public IFriendsOverviewReads FriendReads => null;
 
             public IFriendCacheInvalidationBatch BeginFriendCacheInvalidationBatch() =>
                 NullFriendCacheInvalidationBatch.Instance;
-
-            public void NotifyFriendCacheInvalidated()
-            {
-                FriendCacheInvalidated?.Invoke(this, FriendCacheInvalidatedEventArgs.FullInvalidation);
-            }
 
             public FriendCacheWriteResult SaveFriendList(string providerKey, IReadOnlyList<FriendIdentity> friends)
             {
@@ -2849,21 +2844,6 @@ namespace PlayniteAchievements.Services.Tests
             public IReadOnlyDictionary<string, FriendOwnershipRecency> LoadFriendOwnershipRecency(
                 string providerKey,
                 string externalUserId) => OwnershipRecency;
-
-            public FriendsOverviewData LoadFriendsOverviewData(int recentLimit) =>
-                new FriendsOverviewData();
-
-            public FriendsOverviewData LoadFriendsOverviewPatchData(IReadOnlyList<FriendCacheChange> reloadScopes) =>
-                new FriendsOverviewData();
-
-            public FriendsOverviewData LoadFriendGameAchievementData(Guid playniteGameId) =>
-                new FriendsOverviewData();
-
-            public IReadOnlyCollection<Guid> LoadFriendDataPlayniteGameIds() =>
-                Array.Empty<Guid>();
-
-            public FriendsOverviewData LoadFriendGameAchievementData(FriendCacheChange gameScope) =>
-                new FriendsOverviewData();
 
             public IReadOnlyList<CurrentUserGameLabel> CurrentUserGameLabels { get; set; } =
                 new List<CurrentUserGameLabel>();

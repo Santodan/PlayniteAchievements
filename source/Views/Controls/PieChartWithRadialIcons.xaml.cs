@@ -339,7 +339,8 @@ namespace PlayniteAchievements.Views.Controls
         /// percentage appear in the same frame. After new values the chart is redrawn first
         /// rather than left to LiveCharts' own timer, because the slice offsets are applied to
         /// the slices it draws. Waiting for an idle pass instead put the icons a frame or more
-        /// behind the slices, and behind any filter pass queued meanwhile.
+        /// behind the slices, and behind any filter pass queued meanwhile. Every pie scheduled
+        /// before the pass runs shares it, so a page of pies forces one layout, not one each.
         /// </remarks>
         private void ScheduleCalculation(bool dataChanged = false)
         {
@@ -349,21 +350,40 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
             calculationScheduled = true;
-            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.DataBind, new Action(() =>
+            if (pendingCalculations == null)
             {
-                calculationScheduled = false;
-                if (chartDataChanged && IsLoaded)
+                pendingCalculations = new List<PieChartWithRadialIcons>();
+                Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.DataBind, new Action(RunPendingCalculations));
+            }
+            pendingCalculations.Add(this);
+        }
+
+        [ThreadStatic]
+        private static List<PieChartWithRadialIcons> pendingCalculations;
+
+        private static void RunPendingCalculations()
+        {
+            var pies = pendingCalculations;
+            pendingCalculations = null;
+
+            // The legend rows and the layout they cause come first, so the charts draw at the
+            // size they keep rather than full width and then shrinking. The pies stay scheduled
+            // through the layout, so a size it changes folds into their redraw below.
+            var redraw = pies.Where(pie => pie.chartDataChanged && pie.IsLoaded).ToList();
+            redraw.ForEach(pie => pie.SynchronizeLegendRows());
+            redraw.FirstOrDefault()?.UpdateLayout();
+
+            foreach (var pie in pies)
+            {
+                pie.calculationScheduled = false;
+                if (pie.chartDataChanged && pie.IsLoaded)
                 {
-                    chartDataChanged = false;
-                    // The legend rows and the layout they cause come first, so the chart draws
-                    // at the size it keeps rather than full width and then shrinking.
-                    SynchronizeLegendRows();
-                    UpdateLayout();
-                    Chart.Update(false, true);
+                    pie.chartDataChanged = false;
+                    pie.Chart.Update(false, true);
                 }
 
-                CalculatePositions();
-            }));
+                pie.CalculatePositions();
+            }
         }
 
         private bool chartDataChanged;

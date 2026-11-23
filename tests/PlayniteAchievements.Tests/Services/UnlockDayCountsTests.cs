@@ -40,30 +40,6 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void RemoveDay_DeletesKeysThatReachZero()
-        {
-            var global = new Dictionary<DateTime, int>();
-            var byGame = new Dictionary<Guid, Dictionary<DateTime, int>>();
-            UnlockDayCounts.AddDay(global, byGame, Game, Day, 2);
-
-            Assert.IsTrue(UnlockDayCounts.RemoveDay(global, byGame, Game, Day));
-            Assert.AreEqual(1, global[Day]);
-            Assert.AreEqual(1, byGame[Game][Day]);
-
-            Assert.IsTrue(UnlockDayCounts.RemoveDay(global, byGame, Game, Day));
-            Assert.IsFalse(global.ContainsKey(Day));
-            Assert.IsFalse(byGame.ContainsKey(Game));
-        }
-
-        [TestMethod]
-        public void RemoveDay_MissingKey_ReturnsFalse()
-        {
-            var global = new Dictionary<DateTime, int>();
-
-            Assert.IsFalse(UnlockDayCounts.RemoveDay(global, null, Game, Day));
-        }
-
-        [TestMethod]
         public void Earliest_IgnoresNonPositiveCounts()
         {
             var counts = new Dictionary<DateTime, int>

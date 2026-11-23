@@ -7,13 +7,11 @@ using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.Database;
 using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.Services.Refresh;
 using PlayniteAchievements.Services.Summaries;
 using PlayniteAchievements.Services.UI;
-#if !TEST
-using PlayniteAchievements.Services.Library;
-#endif
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Items;
 using Playnite.SDK;
@@ -47,14 +45,9 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         private readonly IPlayniteAPI _api;
         private readonly RefreshRuntime _refreshService;
         private readonly AchievementDataService _achievementDataService;
-#if !TEST
-        private readonly LibraryProjectionService _libraryProjectionService;
-#endif
         private readonly RefreshEntryPoint _refreshCoordinator;
         private readonly IFriendCacheManager _friendCache;
         private readonly Captures.CaptureLibraryService _captureLibrary;
-        private readonly FriendsOverviewDataCoordinator _friendsOverviewDataCoordinator;
-        private readonly bool _ownsFriendsOverviewDataCoordinator;
         private readonly Func<RefreshRequest, string, bool, Action<bool>, Task> _runRefreshWithGlobalProgressAsync;
         private readonly Action<Guid> _openManageAchievementsView;
         // Injected rather than resolved here so this service stays free of the overrides service
@@ -72,7 +65,12 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             (_gameSummaryItemBuilder = new GameSummaryItemBuilder(_api, _logger));
 
         private readonly object _refreshLock = new object();
-        private CancellationTokenSource _refreshCts;
+
+        // The latest library state read; an older one is dropped unread or unapplied.
+        private int _libraryReadVersion;
+
+        // The latest Playnite game change; the bound lists reread after the last of a burst.
+        private int _libraryGamesChangeVersion;
         private static readonly TimeSpan LibraryRefreshDelay = TimeSpan.FromMilliseconds(500);
 
         // A window that edits one game's custom data in bulk -- the Manage Achievements editor --
@@ -81,12 +79,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         // that window is up. Counted rather than a flag, since one window per game can be open.
         private int _librarySuspensionCount;
         private bool _librarySuspensionHasPendingRefresh;
-        private bool _librarySuspensionPendingHeavyLists;
-#if TEST
-        private static readonly TimeSpan FriendRefreshDelay = TimeSpan.Zero;
-#else
-        private static readonly TimeSpan FriendRefreshDelay = TimeSpan.FromMilliseconds(500);
-#endif
         private const int ThemeRecentUnlockSummaryLimit = 10;
 
         private readonly object _updateGate = new object();
@@ -98,30 +90,21 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         private CancellationTokenSource _activeUpdateCts;
         private Guid? _appliedGameId;
         private DateTime _appliedLastUpdatedUtc;
-        private readonly object _friendRefreshGate = new object();
-        private Task _friendRefreshRunner;
-        private CancellationTokenSource _friendRefreshCts;
-        private int _friendRefreshRequestVersion;
-        private int _friendRefreshAppliedVersion;
         private volatile bool _hasFriendThemeConsumers;
 
-        // On-demand locked-row rows for the dynamic friend pair scope (friend + game both
-        // selected). The friend runtime state carries unlocked rows only; the selected game's
-        // full rows (locked included) are fetched once per game key and swapped in, mirroring
-        // FriendsOverviewViewModel's pair comparison.
-        private List<FriendAchievementDisplayItem> _dynamicFriendPairRows;
-        private string _dynamicFriendPairKey;
-        private string _dynamicFriendPairKeyInFlight;
-        private int _dynamicFriendPairFetchVersion;
-        internal Task DynamicFriendPairFetchTask { get; private set; }
-
-        // Sticky-true once any theme friend binding is read; consulted by the friends overview
-        // coordinator's release path so a friend-consuming theme keeps the snapshot alive.
-        internal bool HasFriendThemeConsumers => _hasFriendThemeConsumers;
+        // The friend lists and the rows of the friend scope, read once a theme binds friend data,
+        // and the library-wide achievement lists, each read once a theme binds it.
+        private IReadScheduler _readScheduler;
+        private LiveQuery<FriendsOverviewLists> _friendLists;
+        private PagedRows<FriendAchievementDisplayItem> _friendRows;
+        private readonly Dictionary<string, LiveQuery<List<AchievementDetail>>> _libraryLists =
+            new Dictionary<string, LiveQuery<List<AchievementDetail>>>(StringComparer.Ordinal);
 
         private bool _fullscreenInitialized;
         private bool _hasLoadedLibraryState;
-        private bool _lastLibraryRefreshIncludedHeavyAchievementLists = true;
+
+        // Runs once the library state is applied; set by a command that needs it before it was read.
+        private Action _afterLibraryState;
         private readonly Dictionary<Guid, RelayCommand> _openViewAchievementsCommands =
             new Dictionary<Guid, RelayCommand>();
         private readonly Dictionary<Guid, RelayCommand> _openManageAchievementsCommands =
@@ -131,9 +114,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             IPlayniteAPI api,
             RefreshRuntime refreshRuntime,
             AchievementDataService achievementDataService,
-#if !TEST
-            LibraryProjectionService libraryProjectionService,
-#endif
             RefreshEntryPoint refreshEntryPoint,
             PlayniteAchievementsSettings settings,
             FullscreenWindowService windowService,
@@ -141,25 +121,18 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             Func<RefreshRequest, string, bool, Action<bool>, Task> runRefreshWithGlobalProgressAsync = null,
             Action<Guid> openManageAchievementsView = null,
             IFriendCacheManager friendCache = null,
-            FriendsOverviewDataCoordinator friendsOverviewDataCoordinator = null,
             Func<AchievementHotkeyTargetResolution> resolveRunningGameTarget = null,
             Action<AchievementMarkerTarget> toggleAchievementCapstone = null,
             Action<AchievementMarkerTarget> toggleAchievementGoal = null,
-            Captures.CaptureLibraryService captureLibrary = null)
+            Captures.CaptureLibraryService captureLibrary = null,
+            IReadScheduler readScheduler = null)
         {
             _api = api ?? throw new ArgumentNullException(nameof(api));
             _refreshService = refreshRuntime ?? throw new ArgumentNullException(nameof(refreshRuntime));
             _achievementDataService = achievementDataService ?? throw new ArgumentNullException(nameof(achievementDataService));
-#if !TEST
-            _libraryProjectionService = libraryProjectionService;
-#endif
             _refreshCoordinator = refreshEntryPoint ?? throw new ArgumentNullException(nameof(refreshEntryPoint));
             _friendCache = friendCache;
-            _ownsFriendsOverviewDataCoordinator = friendsOverviewDataCoordinator == null && friendCache != null;
-            _friendsOverviewDataCoordinator = friendsOverviewDataCoordinator ??
-                (friendCache != null
-                    ? new FriendsOverviewDataCoordinator(friendCache, () => _settings?.Persisted, logger)
-                    : null);
+            _readScheduler = readScheduler;
             _runRefreshWithGlobalProgressAsync = runRefreshWithGlobalProgressAsync ?? RunRefreshWithoutGlobalProgressAsync;
             _openManageAchievementsView = openManageAchievementsView;
             _toggleAchievementCapstone = toggleAchievementCapstone;
@@ -501,25 +474,19 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 _captureLibrary.CapturesChanged += CaptureLibrary_CapturesChanged;
             }
 
-            if (_friendCache != null)
-            {
-                _friendCache.FriendCacheInvalidated += FriendCache_FriendCacheInvalidated;
-            }
-
-            if (_friendsOverviewDataCoordinator != null)
-            {
-                _friendsOverviewDataCoordinator.SnapshotInvalidated += FriendsOverviewCoordinator_SnapshotInvalidated;
-            }
-
             // The friend runtime state is built on demand: the first read of a friend data
             // property (or a friend scope command) registers demand and triggers the build.
             // Themes without friend bindings never pay the full friends-overview snapshot cost.
             _settings.ModernTheme.FriendDataRequested = EnsureFriendThemeDataLoaded;
+            _settings.ModernTheme.LibraryListRequested = EnsureLibraryListLoaded;
+            _settings.ModernTheme.CategorySummariesRequested = EnsureCategorySummariesLoaded;
         }
 
         public void Dispose()
         {
             try { _settings.ModernTheme.FriendDataRequested = null; } catch { }
+            try { _settings.ModernTheme.LibraryListRequested = null; } catch { }
+            try { _settings.ModernTheme.CategorySummariesRequested = null; } catch { }
             try { _settings.DynamicThemeDefaultsChanged -= Settings_DynamicThemeDefaultsChanged; } catch { }
             try { _refreshService.CacheInvalidated -= RefreshService_CacheInvalidated; } catch { }
             try
@@ -530,29 +497,14 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 }
             }
             catch { }
-            try
+            _friendLists?.Dispose();
+            _friendRows?.Dispose();
+            foreach (var list in _libraryLists.Values)
             {
-                if (_friendsOverviewDataCoordinator != null)
-                {
-                    _friendsOverviewDataCoordinator.SnapshotInvalidated -= FriendsOverviewCoordinator_SnapshotInvalidated;
-                }
+                list.Dispose();
             }
-            catch { }
-            try
-            {
-                if (_friendCache != null)
-                {
-                    _friendCache.FriendCacheInvalidated -= FriendCache_FriendCacheInvalidated;
-                }
-            }
-            catch { }
 
-            lock (_refreshLock)
-            {
-                try { _refreshCts?.Cancel(); } catch { }
-                try { _refreshCts?.Dispose(); } catch { }
-                _refreshCts = null;
-            }
+            Interlocked.Increment(ref _libraryReadVersion);
 
             lock (_updateGate)
             {
@@ -561,17 +513,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 _activeUpdateCts = null;
             }
 
-            lock (_friendRefreshGate)
-            {
-                try { _friendRefreshCts?.Cancel(); } catch { }
-                try { _friendRefreshCts?.Dispose(); } catch { }
-                _friendRefreshCts = null;
-            }
-
-            if (_ownsFriendsOverviewDataCoordinator)
-            {
-                try { _friendsOverviewDataCoordinator?.Dispose(); } catch { }
-            }
         }
 
         public void NotifySelectionChanged(Guid? selectedGameId)
@@ -598,30 +539,17 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             }
         }
 
-        public void EnsureAllGamesThemeDataLoaded(
-            bool includeHeavyAchievementLists = true,
-            bool forceRefresh = false)
+        public void EnsureAllGamesThemeDataLoaded(bool forceRefresh = false)
         {
             try
             {
-                if (!forceRefresh &&
-                    _hasLoadedLibraryState &&
-                    (!includeHeavyAchievementLists || _lastLibraryRefreshIncludedHeavyAchievementLists))
+                if (!forceRefresh && _hasLoadedLibraryState)
                 {
                     ApplyDynamicOptionBindings();
                     return;
                 }
 
-                var dispatcher = _api?.MainView?.UIDispatcher ?? Application.Current?.Dispatcher;
-                if (dispatcher != null && !dispatcher.CheckAccess())
-                {
-                    dispatcher.Invoke(
-                        new Action(() => PopulateAllGamesDataSync(includeHeavyAchievementLists)),
-                        DispatcherPriority.Background);
-                    return;
-                }
-
-                PopulateAllGamesDataSync(includeHeavyAchievementLists);
+                ReadLibraryState(TimeSpan.Zero);
             }
             catch (Exception ex)
             {
@@ -635,14 +563,209 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         // volatile-read fast path so it is safe on the UI thread during binding.
         public void EnsureFriendThemeDataLoaded()
         {
-            if (_hasFriendThemeConsumers || _friendCache == null)
+            var reads = _friendCache?.FriendReads;
+            if (_hasFriendThemeConsumers || reads == null)
             {
                 return;
             }
 
             _hasFriendThemeConsumers = true;
-            RequestFriendStateRefresh();
+            _friendLists = new LiveQuery<FriendsOverviewLists>(
+                reads.Feed,
+                AchievementQuery.AllFriends,
+                _ => FriendsOverviewLists.Load(reads, _settings?.Persisted),
+                ReadScheduler,
+                FriendReadWindow,
+                ex => _logger?.Error(ex, "Failed to load friend theme lists."));
+            _friendLists.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(LiveQuery<object>.Result))
+                {
+                    ApplyFriendState(new FriendRuntimeState(_friendLists.Result));
+                }
+            };
         }
+
+        /// <summary>Reads the friend lists and rows again, for a setting they show.</summary>
+        public void ReloadFriendThemeData()
+        {
+            _friendLists?.SetQuery(_friendLists.Query);
+            _friendRows?.SetQuery(_friendRows.Query);
+        }
+
+        /// <summary>
+        /// A header click of the theme friend grid on a column no theme sort key names: the sort key
+        /// is the column, which the list's query reads and the theme sort commands never accept.
+        /// </summary>
+        internal void SortFriendAchievements(string sortMemberPath, string directionKey)
+        {
+            var view = _runtimeState.FriendAchievements;
+            view.HasUserSelection = true;
+            view.SortKey = sortMemberPath;
+            view.SortDirectionKey = directionKey;
+            ApplyDynamicFriendBindings();
+            NotifySettingProperties(ThemeDelegatedPropertyCatalog.DynamicFriends);
+        }
+
+        /// <summary>
+        /// The rows of the friend scope, as the Friends Overview grid reads them: every friend's
+        /// unlocks with a time, a provider, friend or game's unlocks, or a friend and game's every
+        /// achievement; then the list's filter and sort.
+        /// </summary>
+        private AchievementQuery FriendRowsQuery(FriendRuntimeState state)
+        {
+            var scope = _runtimeState.FriendScope;
+            var friend = state.Lists.FindFriend(scope.UserKey);
+            var game = state.Lists.FindGame(scope.GameKey);
+            var query = FriendsOverviewLists.Scope(AchievementQuery.AllFriends, friend, game)
+                .WithFriendNames(state.Lists.FriendNames)
+                .WhereProvider(FriendOverviewProjection.IsAllScope(scope.ProviderKey) ? null : scope.ProviderKey);
+            query = friend != null && game != null
+                ? query
+                : friend != null || game != null || !FriendOverviewProjection.IsAllScope(scope.ProviderKey)
+                    ? query.WhereUnlocked(true)
+                    : query.WhereUnlocked(true).WhereUnlockTimeKnown();
+            var view = _runtimeState.FriendAchievements;
+            return DynamicThemeFilterEvaluator.ApplyAchievementSort(
+                DynamicThemeFilterEvaluator.ApplyAchievementFilters(query, view.FilterKey),
+                view.SortKey,
+                view.SortDirectionKey);
+        }
+
+        private IReadScheduler ReadScheduler =>
+            _readScheduler ??= new DispatcherReadScheduler(
+                _api?.MainView?.UIDispatcher ?? Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher);
+
+        /// <summary>
+        /// Reads a library-wide achievement list the first time a theme reads it, and again each
+        /// time the data under it changes. Uncapped, as themes have always had them.
+        /// </summary>
+        public void EnsureLibraryListLoaded(string name)
+        {
+            if (_libraryLists.ContainsKey(name) || !(LibraryListQuery(name) is AchievementQuery query))
+            {
+                return;
+            }
+
+            LiveQuery<List<AchievementDetail>> list = null;
+            list = new LiveQuery<List<AchievementDetail>>(
+                _achievementDataService.CacheReads?.Feed,
+                query,
+                // Each read builds the query again, so the games Playnite hides and the days the
+                // window covers are those of the read.
+                read => LibraryRuntimeStateBuilder.Details(_achievementDataService.ReadRows(LibraryListQuery(name) ?? read), _api),
+                ReadScheduler,
+                // A whole-library list reads every row, so a refresh's changes are read every half minute.
+                () => _refreshService.IsRebuilding ? TimeSpan.FromSeconds(30) : LiveQuery<object>.DefaultWindow,
+                ex => _logger?.Error(ex, "Failed to load the theme list " + name + "."));
+            _libraryLists[name] = list;
+            list.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(LiveQuery<object>.Result))
+                {
+                    ApplyLibraryList(name, list.Result);
+                }
+            };
+            if (list.Result != null)
+            {
+                ApplyLibraryList(name, list.Result);
+            }
+        }
+
+        private AchievementQuery LibraryListQuery(string name) =>
+            LibraryListQuery(name, _achievementDataService.SummaryQuery(), _runtimeState.LibraryAchievements);
+
+        /// <summary>
+        /// The library lists a theme has read so far and their row counts, for diagnostics. Loads
+        /// nothing: the theme getters themselves start a read.
+        /// </summary>
+        internal string DescribeLoadedLibraryLists()
+        {
+            var loaded = _libraryLists.ToArray();
+            return loaded.Length == 0
+                ? "none"
+                : string.Join(",", loaded.Select(pair => pair.Key + "=" + (pair.Value.Result?.Count ?? 0)));
+        }
+
+        // The rows each library list reads of the library under the summary rules (all): goals
+        // first in the whole-library lists, in the list's order.
+        internal static AchievementQuery LibraryListQuery(string name, AchievementQuery all, LibraryAchievementViewState view)
+        {
+            var descending = name.EndsWith("Desc", StringComparison.Ordinal);
+            switch (name)
+            {
+                case nameof(ModernThemeBindings.AllAchievementsUnlockAsc):
+                case nameof(ModernThemeBindings.AllAchievementsUnlockDesc):
+                    return all.WithGoalsFirst().OrderBy(AchievementSort.UnlockTime, descending);
+                case nameof(ModernThemeBindings.AllAchievementsRarityAsc):
+                case nameof(ModernThemeBindings.AllAchievementsRarityDesc):
+                    return all.WithGoalsFirst().OrderBy(AchievementSort.Rarity, descending);
+                case nameof(ModernThemeBindings.MostRecentUnlocks):
+                    return all.WhereUnlocked(true).WhereUnlockTimeKnown().OrderBy(AchievementSort.UnlockTime, descending: true);
+                case nameof(ModernThemeBindings.RarestRecentUnlocks):
+                    return RarestRecentQuery(all);
+                case nameof(ModernThemeBindings.DynamicLibraryAchievements):
+                    var query = all.WithGoalsFirst().WhereProvider(IsAllScopeKey(view.ProviderKey) ? null : view.ProviderKey);
+                    query = !IsAllScopeKey(view.GameKey) && Guid.TryParse(view.GameKey, out var gameId) ? query.ForGames(new[] { gameId }) : query;
+                    return DynamicThemeFilterEvaluator.ApplyAchievementSort(
+                        DynamicThemeFilterEvaluator.ApplyAchievementFilters(query, view.FilterKey),
+                        view.SortKey,
+                        view.SortDirectionKey);
+                default:
+                    return null;
+            }
+        }
+
+        // The rarest unlocks of the last 180 days, rarest first.
+        internal static AchievementQuery RarestRecentQuery(AchievementQuery all) =>
+            all.WhereUnlocked(true).WhereUnlockTimeKnown().WhereUnlockedBetween(DateTime.Today.AddDays(-180), null).OrderBy(AchievementSort.Rarity);
+
+        private void ApplyLibraryList(string name, List<AchievementDetail> items)
+        {
+            items = items ?? new List<AchievementDetail>();
+            switch (name)
+            {
+                case nameof(ModernThemeBindings.AllAchievementsUnlockAsc):
+                    _settings.ModernTheme.AllAchievementsUnlockAsc = items;
+                    break;
+                case nameof(ModernThemeBindings.AllAchievementsUnlockDesc):
+                    _settings.ModernTheme.AllAchievementsUnlockDesc = items;
+                    break;
+                case nameof(ModernThemeBindings.AllAchievementsRarityAsc):
+                    _settings.ModernTheme.AllAchievementsRarityAsc = items;
+                    break;
+                case nameof(ModernThemeBindings.AllAchievementsRarityDesc):
+                    _settings.ModernTheme.AllAchievementsRarityDesc = items;
+                    break;
+                case nameof(ModernThemeBindings.MostRecentUnlocks):
+                    _settings.ModernTheme.MostRecentUnlocks = items;
+                    break;
+                case nameof(ModernThemeBindings.RarestRecentUnlocks):
+                    _settings.ModernTheme.RarestRecentUnlocks = items;
+                    break;
+                default:
+                    AttachAchievementCommands(items);
+                    _settings.ModernTheme.DynamicLibraryAchievements = items;
+                    break;
+            }
+
+            NotifySettingProperties(name);
+        }
+
+        // Points a library list read at its current query; a list no theme read is left unread.
+        private void UpdateLibraryListQuery(string name)
+        {
+            if (_libraryLists.TryGetValue(name, out var list) &&
+                LibraryListQuery(name) is AchievementQuery query &&
+                AchievementQuerySql.KeyOf(query) != AchievementQuerySql.KeyOf(list.Query))
+            {
+                list.SetQuery(query);
+            }
+        }
+
+        // A refresh writes every few hundred milliseconds; its changes are read every few seconds.
+        private TimeSpan FriendReadWindow() =>
+            _refreshService.IsRebuilding ? TimeSpan.FromSeconds(3) : LiveQuery<object>.DefaultWindow;
 
         /// <param name="refreshLibraryState">
         /// False when the change cannot move anything the library-wide lists read. The selected-game
@@ -697,7 +820,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
                     if (_hasLoadedLibraryState)
                     {
-                        RequestLibraryRefresh(_lastLibraryRefreshIncludedHeavyAchievementLists);
+                        RequestLibraryRefresh();
                     }
                     else if (IsFullscreen() && _fullscreenInitialized)
                     {
@@ -709,6 +832,31 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             {
                 _logger?.Debug(ex, "Failed to refresh library theme state after custom-data change.");
             }
+        }
+
+        /// <summary>
+        /// Playnite games were added, removed, edited or hidden, or summaries started or stopped
+        /// leaving hidden games out. The library state and the bound library lists carry their
+        /// names and art, so each is read again once a burst of changes ends.
+        /// </summary>
+        public void NotifyLibraryGamesChanged()
+        {
+            if (_hasLoadedLibraryState)
+            {
+                RequestLibraryRefresh();
+            }
+
+            var version = Interlocked.Increment(ref _libraryGamesChangeVersion);
+            ReadScheduler.PostAfter(LibraryRefreshDelay, () =>
+            {
+                if (version == _libraryGamesChangeVersion)
+                {
+                    foreach (var list in _libraryLists.Values)
+                    {
+                        list.SetQuery(list.Query);
+                    }
+                }
+            });
         }
 
         /// <summary>
@@ -771,8 +919,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         }
 
         // Typed, or IsFull and ChangedGameIds are invisible and every per-game edit pays for a
-        // whole-library theme refresh. A scoped invalidation names the games that moved, and a
-        // current-user achievement edit cannot move friend data at all.
+        // whole-library theme refresh. A scoped invalidation names the games that moved.
         private void RefreshService_CacheInvalidated(object sender, CacheInvalidatedEventArgs e)
         {
             var isScoped = e?.IsFull == false;
@@ -808,29 +955,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             catch (Exception ex)
             {
                 _logger?.Debug(ex, "[ThemeIntegration] Failed to request selected-game theme update after cache invalidation.");
-            }
-
-            if (!isScoped)
-            {
-                _friendsOverviewDataCoordinator?.Invalidate();
-            }
-        }
-
-        private void FriendCache_FriendCacheInvalidated(object sender, FriendCacheInvalidatedEventArgs e)
-        {
-            _friendsOverviewDataCoordinator?.Invalidate(e);
-        }
-
-        // Every invalidation path funnels through the coordinator (cache invalidation handlers
-        // here, the plugin's friend-cache handler, and the post-start warm), so its
-        // SnapshotInvalidated event is the single trigger for consumed rebuilds. Staleness is
-        // always recorded; without consumers the rebuild (and its full friends-overview
-        // snapshot) is skipped.
-        private void FriendsOverviewCoordinator_SnapshotInvalidated(object sender, EventArgs e)
-        {
-            if (_hasFriendThemeConsumers)
-            {
-                RequestFriendStateRefresh();
             }
         }
 
@@ -1038,22 +1162,14 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
         private void OpenOverviewWindow()
         {
-            // Cancel any pending async refresh to prevent it from overwriting our data
-            lock (_refreshLock)
-            {
-                try { _refreshCts?.Cancel(); } catch { }
-                try { _refreshCts?.Dispose(); } catch { }
-                _refreshCts = null;
-            }
-
             // Mark as initialized to prevent other code paths from triggering refresh
             if (!_fullscreenInitialized)
             {
                 _fullscreenInitialized = true;
             }
 
-            // Immediately populate all-games data on UI thread before opening window
-            PopulateAllGamesDataSync(includeHeavyAchievementLists: true);
+            // Read now, superseding a pending read; the window shows the state when it lands.
+            ReadLibraryState(TimeSpan.Zero);
 
             _windowService.OpenOverviewWindow();
         }
@@ -1119,24 +1235,24 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 return;
             }
 
-            EnsureAllGamesThemeDataLoaded(includeHeavyAchievementLists: true);
-
-            var state = _runtimeState.Library ?? new LibraryRuntimeState();
-            var viewState = _runtimeState.LibraryAchievements;
-            var providerKey = ResolveLibraryProviderKeyForGame(state, gameId);
-
-            viewState.HasUserSelection = true;
-            viewState.GameKey = gameId.ToString("D");
-            viewState.GameLabel = ResolveGameLabel(gameId);
-            if (!ProviderScopeMatches(viewState.ProviderKey, providerKey))
+            WithLibraryState(() =>
             {
-                viewState.ProviderKey = string.IsNullOrWhiteSpace(providerKey)
-                    ? DynamicThemeViewKeys.All
-                    : providerKey;
-            }
+                var viewState = _runtimeState.LibraryAchievements;
+                var providerKey = ResolveGameSummaryProviderKeyForGame(_runtimeState.Library, gameId);
 
-            ApplyDynamicLibraryAchievementBindings();
-            NotifySettingProperties(ThemeDelegatedPropertyCatalog.DynamicAllGames);
+                viewState.HasUserSelection = true;
+                viewState.GameKey = gameId.ToString("D");
+                viewState.GameLabel = ResolveGameLabel(gameId);
+                if (!ProviderScopeMatches(viewState.ProviderKey, providerKey))
+                {
+                    viewState.ProviderKey = string.IsNullOrWhiteSpace(providerKey)
+                        ? DynamicThemeViewKeys.All
+                        : providerKey;
+                }
+
+                ApplyDynamicLibraryAchievementBindings();
+                NotifySettingProperties(ThemeDelegatedPropertyCatalog.DynamicAllGames);
+            });
         }
 
         private void FilterDynamicGameSummariesByRunningGame()
@@ -1148,24 +1264,38 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 return;
             }
 
-            EnsureAllGamesThemeDataLoaded(includeHeavyAchievementLists: true);
-
-            var state = _runtimeState.Library ?? new LibraryRuntimeState();
-            var viewState = _runtimeState.GameSummaries;
-            var providerKey = ResolveGameSummaryProviderKeyForGame(state, gameId);
-
-            viewState.HasUserSelection = true;
-            viewState.GameKey = gameId.ToString("D");
-            viewState.GameLabel = ResolveGameLabel(gameId);
-            if (!ProviderScopeMatches(viewState.ProviderKey, providerKey))
+            WithLibraryState(() =>
             {
-                viewState.ProviderKey = string.IsNullOrWhiteSpace(providerKey)
-                    ? DynamicThemeViewKeys.All
-                    : providerKey;
-            }
+                var viewState = _runtimeState.GameSummaries;
+                var providerKey = ResolveGameSummaryProviderKeyForGame(_runtimeState.Library, gameId);
 
-            ApplyDynamicGameSummaryBindings();
-            NotifySettingProperties(ThemeDelegatedPropertyCatalog.DynamicAllGames);
+                viewState.HasUserSelection = true;
+                viewState.GameKey = gameId.ToString("D");
+                viewState.GameLabel = ResolveGameLabel(gameId);
+                if (!ProviderScopeMatches(viewState.ProviderKey, providerKey))
+                {
+                    viewState.ProviderKey = string.IsNullOrWhiteSpace(providerKey)
+                        ? DynamicThemeViewKeys.All
+                        : providerKey;
+                }
+
+                ApplyDynamicGameSummaryBindings();
+                NotifySettingProperties(ThemeDelegatedPropertyCatalog.DynamicAllGames);
+            });
+        }
+
+        // Runs apply now when the library state is loaded, else once its read lands.
+        private void WithLibraryState(Action apply)
+        {
+            EnsureAllGamesThemeDataLoaded();
+            if (_hasLoadedLibraryState)
+            {
+                apply();
+            }
+            else
+            {
+                _afterLibraryState += apply;
+            }
         }
 
         private void FilterDynamicFriendScopeByRunningGame(string commandName)
@@ -1630,49 +1760,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
         #region Snapshot Building and Refresh
 
-        private void PopulateAllGamesDataSync(bool includeHeavyAchievementLists)
-        {
-            try
-            {
-                _logger?.Info("PopulateAllGamesDataSync: Starting to populate all-games achievement data.");
-
-                var state = BuildLibraryState(
-                    includeHeavyAchievementLists,
-                    CancellationToken.None,
-                    out var usedCachedSummary,
-                    out var hydratedCount);
-                if (usedCachedSummary)
-                {
-                    _logger?.Info($"PopulateAllGamesDataSync: Built from cached summary data. AllGamesWithAchievements count={state.AllGamesWithAchievements?.Count ?? 0}.");
-                }
-                else
-                {
-                    _logger?.Info($"PopulateAllGamesDataSync: Found {hydratedCount.GetValueOrDefault()} total game data entries.");
-                }
-
-                _logger?.Info($"PopulateAllGamesDataSync: State created - TotalTrophies={state.TotalTrophies}, PlatinumTrophies={state.PlatinumTrophies}, GoldTrophies={state.GoldTrophies}, Rank={state.Rank}");
-                ForkLog.Wrap(_logger)?.Debug(
-                    "PopulateAllGamesDataSync: Providers=" +
-                    string.Join(
-                        ", ",
-                        (state.AllGamesWithAchievements ?? new List<GameAchievementSummary>())
-                            .Where(item => !string.IsNullOrWhiteSpace(item?.ProviderKey))
-                            .GroupBy(item => item.ProviderKey, StringComparer.OrdinalIgnoreCase)
-                            .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
-                            .Select(group => $"{group.Key}={group.Count()}")));
-
-                _hasLoadedLibraryState = true;
-                _lastLibraryRefreshIncludedHeavyAchievementLists = includeHeavyAchievementLists;
-                ApplyLibraryState(state);
-
-                _logger?.Info($"PopulateAllGamesDataSync: Applied snapshot. AllGamesWithAchievements count={_settings.LegacyTheme.AllGamesWithAchievements?.Count ?? 0}");
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, "Failed to populate all-games data synchronously.");
-            }
-        }
-
         /// <summary>
         /// Synchronously populates single-game achievement data for the specified game.
         /// Uses existing cached data without triggering a refresh.
@@ -1713,7 +1800,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
         private void RequestRefresh()
         {
-            RequestLibraryRefresh(includeHeavyAchievementLists: false, requireFullscreen: true);
+            RequestLibraryRefresh(requireFullscreen: true);
         }
 
         /// <summary>
@@ -1737,7 +1824,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         public void ResumeLibraryRefresh()
         {
             bool shouldRefresh;
-            bool includeHeavyAchievementLists;
             lock (_refreshLock)
             {
                 if (_librarySuspensionCount > 0)
@@ -1751,14 +1837,12 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 }
 
                 shouldRefresh = _librarySuspensionHasPendingRefresh;
-                includeHeavyAchievementLists = _librarySuspensionPendingHeavyLists;
                 _librarySuspensionHasPendingRefresh = false;
-                _librarySuspensionPendingHeavyLists = false;
             }
 
             if (shouldRefresh)
             {
-                RequestLibraryRefresh(includeHeavyAchievementLists);
+                RequestLibraryRefresh();
             }
         }
 
@@ -1774,37 +1858,13 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             }
         }
 
-        internal bool DeferredLibraryRefreshIncludesHeavyListsForTests
+        internal void RequestLibraryRefreshForTests()
         {
-            get
-            {
-                lock (_refreshLock)
-                {
-                    return _librarySuspensionPendingHeavyLists;
-                }
-            }
-        }
-
-        internal void RequestLibraryRefreshForTests(bool includeHeavyAchievementLists)
-        {
-            RequestLibraryRefresh(includeHeavyAchievementLists);
-        }
-
-        internal Task FriendRefreshTaskForTests
-        {
-            get
-            {
-                lock (_friendRefreshGate)
-                {
-                    return _friendRefreshRunner ?? Task.CompletedTask;
-                }
-            }
+            RequestLibraryRefresh();
         }
 #endif
 
-        private void RequestLibraryRefresh(
-            bool includeHeavyAchievementLists,
-            bool requireFullscreen = false)
+        private void RequestLibraryRefresh(bool requireFullscreen = false)
         {
             if (requireFullscreen && !IsFullscreen())
             {
@@ -1818,117 +1878,73 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     // The fullscreen gate above has already been answered for this request, so the
                     // deferred one does not re-ask it.
                     _librarySuspensionHasPendingRefresh = true;
-                    _librarySuspensionPendingHeavyLists |= includeHeavyAchievementLists;
 
                     // An in-flight rebuild from just before the suspension is abandoned: it would
                     // publish state built from data the burst is still changing.
-                    try { _refreshCts?.Cancel(); } catch { }
+                    Interlocked.Increment(ref _libraryReadVersion);
                     return;
                 }
             }
 
-            CancellationToken token;
-            lock (_refreshLock)
-            {
-                try { _refreshCts?.Cancel(); } catch { }
-                try { _refreshCts?.Dispose(); } catch { }
-                _refreshCts = new CancellationTokenSource();
-                token = _refreshCts.Token;
-            }
+            ReadLibraryState(LibraryRefreshDelay);
+        }
 
-            _ = Task.Run(async () =>
+        /// <summary>
+        /// Reads the library state off the UI thread after <paramref name="delay"/> and applies it
+        /// on the UI thread, unless a later request has superseded it by then.
+        /// </summary>
+        private void ReadLibraryState(TimeSpan delay)
+        {
+            var version = Interlocked.Increment(ref _libraryReadVersion);
+            Action read = () => ReadScheduler.Run(() =>
             {
+                if (version != _libraryReadVersion)
+                {
+                    return;
+                }
+
+                LibraryRuntimeState state;
                 try
                 {
-                    await Task.Delay(LibraryRefreshDelay, token).ConfigureAwait(false);
-
-                    var state = BuildLibraryState(
-                        includeHeavyAchievementLists,
-                        token,
-                        out _,
-                        out _);
-
-                    Action applyState = () =>
-                    {
-                        _hasLoadedLibraryState = true;
-                        _lastLibraryRefreshIncludedHeavyAchievementLists = includeHeavyAchievementLists;
-                        ApplyLibraryState(state);
-                    };
-
-                    var uiDispatcher = _api.MainView?.UIDispatcher ?? Application.Current?.Dispatcher;
-#if TEST
-                    // The isolated test host exposes a dispatcher but does not run a WPF message
-                    // pump while awaiting this worker. Apply inline so BeginInvoke cannot strand
-                    // the refresh indefinitely; production still marshals to the UI dispatcher.
-                    applyState();
-#else
-                    if (uiDispatcher == null)
-                    {
-                        applyState();
-                    }
-                    else
-                    {
-                        uiDispatcher.InvokeIfNeeded(applyState, DispatcherPriority.Background);
-                    }
-#endif
-                }
-                catch (OperationCanceledException)
-                {
+                    state = BuildLibraryState();
                 }
                 catch (Exception ex)
                 {
                     _logger?.Error(ex, "Failed to refresh theme integration snapshot.");
+                    return;
                 }
-            }, token);
+
+                ReadScheduler.Post(() =>
+                {
+                    if (version == _libraryReadVersion)
+                    {
+                        _hasLoadedLibraryState = true;
+                        ApplyLibraryState(state);
+                        var after = _afterLibraryState;
+                        _afterLibraryState = null;
+                        after?.Invoke();
+                    }
+                });
+            });
+            if (delay > TimeSpan.Zero)
+            {
+                ReadScheduler.PostAfter(delay, read);
+            }
+            else
+            {
+                read();
+            }
         }
 
-        private LibraryRuntimeState BuildLibraryState(
-            bool includeHeavyAchievementLists,
-            CancellationToken token,
-            out bool usedCachedSummary,
-            out int? hydratedCount)
+        // The library's summary, its ten newest unlocks and its ten rarest of the last 180 days.
+        private LibraryRuntimeState BuildLibraryState()
         {
-            token.ThrowIfCancellationRequested();
-
-            usedCachedSummary = false;
-            hydratedCount = null;
-
-#if !TEST
-            if (_libraryProjectionService != null)
-            {
-                if (!includeHeavyAchievementLists)
-                {
-                    return _libraryProjectionService.GetThemeLightState(
-                        ThemeRecentUnlockSummaryLimit,
-                        token,
-                        out usedCachedSummary,
-                        out hydratedCount);
-                }
-
-                usedCachedSummary = false;
-                return _libraryProjectionService.GetThemeFullState(token, out hydratedCount);
-            }
-#endif
-
-            if (!includeHeavyAchievementLists)
-            {
-                var summaryData = _achievementDataService.GetCachedSummaryDataForTheme(ThemeRecentUnlockSummaryLimit);
-                if (summaryData != null)
-                {
-                    usedCachedSummary = true;
-                    return LibraryRuntimeStateBuilder.BuildFromCachedSummary(summaryData, _api, token);
-                }
-            }
-
-            var allData = _achievementDataService.GetAllVisibleGameAchievementDataForTheme() ?? new List<GameAchievementData>();
-            hydratedCount = allData.Count;
-            token.ThrowIfCancellationRequested();
-
-            return LibraryRuntimeStateBuilder.Build(
-                allData,
+            var rarest = _achievementDataService.ReadRows(RarestRecentQuery(_achievementDataService.SummaryQuery()).Page(ThemeRecentUnlockSummaryLimit));
+            return LibraryRuntimeStateBuilder.BuildFromCachedSummary(
+                _achievementDataService.GetCachedSummaryDataForTheme(ThemeRecentUnlockSummaryLimit),
+                rarest,
                 _api,
-                token,
-                includeHeavyAchievementLists);
+                CancellationToken.None);
         }
 
         private void ApplyLibraryState(LibraryRuntimeState state)
@@ -2030,27 +2046,12 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.LegacyTheme.GSLevelProgress = library.TotalTrophies > 0 ? library.LevelProgress : 0;
             _settings.LegacyTheme.GSRank = library.TotalTrophies > 0 && !string.IsNullOrWhiteSpace(library.Rank) ? library.Rank : "Bronze5";
 
-            var shouldUpdateHeavyLists = library.HeavyListsBuilt || !library.HasData;
-            if (shouldUpdateHeavyLists)
-            {
-                _settings.ModernTheme.AllAchievementsUnlockAsc = library.AllAchievementsUnlockAsc;
-                _settings.ModernTheme.AllAchievementsUnlockDesc = library.AllAchievementsUnlockDesc;
-                _settings.ModernTheme.AllAchievementsRarityAsc = library.AllAchievementsRarityAsc;
-                _settings.ModernTheme.AllAchievementsRarityDesc = library.AllAchievementsRarityDesc;
-                _settings.ModernTheme.MostRecentUnlocks = library.MostRecentUnlocks;
-                _settings.ModernTheme.RarestRecentUnlocks = library.RarestRecentUnlocks;
-            }
-
             ApplyDynamicLibraryAchievementBindings(updateOptions: false);
             ApplyDynamicGameSummaryBindings(updateOptions: false);
             ApplyDynamicOptionBindings();
 
             NotifySettingProperties(ThemeDelegatedPropertyCatalog.CompatibilityAllGames);
             NotifySettingProperties(ThemeDelegatedPropertyCatalog.ModernAllGamesCore);
-            if (shouldUpdateHeavyLists)
-            {
-                NotifySettingProperties(ThemeDelegatedPropertyCatalog.ModernAllGamesHeavy);
-            }
             NotifySettingProperties(ThemeDelegatedPropertyCatalog.DynamicAllGames);
             NotifySettingProperties(ThemeDelegatedPropertyCatalog.DynamicFriends);
         }
@@ -2778,138 +2779,50 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             NotifySettingProperties(ThemeDelegatedPropertyCatalog.DynamicFriends);
         }
 
-        private void RequestFriendStateRefresh()
+        // Reads the scope's rows once friend lists are loaded; the theme's list virtualizes them.
+        private void UpdateFriendRowsQuery(FriendRuntimeState state)
         {
-            if (_friendCache == null)
+            var reads = _friendCache?.FriendReads;
+            if (_friendLists?.Result == null || reads == null)
             {
                 return;
             }
 
-            lock (_friendRefreshGate)
+            var query = FriendRowsQuery(state);
+            if (_friendRows != null)
             {
-                _friendRefreshRequestVersion++;
-                try { _friendRefreshCts?.Cancel(); } catch { }
-                try { _friendRefreshCts?.Dispose(); } catch { }
-                _friendRefreshCts = new CancellationTokenSource();
-
-                if (_friendRefreshRunner == null || _friendRefreshRunner.IsCompleted)
+                if (AchievementQuerySql.KeyOf(query) != AchievementQuerySql.KeyOf(_friendRows.Query))
                 {
-                    _friendRefreshRunner = Task.Run(RunFriendStateRefreshLoop);
+                    _friendRows.SetQuery(query, fromStart: true);
                 }
+
+                return;
             }
+
+            _friendRows = new PagedRows<FriendAchievementDisplayItem>(
+                reads.Feed,
+                query,
+                reads.SortedKeys,
+                (read, keys) =>
+                {
+                    var rows = reads.Rows(read, keys);
+                    (_friendLists?.Result ?? FriendsOverviewLists.Empty).StampIdentity(rows, _settings?.Persisted);
+                    AttachFriendAchievementCommands(rows);
+                    return rows;
+                },
+                () => new FriendAchievementDisplayItem { IsPlaceholder = true },
+                ReadScheduler,
+                window: FriendReadWindow,
+                onError: ex => _logger?.Error(ex, "Failed to load friend theme rows."),
+                update: (kept, fresh) => kept.RefreshFrom(fresh));
+            _settings.ModernTheme.DynamicFriendAchievements = _friendRows;
         }
 
-        private async Task RunFriendStateRefreshLoop()
-        {
-            while (true)
-            {
-                int version;
-                CancellationToken token;
-                lock (_friendRefreshGate)
-                {
-                    version = _friendRefreshRequestVersion;
-                    token = _friendRefreshCts?.Token ?? CancellationToken.None;
-                }
-
-                try
-                {
-                    await Task.Delay(FriendRefreshDelay, token).ConfigureAwait(false);
-                    var state = await BuildFriendStateAsync(token).ConfigureAwait(false);
-                    token.ThrowIfCancellationRequested();
-
-                    void Apply()
-                    {
-                        if (token.IsCancellationRequested)
-                        {
-                            return;
-                        }
-
-                        lock (_friendRefreshGate)
-                        {
-                            if (version < _friendRefreshRequestVersion ||
-                                version <= _friendRefreshAppliedVersion)
-                            {
-                                return;
-                            }
-
-                            _friendRefreshAppliedVersion = version;
-                        }
-
-                        ApplyFriendState(state, notify: true);
-                    }
-
-                    var uiDispatcher = _api?.MainView?.UIDispatcher ?? Application.Current?.Dispatcher;
-                    if (uiDispatcher == null)
-                    {
-                        Apply();
-                    }
-                    else
-                    {
-                        uiDispatcher.InvokeIfNeeded(Apply, DispatcherPriority.Background);
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Error(ex, "Failed to refresh friend theme runtime state.");
-                }
-
-                lock (_friendRefreshGate)
-                {
-                    if (version >= _friendRefreshRequestVersion)
-                    {
-                        return;
-                    }
-                }
-            }
-        }
-
-        private async Task<FriendRuntimeState> BuildFriendStateAsync(CancellationToken token)
-        {
-            if (_friendsOverviewDataCoordinator == null)
-            {
-                return FriendRuntimeState.Empty;
-            }
-
-            try
-            {
-                token.ThrowIfCancellationRequested();
-                FriendsOverviewSnapshot snapshot;
-                using (PerfScope.Start(_logger, "ThemeFriends.BuildState", thresholdMs: 25))
-                {
-                    snapshot = await _friendsOverviewDataCoordinator
-                        .GetSnapshotAsync(token)
-                        .ConfigureAwait(false);
-                }
-
-                token.ThrowIfCancellationRequested();
-                return new FriendRuntimeState(snapshot?.Projection);
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, "Failed to build friend theme runtime state.");
-                return FriendRuntimeState.Empty;
-            }
-        }
-
-        private void ApplyFriendState(FriendRuntimeState state, bool notify)
+        private void ApplyFriendState(FriendRuntimeState state)
         {
             _runtimeState.Friends = state ?? FriendRuntimeState.Empty;
-            // The pair rows were loaded against the previous snapshot's cache state; drop them
-            // so a still-selected pair re-fetches during the binding rebuild below.
-            ResetDynamicFriendPairRows();
-            ValidateDynamicFriendScope(_runtimeState.Friends);
             ApplyDynamicFriendBindings(updateOptions: false);
-            if (notify)
-            {
-                NotifySettingProperties(ThemeDelegatedPropertyCatalog.DynamicFriends);
-            }
+            NotifySettingProperties(ThemeDelegatedPropertyCatalog.DynamicFriends);
         }
 
         private void ValidateDynamicFriendScope(FriendRuntimeState state)
@@ -2928,7 +2841,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
             if (!FriendOverviewProjection.IsAllScope(scope.UserKey))
             {
-                var friend = state.Projection?.FindFriend(scope.UserKey);
+                var friend = state.Lists.FindFriend(scope.UserKey);
                 if (friend == null ||
                     !FriendMatchesProvider(friend, scope.ProviderKey))
                 {
@@ -3756,27 +3669,46 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             }
         }
 
+        /// <summary>
+        /// Builds the category summaries the first time a theme reads them, and on each selection
+        /// after that, so themes that never bind them never build the selected game's display items.
+        /// </summary>
+        private void EnsureCategorySummariesLoaded()
+        {
+            if (!_hasCategorySummaryConsumers)
+            {
+                _hasCategorySummaryConsumers = true;
+                ApplyDynamicCategorySummaryBindings();
+            }
+        }
+
+        private bool _hasCategorySummaryConsumers;
+
         private void ApplyDynamicCategorySummaryBindings()
         {
-            var viewState = _runtimeState.CategorySummaries;
-            var displayItems = _settings.ModernTheme.AllAchievementDisplayItems;
-            // Mirrors the in-plugin grid's HasMultipleCategories gate: a lone (localized)
-            // "Default" card on every game is noise, so single-category games publish an
-            // empty list and themes hide the section via HasCategorySummaries.
-            var hasCategories = CountDistinctCategoryLabels(displayItems) >= 2;
-            if (!hasCategories)
+            if (_hasCategorySummaryConsumers)
             {
-                _settings.ModernTheme.DynamicCategorySummaries = new ObservableCollection<GameAchievementSummary>();
-            }
-            else
-            {
-                var summaries = CategorySummaryBuilder.Build(displayItems);
-                summaries = FilterCategorySummaries(summaries, viewState.FilterKey);
-                summaries = SortCategorySummaries(summaries, viewState.SortKey, viewState.SortDirectionKey);
-                _settings.ModernTheme.DynamicCategorySummaries = ProjectCategorySummaries(summaries, displayItems);
+                var viewState = _runtimeState.CategorySummaries;
+                var displayItems = _settings.ModernTheme.AllAchievementDisplayItems;
+                // Mirrors the in-plugin grid's HasMultipleCategories gate: a lone (localized)
+                // "Default" card on every game is noise, so single-category games publish an
+                // empty list and themes hide the section via HasCategorySummaries.
+                var hasCategories = CountDistinctCategoryLabels(displayItems) >= 2;
+                if (!hasCategories)
+                {
+                    _settings.ModernTheme.DynamicCategorySummaries = new ObservableCollection<GameAchievementSummary>();
+                }
+                else
+                {
+                    var summaries = CategorySummaryBuilder.Build(displayItems);
+                    summaries = FilterCategorySummaries(summaries, viewState.FilterKey);
+                    summaries = SortCategorySummaries(summaries, viewState.SortKey, viewState.SortDirectionKey);
+                    _settings.ModernTheme.DynamicCategorySummaries = ProjectCategorySummaries(summaries, displayItems);
+                }
+
+                _settings.ModernTheme.HasCategorySummaries = hasCategories;
             }
 
-            _settings.ModernTheme.HasCategorySummaries = hasCategories;
             ApplyDynamicListKeyBindings(CategorySummariesListBinding);
             ApplyDynamicListOptionBindings(CategorySummariesListBinding);
         }
@@ -3932,13 +3864,10 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         {
             var state = _runtimeState.Library ?? new LibraryRuntimeState();
             var viewState = _runtimeState.LibraryAchievements;
-            var items = BuildDynamicLibraryAchievements(state, viewState);
-            AttachAchievementCommands(items);
-
-            _settings.ModernTheme.DynamicLibraryAchievements = items;
+            UpdateLibraryListQuery(nameof(ModernThemeBindings.DynamicLibraryAchievements));
             ApplyDynamicListKeyBindings(LibraryAchievementListBinding);
             _settings.ModernTheme.DynamicLibraryAchievementsProviderOptions = DynamicThemeOptionFactory.CreateProviderOptions(
-                EnumerateLibraryAchievementProviderKeys(state),
+                (state.AllGamesWithAchievements ?? Enumerable.Empty<GameAchievementSummary>()).Select(item => item?.ProviderKey),
                 viewState.ProviderKey,
                 _settings.FilterDynamicLibraryAchievementsByProviderCommand);
             ApplyDynamicListOptionBindings(LibraryAchievementListBinding);
@@ -3997,17 +3926,15 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         {
             var state = _runtimeState.Friends ?? FriendRuntimeState.Empty;
             ValidateDynamicFriendScope(state);
+            UpdateFriendRowsQuery(state);
 
             var scope = _runtimeState.FriendScope;
             var friendItems = BuildDynamicFriendSummaries(state, _runtimeState.FriendSummaries);
             var gameItems = BuildDynamicFriendGameSummaries(state, _runtimeState.FriendGameSummaries);
-            var achievementItems = BuildDynamicFriendAchievements(state, _runtimeState.FriendAchievements);
             AttachFriendSummaryCommands(friendItems);
-            AttachFriendAchievementCommands(achievementItems);
 
             _settings.ModernTheme.DynamicFriendSummaries = new ObservableCollection<FriendSummaryItem>(friendItems);
             _settings.ModernTheme.DynamicFriendGameSummaries = ProjectFriendGameSummaries(gameItems);
-            _settings.ModernTheme.DynamicFriendAchievements = new ObservableCollection<FriendAchievementDisplayItem>(achievementItems);
 
             _settings.ModernTheme.DynamicFriendScopeProviderKey = scope.ProviderKey;
             _settings.ModernTheme.DynamicFriendScopeProviderLabel = DynamicThemeLabels.GetProviderLabel(scope.ProviderKey);
@@ -4019,7 +3946,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             // Surface the scoped friend as a single bindable item so themes can show that friend's
             // whole-library rarity/trophy rollup next to their scoped achievements list. Null when no
             // individual friend is scoped (FindFriend returns null for the all-friends scope).
-            var scopeSummary = state.Projection?.FindFriend(scope.UserKey);
+            var scopeSummary = state.Lists.FindFriend(scope.UserKey);
             if (scopeSummary != null)
             {
                 AttachFriendSummaryCommands(new[] { scopeSummary });
@@ -4119,10 +4046,9 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             string providerKey,
             string userKey)
         {
-            var projection = state?.Projection;
-            var selectedFriend = projection?.FindFriend(userKey);
+            var selectedFriend = state?.Lists.FindFriend(userKey);
             IEnumerable<FriendGameSummaryItem> games = selectedFriend != null
-                ? projection.GetSelectedFriendGames(selectedFriend)
+                ? state.Lists.GamesOf(selectedFriend)
                 : state?.AggregateGames ?? Enumerable.Empty<FriendGameSummaryItem>();
 
             return games.Where(game => game != null && ProviderMatches(game.ProviderKey, providerKey));
@@ -4212,7 +4138,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 return DynamicThemeLabels.GetLabel(DynamicThemeViewKeys.All, DynamicThemeViewKeys.All);
             }
 
-            var friend = state?.Projection?.FindFriend(userKey);
+            var friend = state?.Lists.FindFriend(userKey);
             return !string.IsNullOrWhiteSpace(friend?.DisplayName)
                 ? friend.DisplayName
                 : userKey ?? string.Empty;
@@ -4225,11 +4151,14 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 return DynamicThemeLabels.GetLabel(DynamicThemeViewKeys.All, DynamicThemeViewKeys.All);
             }
 
-            var game = state?.Projection?.FindGame(gameKey);
+            var game = state?.Lists.FindGame(gameKey);
             return !string.IsNullOrWhiteSpace(game?.GameName)
                 ? game.GameName
                 : gameKey ?? string.Empty;
         }
+
+        // The library state's games in game-option order, kept until the state is rebuilt.
+        private Tuple<List<GameAchievementSummary>, List<DynamicThemeOption>> _sortedGameOptions;
 
         private void ApplyDynamicOptionBindings()
         {
@@ -4249,8 +4178,16 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
             _settings.ModernTheme.DynamicAchievementsGameKey = selectedGameKey ?? string.Empty;
             _settings.ModernTheme.DynamicAchievementsGameLabel = selectedGameLabel ?? string.Empty;
+            var sortedGames = _sortedGameOptions;
+            if (sortedGames == null || sortedGames.Item1 != library.AllGamesWithAchievements)
+            {
+                sortedGames = _sortedGameOptions = Tuple.Create(
+                    library.AllGamesWithAchievements,
+                    DynamicThemeOptionFactory.SortGames(library.AllGamesWithAchievements));
+            }
+
             _settings.ModernTheme.DynamicAchievementGameOptions = DynamicThemeOptionFactory.CreateGameOptions(
-                library.AllGamesWithAchievements,
+                sortedGames.Item2,
                 selectedGameKey,
                 _settings.SetDynamicAchievementsGameCommand);
 
@@ -4366,22 +4303,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             }
         }
 
-        private List<AchievementDetail> BuildDynamicLibraryAchievements(
-            LibraryRuntimeState state,
-            LibraryAchievementViewState viewState)
-        {
-            if (state == null || !state.HasData)
-            {
-                return EmptyAchievementList;
-            }
-
-            IEnumerable<AchievementDetail> source = SelectLibraryAchievementSource(state, viewState);
-            source = ApplyProviderFilter(source, viewState.ProviderKey);
-            source = ApplyGameFilter(source, viewState.GameKey, item => item.Game?.Id ?? Guid.Empty);
-            source = DynamicThemeFilterEvaluator.ApplyAchievementFilters(source, viewState.FilterKey);
-            return source.ToList();
-        }
-
         private List<GameAchievementSummary> BuildDynamicGameSummaries(
             LibraryRuntimeState state,
             GameSummaryViewState viewState)
@@ -4402,19 +4323,18 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             FriendRuntimeState state,
             FriendSummaryViewState viewState)
         {
-            var projection = state?.Projection;
-            if (projection == null || !state.HasData)
+            if (state == null || !state.HasData)
             {
                 return new List<FriendSummaryItem>();
             }
 
             var scope = _runtimeState.FriendScope;
-            var selectedGame = projection.FindGame(scope.GameKey);
+            var selectedGame = state.Lists.FindGame(scope.GameKey);
             IEnumerable<FriendSummaryItem> source = state.Friends ?? Enumerable.Empty<FriendSummaryItem>();
             source = source.Where(friend => FriendMatchesProvider(friend, scope.ProviderKey));
             if (selectedGame != null)
             {
-                source = source.Where(friend => projection.HasFriendGamePairData(friend, selectedGame));
+                source = source.Where(friend => state.Lists.HasPairData(friend, selectedGame));
             }
 
             source = ApplyDynamicFilterPredicates(source, viewState.FilterKey, FriendSummaryFilterPredicates);
@@ -4431,17 +4351,16 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             FriendRuntimeState state,
             FriendGameSummaryViewState viewState)
         {
-            var projection = state?.Projection;
-            if (projection == null || !state.HasData)
+            if (state == null || !state.HasData)
             {
                 return new List<FriendGameSummaryItem>();
             }
 
             var scope = _runtimeState.FriendScope;
-            var selectedFriend = projection.FindFriend(scope.UserKey);
-            var selectedGame = projection.FindGame(scope.GameKey);
+            var selectedFriend = state.Lists.FindFriend(scope.UserKey);
+            var selectedGame = state.Lists.FindGame(scope.GameKey);
             IEnumerable<FriendGameSummaryItem> source = selectedFriend != null
-                ? projection.GetSelectedFriendGames(selectedFriend)
+                ? state.Lists.GamesOf(selectedFriend)
                 : state.AggregateGames ?? Enumerable.Empty<FriendGameSummaryItem>();
 
             source = ApplyProviderFilter(source, scope.ProviderKey, item => item.ProviderKey);
@@ -4455,150 +4374,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             return FriendGameSummarySortTable.Sort(source, viewState).ToList();
         }
 
-        private List<FriendAchievementDisplayItem> BuildDynamicFriendAchievements(
-            FriendRuntimeState state,
-            FriendAchievementViewState viewState)
-        {
-            var projection = state?.Projection;
-            if (projection == null || !state.HasData)
-            {
-                return new List<FriendAchievementDisplayItem>();
-            }
-
-            var scope = _runtimeState.FriendScope;
-            var selectedFriend = projection.FindFriend(scope.UserKey);
-            var selectedGame = projection.FindGame(scope.GameKey);
-            var hasScopedSelection =
-                !FriendOverviewProjection.IsAllScope(scope.ProviderKey) ||
-                selectedFriend != null ||
-                selectedGame != null;
-
-            // Same selection logic as the friends overview: only the single friend + single
-            // game pair shows locked rows (loaded on demand); every other scoped view stays on
-            // the snapshot's unlocked rows, and no scope keeps the recent-unlocks feed.
-            IEnumerable<FriendAchievementDisplayItem> source =
-                selectedFriend != null && selectedGame != null
-                    ? ResolveDynamicFriendPairSource(state, selectedGame)
-                    : hasScopedSelection
-                        ? state.AllAchievements ?? Enumerable.Empty<FriendAchievementDisplayItem>()
-                        : state.RecentUnlocks ?? Enumerable.Empty<FriendAchievementDisplayItem>();
-
-            source = ApplyProviderFilter(source, scope.ProviderKey, item => item.ProviderKey);
-            if (selectedFriend != null)
-            {
-                source = source.Where(achievement => FriendOverviewProjection.IsSameFriend(achievement, selectedFriend));
-            }
-
-            if (selectedGame != null)
-            {
-                source = source.Where(achievement => FriendOverviewProjection.IsSameGame(achievement, selectedGame));
-            }
-
-            source = ApplyDynamicFilterPredicates(
-                source,
-                viewState.FilterKey,
-                FriendAchievementFilterPredicates,
-                // User tags are not in the listed keys but still filter.
-                key => AchievementClassificationFilter.IsFilterKey(key)
-                    ? item => item != null && AchievementClassificationFilter.Matches(item.CategoryKind, item.Tags, key)
-                    : (Func<FriendAchievementDisplayItem, bool>)null);
-            return FriendAchievementSortTable.Sort(source, viewState).ToList();
-        }
-
-        // Returns the pair scope's achievement source: the on-demand full rows when loaded for
-        // the selected game (a loaded-but-empty result falls back instead of blanking the
-        // lists), otherwise the snapshot's unlocked rows while the fetch runs.
-        private IEnumerable<FriendAchievementDisplayItem> ResolveDynamicFriendPairSource(
-            FriendRuntimeState state,
-            FriendGameSummaryItem selectedGame)
-        {
-            IEnumerable<FriendAchievementDisplayItem> fallback =
-                state.AllAchievements ?? Enumerable.Empty<FriendAchievementDisplayItem>();
-            var key = FriendOverviewProjection.GetGameScopeKey(selectedGame);
-            if (FriendOverviewProjection.IsAllScope(key))
-            {
-                return fallback;
-            }
-
-            if (_dynamicFriendPairRows != null &&
-                string.Equals(_dynamicFriendPairKey, key, StringComparison.OrdinalIgnoreCase))
-            {
-                return _dynamicFriendPairRows.Count > 0 ? _dynamicFriendPairRows : fallback;
-            }
-
-            BeginDynamicFriendPairFetch(key, selectedGame);
-            return fallback;
-        }
-
-        private void BeginDynamicFriendPairFetch(string key, FriendGameSummaryItem game)
-        {
-            if (_friendCache == null ||
-                game == null ||
-                string.Equals(_dynamicFriendPairKeyInFlight, key, StringComparison.OrdinalIgnoreCase))
-            {
-                return;
-            }
-
-            _dynamicFriendPairKeyInFlight = key;
-            var version = Interlocked.Increment(ref _dynamicFriendPairFetchVersion);
-            var gameScope = FriendCacheChange.ForGameDefinition(
-                game.ProviderKey,
-                game.AppId,
-                game.ProviderGameKey);
-            DynamicFriendPairFetchTask = FetchDynamicFriendPairRowsAsync(version, key, gameScope);
-        }
-
-        private async Task FetchDynamicFriendPairRowsAsync(int version, string key, FriendCacheChange gameScope)
-        {
-            List<FriendAchievementDisplayItem> rows = null;
-            try
-            {
-                rows = await Task
-                    .Run(() => FriendOverviewProjection.ApplyMergeIdentity(
-                        _friendCache.LoadFriendGameAchievementData(gameScope),
-                        _settings?.Persisted))
-                    .ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, "Failed to load dynamic friend pair achievement rows.");
-            }
-
-            void Apply()
-            {
-                if (version != Volatile.Read(ref _dynamicFriendPairFetchVersion))
-                {
-                    return;
-                }
-
-                _dynamicFriendPairKeyInFlight = null;
-                _dynamicFriendPairKey = key;
-                _dynamicFriendPairRows = rows ?? new List<FriendAchievementDisplayItem>();
-                ApplyDynamicFriendBindings();
-                NotifySettingProperties(ThemeDelegatedPropertyCatalog.DynamicFriends);
-            }
-
-            var uiDispatcher = _api?.MainView?.UIDispatcher ?? Application.Current?.Dispatcher;
-            if (uiDispatcher == null)
-            {
-                Apply();
-            }
-            else
-            {
-                uiDispatcher.InvokeIfNeeded(Apply, DispatcherPriority.Background);
-            }
-        }
-
-        // Drops the on-demand pair rows and discards any in-flight fetch result; the next
-        // pair-scoped binding build re-fetches against the fresh cache state.
-        private void ResetDynamicFriendPairRows()
-        {
-            Interlocked.Increment(ref _dynamicFriendPairFetchVersion);
-            _dynamicFriendPairRows = null;
-            _dynamicFriendPairKey = null;
-            _dynamicFriendPairKeyInFlight = null;
-        }
-
         /// <summary>
         /// Apply the composable filter keys of a filter expression to a dynamic collection using
         /// a per-item-type predicate table. Keys without a predicate are ignored.
@@ -4606,8 +4381,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         private static IEnumerable<T> ApplyDynamicFilterPredicates<T>(
             IEnumerable<T> source,
             string filterKey,
-            IReadOnlyDictionary<string, Func<T, bool>> predicates,
-            Func<string, Func<T, bool>> fallback = null)
+            IReadOnlyDictionary<string, Func<T, bool>> predicates)
         {
             var items = source ?? Enumerable.Empty<T>();
             foreach (var key in DynamicThemeFilterExpression.Enumerate(filterKey))
@@ -4617,8 +4391,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     continue;
                 }
 
-                var predicate = predicates.TryGetValue(key, out var listed) ? listed : fallback?.Invoke(key);
-                if (predicate != null)
+                if (predicates.TryGetValue(key, out var predicate))
                 {
                     items = items.Where(predicate);
                 }
@@ -4646,49 +4419,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 [DynamicThemeViewKeys.HasLastUnlock] = item => item?.LastUnlockUtc.HasValue == true,
                 [DynamicThemeViewKeys.NoLastUnlock] = item => item != null && !item.LastUnlockUtc.HasValue,
             };
-
-        private static readonly IReadOnlyDictionary<string, Func<FriendAchievementDisplayItem, bool>> FriendAchievementFilterPredicates =
-            CreateFriendAchievementFilterPredicates();
-
-        private static IReadOnlyDictionary<string, Func<FriendAchievementDisplayItem, bool>> CreateFriendAchievementFilterPredicates()
-        {
-            Func<FriendAchievementDisplayItem, bool> Rarity(string key) =>
-                item => item != null && string.Equals(item.Rarity.ToString(), key, StringComparison.OrdinalIgnoreCase);
-            Func<FriendAchievementDisplayItem, bool> Trophy(string key) =>
-                item => string.Equals(item?.TrophyType, key, StringComparison.OrdinalIgnoreCase);
-            Func<FriendAchievementDisplayItem, bool> Classification(string key) =>
-                item => item != null && AchievementClassificationFilter.Matches(item.CategoryKind, item.Tags, key);
-
-            var predicates = new Dictionary<string, Func<FriendAchievementDisplayItem, bool>>(StringComparer.Ordinal)
-            {
-                [DynamicThemeViewKeys.Unlocked] = item => item?.Unlocked == true,
-                [DynamicThemeViewKeys.Locked] = item => item != null && !item.Unlocked,
-                [DynamicThemeViewKeys.InProgress] = item => item != null && !item.Unlocked && item.HasProgress,
-                [DynamicThemeViewKeys.NoProgress] = item => item != null && !item.HasProgress,
-                [DynamicThemeViewKeys.HasNotes] = item => !string.IsNullOrWhiteSpace(item?.AchievementNote),
-                [DynamicThemeViewKeys.NoNotes] = item => string.IsNullOrWhiteSpace(item?.AchievementNote),
-                [DynamicThemeViewKeys.Capstone] = item => item?.IsCapstone == true,
-                [DynamicThemeViewKeys.Common] = Rarity(DynamicThemeViewKeys.Common),
-                [DynamicThemeViewKeys.Uncommon] = Rarity(DynamicThemeViewKeys.Uncommon),
-                [DynamicThemeViewKeys.Rare] = Rarity(DynamicThemeViewKeys.Rare),
-                [DynamicThemeViewKeys.UltraRare] = Rarity(DynamicThemeViewKeys.UltraRare),
-                [DynamicThemeViewKeys.Platinum] = Trophy(DynamicThemeViewKeys.Platinum),
-                [DynamicThemeViewKeys.Gold] = Trophy(DynamicThemeViewKeys.Gold),
-                [DynamicThemeViewKeys.Silver] = Trophy(DynamicThemeViewKeys.Silver),
-                [DynamicThemeViewKeys.Bronze] = Trophy(DynamicThemeViewKeys.Bronze),
-            };
-
-            // One entry per listed kind and tag, plus the key Side Quest shipped under for themes
-            // that still name it.
-            foreach (var key in DynamicThemeOptionGroups.AchievementCategoryTypeFilterKeys
-                .Where(key => !string.Equals(key, DynamicThemeViewKeys.All, StringComparison.Ordinal))
-                .Concat(new[] { "SideProgression" }))
-            {
-                predicates[key] = Classification(key);
-            }
-
-            return predicates;
-        }
 
         private delegate IOrderedEnumerable<T> DynamicSortPrimary<T>(IEnumerable<T> source, bool descending, StringComparer nameComparer);
 
@@ -4814,34 +4544,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 : item.SortingName;
         }
 
-        private static readonly DynamicSortTable<FriendAchievementDisplayItem> FriendAchievementSortTable = CreateFriendAchievementSortTable();
-
-        private static DynamicSortTable<FriendAchievementDisplayItem> CreateFriendAchievementSortTable()
-        {
-            var table = new DynamicSortTable<FriendAchievementDisplayItem>();
-            var tieBreaks = new[]
-            {
-                table.ThenByName(item => item?.FriendName ?? string.Empty),
-                table.ThenByName(item => item?.GameName ?? string.Empty),
-                table.ThenByName(item => item?.DisplayName ?? string.Empty),
-            };
-            table.Add(DynamicThemeViewKeys.Name, table.ByValue<object>(item => item?.DisplayName ?? string.Empty, tieBreaks));
-            table.Add(DynamicThemeViewKeys.Game, table.ByValue<object>(item => item?.GameName ?? string.Empty, tieBreaks));
-            table.Add(DynamicThemeViewKeys.Provider, table.ByValue<object>(item => item?.ProviderKey ?? string.Empty, tieBreaks));
-            table.Add(DynamicThemeViewKeys.Rarity, table.ByValue<object>(item => item?.RaritySortValue ?? double.MaxValue, tieBreaks));
-            table.Add(DynamicThemeViewKeys.Status, table.ByValue<object>(item => item?.Unlocked == true ? 1 : 0, tieBreaks));
-            table.Add(DynamicThemeViewKeys.Progress, table.ByValue<object>(item => item?.ProgressPercent ?? 0d, tieBreaks));
-            table.Add(DynamicThemeViewKeys.Points, table.ByValue<object>(item => item?.Points ?? 0, tieBreaks));
-            table.Add(DynamicThemeViewKeys.CollectionScore, table.ByValue<object>(item => item?.CollectionScore ?? 0, tieBreaks));
-            table.Add(DynamicThemeViewKeys.PrestigeScore, table.ByValue<object>(item => item?.PrestigeScore ?? 0, tieBreaks));
-            table.Add(DynamicThemeViewKeys.TrophyType, table.ByValue<object>(item => item?.TrophyType ?? string.Empty, tieBreaks));
-            table.Add(DynamicThemeViewKeys.CategoryType, table.ByValue<object>(item => item?.CategoryType ?? string.Empty, tieBreaks));
-            table.Add(DynamicThemeViewKeys.CategoryLabel, table.ByValue<object>(item => item?.CategoryLabel ?? string.Empty, tieBreaks));
-            table.Add(DynamicThemeViewKeys.Notes, table.ByValue<object>(item => item?.AchievementNote ?? string.Empty, tieBreaks));
-            table.SetDefault(table.ByValue<object>(item => item?.UnlockTimeUtc ?? DateTime.MinValue, tieBreaks));
-            return table;
-        }
-
         private static readonly DynamicSortTable<GameAchievementSummary> GameSummarySortTable = CreateGameSummarySortTable();
 
         private static DynamicSortTable<GameAchievementSummary> CreateGameSummarySortTable()
@@ -4877,16 +4579,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 viewState?.SortDirectionKey);
         }
 
-        private static IEnumerable<AchievementDetail> SelectLibraryAchievementSource(
-            LibraryRuntimeState state,
-            LibraryAchievementViewState viewState)
-        {
-            return AchievementSortHelper.ResolveLibraryAchievements(
-                state,
-                viewState?.SortKey,
-                viewState?.SortDirectionKey);
-        }
-
         private static IEnumerable<TItem> ApplyGameFilter<TItem>(
             IEnumerable<TItem> source,
             string gameKey,
@@ -4900,13 +4592,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             }
 
             return items.Where(item => item != null && gameIdSelector(item) == gameId);
-        }
-
-        private static IEnumerable<AchievementDetail> ApplyProviderFilter(
-            IEnumerable<AchievementDetail> source,
-            string providerKey)
-        {
-            return ApplyProviderFilter(source, providerKey, item => item.ProviderKey);
         }
 
         private static IEnumerable<GameAchievementSummary> ApplyProviderFilter(
@@ -4945,25 +4630,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             return IsAllScopeKey(scopeProviderKey) ||
                    (!string.IsNullOrWhiteSpace(providerKey) &&
                     string.Equals(scopeProviderKey, providerKey, StringComparison.OrdinalIgnoreCase));
-        }
-
-        private static string ResolveLibraryProviderKeyForGame(LibraryRuntimeState state, Guid gameId)
-        {
-            if (gameId == Guid.Empty)
-            {
-                return null;
-            }
-
-            var providerKey = (state?.AllAchievements ?? Enumerable.Empty<AchievementDetail>())
-                .Where(item => item?.Game?.Id == gameId)
-                .Select(item => item?.ProviderKey)
-                .FirstOrDefault(key => !string.IsNullOrWhiteSpace(key));
-            if (!string.IsNullOrWhiteSpace(providerKey))
-            {
-                return providerKey;
-            }
-
-            return ResolveGameSummaryProviderKeyForGame(state, gameId);
         }
 
         private static string ResolveGameSummaryProviderKeyForGame(LibraryRuntimeState state, Guid gameId)
@@ -5011,28 +4677,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 .FirstOrDefault();
         }
 
-        private static IEnumerable<string> EnumerateLibraryAchievementProviderKeys(LibraryRuntimeState state)
-        {
-            var achievements = GetAvailableLibraryAchievements(state);
-            if (achievements.Count > 0)
-            {
-                return achievements.Select(item => item?.ProviderKey);
-            }
-
-            return (state?.AllGamesWithAchievements ?? Enumerable.Empty<GameAchievementSummary>())
-                .Select(item => item?.ProviderKey);
-        }
-
-        private static List<AchievementDetail> GetAvailableLibraryAchievements(LibraryRuntimeState state)
-        {
-            if (state == null)
-            {
-                return new List<AchievementDetail>();
-            }
-
-            return state.AllAchievements ?? new List<AchievementDetail>();
-        }
-
         private bool TryNormalizeProviderKey(object parameter, out string providerKey)
         {
             var raw = ExtractProviderKeyParameter(parameter);
@@ -5069,13 +4713,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
             foreach (var key in YieldKnown(
                 (_runtimeState?.SelectedGame?.AllAchievements ?? Enumerable.Empty<AchievementDetail>())
-                .Select(item => item?.ProviderKey)))
-            {
-                yield return key;
-            }
-
-            foreach (var key in YieldKnown(
-                (_runtimeState?.Library?.AllAchievements ?? Enumerable.Empty<AchievementDetail>())
                 .Select(item => item?.ProviderKey)))
             {
                 yield return key;

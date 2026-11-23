@@ -86,7 +86,7 @@
                     <Border x:Name="ToggleBorder"
                             Background="{TemplateBinding Background}"
                             Padding="{TemplateBinding Padding}"
-                            CornerRadius="3"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             SnapsToDevicePixels="True">
                         <ContentPresenter HorizontalAlignment="Center"
                                           VerticalAlignment="Center"/>
@@ -378,7 +378,7 @@
     <Style x:Key="PreviewBorderStyle" TargetType="Border" BasedOn="{StaticResource PlayAch.FilePickTarget.Style}">
         <Setter Property="Width" Value="{StaticResource PlayAch.Size.Control.LargeHeight}"/>
         <Setter Property="Height" Value="{StaticResource PlayAch.Size.Control.LargeHeight}"/>
-        <Setter Property="CornerRadius" Value="{StaticResource PlayAch.Radius.Small}"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource PlayAch.Radius.Layout}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Border}"/>
         <Setter Property="BorderThickness" Value="{StaticResource PlayAch.Thickness.Border}"/>
         <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Panel}"/>

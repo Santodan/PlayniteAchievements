@@ -72,6 +72,33 @@ namespace PlayniteAchievements.Services.Refresh
         }
 
         /// <summary>
+        /// Whether the request names games and every one reads its unlocks from a linked file.
+        /// The linked-file pass refreshes such a request with no provider, so a missing or
+        /// unauthenticated provider is not a failure for it.
+        /// </summary>
+        public bool NamesOnlyLinkedGames(RefreshRequest request)
+        {
+            if (request == null)
+            {
+                return false;
+            }
+
+            var mode = ResolveMode(request);
+            var scope = LinkedFiles.LinkedFilePassScope.FromRequest(
+                mode,
+                request.SingleGameId,
+                ResolveOptionsForRequest(request, mode),
+                request.GameIds);
+            return scope != null && !scope.IsLibraryWide && AllHaveLinkedFiles(scope.GameIds);
+        }
+
+        private static bool AllHaveLinkedFiles(IEnumerable<Guid> gameIds)
+        {
+            var ids = gameIds?.Where(id => id != Guid.Empty).ToList();
+            return ids != null && ids.Count > 0 && ids.All(id => GameCustomDataLookup.HasLinkedFile(id));
+        }
+
+        /// <summary>
         /// Returns the subset of enabled providers worth probing for authentication before this
         /// request runs: providers with at least one capable candidate game (or a forced
         /// per-game override), plus friend-capable providers when the request includes friends.
@@ -392,9 +419,12 @@ namespace PlayniteAchievements.Services.Refresh
         {
             if (providers == null || providers.Count == 0)
             {
+                // Games that read a linked file need no provider; the linked-file pass covers them.
                 return new CurrentOptionResult
                 {
-                    UserMessage = ResourceProvider.GetString("LOCPlayAch_CustomRefresh_NoMatchingProviders")
+                    UserMessage = AllHaveLinkedFiles(options?.PlayniteGameIds)
+                        ? null
+                        : ResourceProvider.GetString("LOCPlayAch_CustomRefresh_NoMatchingProviders")
                 };
             }
 
@@ -424,6 +454,7 @@ namespace PlayniteAchievements.Services.Refresh
 
             var targetGameIds = new List<Guid>();
             var unserviceableGameNames = new List<string>();
+            var linkedOnlyCount = 0;
             foreach (var gameId in mergedIds)
             {
                 var game = _api.Database.Games.Get(gameId);
@@ -440,6 +471,11 @@ namespace PlayniteAchievements.Services.Refresh
                 {
                     targetGameIds.Add(game.Id);
                 }
+                else if (GameCustomDataLookup.HasLinkedFile(game.Id))
+                {
+                    // No provider, but the linked-file pass reads it.
+                    linkedOnlyCount++;
+                }
                 else
                 {
                     unserviceableGameNames.Add(game.Name);
@@ -450,7 +486,9 @@ namespace PlayniteAchievements.Services.Refresh
             {
                 return new CurrentOptionResult
                 {
-                    UserMessage = ResolveEmptyTargetsUserMessage(unserviceableGameNames),
+                    UserMessage = linkedOnlyCount > 0 && unserviceableGameNames.Count == 0
+                        ? null
+                        : ResolveEmptyTargetsUserMessage(unserviceableGameNames),
                     EmptySelectionLogMessage = ResolveEmptySelectionMessage(mode, options.Scope)
                 };
             }

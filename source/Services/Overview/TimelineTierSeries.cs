@@ -12,7 +12,7 @@ namespace PlayniteAchievements.Services.Overview
 {
     /// <summary>
     /// Splits an overview snapshot's unlocks into one stacked timeline series per rarity tier or
-    /// trophy type, read from its unlocked rows and colored like the Rarity and Trophy pies. The
+    /// trophy type, read from its unlocks and colored like the Rarity and Trophy pies. The
     /// series keep the pies' order, rarest first.
     /// </summary>
     public static class TimelineTierSeries
@@ -39,7 +39,7 @@ namespace PlayniteAchievements.Services.Overview
         /// <summary>One series per rarity tier the snapshot's unlocks reach.</summary>
         public static IReadOnlyList<TimelineSeriesCounts> ByRarity(OverviewDataSnapshot snapshot)
         {
-            var counts = CountRows(snapshot, row => row.Rarity.ToString());
+            var counts = CountUnlocks(snapshot, tally => tally.Rarity?.ToString() ?? nameof(RarityTier.Common));
             return RarityOrder
                 .Select((tier, index) => Series(
                     counts,
@@ -57,13 +57,8 @@ namespace PlayniteAchievements.Services.Overview
         /// </summary>
         public static IReadOnlyList<TimelineSeriesCounts> ByTrophy(OverviewDataSnapshot snapshot)
         {
-            var counts = CountRows(snapshot, row =>
-            {
-                var type = (row.TrophyType ?? string.Empty).Trim();
-                return TrophyOrder.Any(choice => string.Equals(choice.Type, type, StringComparison.OrdinalIgnoreCase))
-                    ? type.ToLowerInvariant()
-                    : NoTrophyKey;
-            });
+            var counts = CountUnlocks(snapshot, tally => tally.Trophy ?? NoTrophyKey);
+
 
             var series = new List<TimelineSeriesCounts>();
             for (var i = 0; i < TrophyOrder.Length; i++)
@@ -87,35 +82,29 @@ namespace PlayniteAchievements.Services.Overview
             return series.Where(item => item != null).ToList();
         }
 
-        // Day counts of the snapshot's unlocked rows, grouped by the key each row maps to.
-        private static Dictionary<string, Dictionary<DateTime, int>> CountRows(
+        // Day counts of the snapshot's dated unlocks, grouped by the key each tally maps to.
+        private static Dictionary<string, Dictionary<DateTime, int>> CountUnlocks(
             OverviewDataSnapshot snapshot,
-            Func<AchievementDisplayItem, string> keyOf)
+            Func<AchievementTally, string> keyOf)
         {
             var counts = new Dictionary<string, Dictionary<DateTime, int>>(StringComparer.OrdinalIgnoreCase);
-            var rows = snapshot?.Achievements;
-            for (var i = 0; i < (rows?.Count ?? 0); i++)
+            foreach (var fact in snapshot?.Unlocks ?? Array.Empty<UnlockFact>())
             {
-                var row = rows[i];
-                if (row?.Unlocked != true || !row.UnlockTimeUtc.HasValue)
+                if (fact?.Day is DateTime day)
                 {
-                    continue;
-                }
+                    var key = keyOf(fact.Tally);
+                    if (!counts.TryGetValue(key, out var byDay))
+                    {
+                        byDay = new Dictionary<DateTime, int>();
+                        counts[key] = byDay;
+                    }
 
-                var key = keyOf(row);
-                if (!counts.TryGetValue(key, out var byDay))
-                {
-                    byDay = new Dictionary<DateTime, int>();
-                    counts[key] = byDay;
+                    byDay[day] = (byDay.TryGetValue(day, out var count) ? count : 0) + fact.Count;
                 }
-
-                var day = UnlockDayCounts.DayOf(row.UnlockTimeUtc.Value);
-                byDay[day] = byDay.TryGetValue(day, out var count) ? count + 1 : 1;
             }
 
             return counts;
         }
-
         private static TimelineSeriesCounts Series(
             Dictionary<string, Dictionary<DateTime, int>> counts,
             string key,

@@ -43,7 +43,7 @@ namespace PlayniteAchievements.Services.LinkedFiles
             var nodes = SelectPath(root, schema.RootPath);
             if (nodes.Count == 0)
             {
-                return LinkedFileReadResult.Failed(LinkedFileReadStatus.SchemaInvalid, "Nothing was found at the rows path.", rowPaths: rowPaths);
+                return LinkedFileReadResult.Failed(LinkedFileReadStatus.SchemaInvalid, "The achievement list was not found in the file.", rowPaths: rowPaths);
             }
 
             return LinkedFileReadResult.Ok(ToTable(nodes), rowPaths: rowPaths);
@@ -94,7 +94,8 @@ namespace PlayniteAchievements.Services.LinkedFiles
                 }
             }
 
-            if (root is JObject top && !IsUniformTable(top))
+            // A root with one entry is a wrapper around the rows, not a one-row table.
+            if (root is JObject top && (top.Count < 2 || !IsUniformTable(top)))
             {
                 Visit(top, null, 1);
             }

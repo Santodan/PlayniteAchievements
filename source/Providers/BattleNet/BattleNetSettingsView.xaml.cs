@@ -113,9 +113,6 @@ namespace PlayniteAchievements.Providers.BattleNet
             ConnectionLabel.Text = string.Format(
                 ResourceProvider.GetString("LOCPlayAch_Settings_ProviderConnection"),
                 ResourceProvider.GetString("LOCPlayAch_Provider_BattleNet"));
-            AuthLabel.Text = string.Format(
-                ResourceProvider.GetString("LOCPlayAch_Settings_ProviderAuth"),
-                ResourceProvider.GetString("LOCPlayAch_Provider_BattleNet"));
         }
 
         public override void Initialize(IProviderSettings settings)

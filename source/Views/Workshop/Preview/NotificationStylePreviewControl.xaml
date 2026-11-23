@@ -25,7 +25,7 @@
 
         <!-- Notification: the card at its natural size, built as the live wave builds it. -->
         <Border x:Name="ToastPanel"
-                Background="{DynamicResource PlayAch.Brush.Surface}"
+                Background="{DynamicResource PlayAch.Brush.Panel}"
                 BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                 BorderThickness="{StaticResource PlayAch.Thickness.Border}"
                 CornerRadius="8"
@@ -37,7 +37,7 @@
         <!-- Screenshot frame: the template on the compositor's 1080-DIP canvas, scaled down,
              bottom half only (the frame's content is bottom-anchored). -->
         <Border x:Name="FramePanel"
-                Background="{DynamicResource PlayAch.Brush.Surface}"
+                Background="{DynamicResource PlayAch.Brush.Panel}"
                 BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                 BorderThickness="{StaticResource PlayAch.Thickness.Border}"
                 CornerRadius="8"

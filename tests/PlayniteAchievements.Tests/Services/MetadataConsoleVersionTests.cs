@@ -39,10 +39,10 @@ namespace PlayniteAchievements.Tests.Services
         public void Newest_SearchesAndBuildsNewestFirst()
         {
             CollectionAssert.AreEqual(
-                new[] { "ps5", "ps4", "ps3", "psvita" },
+                new[] { "ps5", "ps4", "ps3", "ps-vita" },
                 ExophaseMetadataBranch.PlayStation.SearchPlatforms(MetadataConsoleVersion.Newest).ToList());
             CollectionAssert.AreEqual(
-                new[] { "-psn", "-ps4", "-ps3", "-psvita" },
+                new[] { "-psn", "-ps4", "-ps3", "-ps-vita", "-psvita" },
                 ExophaseMetadataBranch.PlayStation.PageSuffixes(MetadataConsoleVersion.Newest).ToList());
             CollectionAssert.AreEqual(
                 new[] { "xbox", "xbox-one", "xbox-360" },
@@ -56,10 +56,10 @@ namespace PlayniteAchievements.Tests.Services
         public void Oldest_SearchesAndBuildsOldestFirst_WithVitaLast()
         {
             CollectionAssert.AreEqual(
-                new[] { "ps3", "ps4", "ps5", "psvita" },
+                new[] { "ps3", "ps4", "ps5", "ps-vita" },
                 ExophaseMetadataBranch.PlayStation.SearchPlatforms(MetadataConsoleVersion.Oldest).ToList());
             CollectionAssert.AreEqual(
-                new[] { "-ps3", "-ps4", "-psn", "-psvita" },
+                new[] { "-ps3", "-ps4", "-psn", "-ps-vita", "-psvita" },
                 ExophaseMetadataBranch.PlayStation.PageSuffixes(MetadataConsoleVersion.Oldest).ToList());
             CollectionAssert.AreEqual(
                 new[] { "xbox-360", "xbox-one", "xbox" },

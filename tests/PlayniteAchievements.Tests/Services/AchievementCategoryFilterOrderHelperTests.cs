@@ -76,35 +76,6 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void BuildSelectedGameFilterOptions_UsesCanonicalCategoryOrder_AndPrunesInvalidSelections()
-        {
-            var selectedCategoryFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-            {
-                "DLC 1: Revenge",
-                "Missing"
-            };
-
-            var options = OverviewAchievementFilters.BuildSelectedGameFilterOptions(
-                new[]
-                {
-                    new AchievementDisplayItem { Tags = null, CategoryLabel = "Original Game" },
-                    new AchievementDisplayItem { CategoryKind = "DLC", CategoryLabel = "DLC 1: Revenge" },
-                    new AchievementDisplayItem { CategoryKind = "DLC", CategoryLabel = "DLC 2: Redemption" },
-                    new AchievementDisplayItem { CategoryKind = "DLC", CategoryLabel = "Original Game" }
-                },
-                selectedTypeFilters: new HashSet<string>(StringComparer.OrdinalIgnoreCase),
-                selectedCategoryFilters: selectedCategoryFilters);
-
-            CollectionAssert.AreEqual(
-                new[] { "Original Game", "DLC 1: Revenge", "DLC 2: Redemption" },
-                options.CategoryOptions);
-            Assert.IsTrue(options.CategorySelectionPruned);
-            CollectionAssert.AreEquivalent(
-                new[] { "DLC 1: Revenge" },
-                selectedCategoryFilters.ToList());
-        }
-
-        [TestMethod]
         public void BuildOrderedCategoryTree_LeavesFlatLabelsInTheirExistingOrder()
         {
             var flat = new[] { "Multiplayer", "DLC", "Story" };
@@ -195,6 +166,36 @@ namespace PlayniteAchievements.Services.Tests
                 int.MaxValue,
                 AchievementCategoryFilterOrderHelper.ResolveCategoryOrderIndexForSubtree("A", new[] { "AB" }, new[] { "AB" }),
                 "'AB' is not beneath 'A'");
+        }
+
+        [TestMethod]
+        public void BuildOrderedCategoryTree_OverThousandsOfLabels_MatchesTheLevelByLevelOrder_Quickly()
+        {
+            // The library editor's picker holds every game's categories. Building the tree level
+            // by level scanned every label for every label, and the editor hung on open.
+            var labels = new List<string>();
+            for (var game = 0; game < 1500; game++)
+            {
+                labels.Add("Game " + game);
+                labels.Add("DLC::Pack " + game);
+                labels.Add("DLC::Pack " + game + "::Extra");
+            }
+
+            var order = new[] { "DLC::Pack 7", "Game 3" };
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            var tree = AchievementCategoryFilterOrderHelper.BuildOrderedCategoryTree(labels, order);
+            watch.Stop();
+
+            Assert.IsTrue(watch.ElapsedMilliseconds < 2000, "took " + watch.ElapsedMilliseconds + "ms");
+            Assert.AreEqual(labels.Count + 1, tree.Count, "every label, plus the DLC parent the tree adds");
+            Assert.AreEqual("DLC", tree[0], "the order puts the branch holding DLC::Pack 7 first");
+            Assert.AreEqual("DLC::Pack 7", tree[1]);
+            Assert.AreEqual("DLC::Pack 7::Extra", tree[2]);
+            Assert.AreEqual("DLC::Pack 0", tree[3], "the rest of the branch in first-seen order");
+            Assert.AreEqual("Game 3", tree[1 + 1500 * 2], "then the ordered root after the DLC branch");
+            CollectionAssert.AreEqual(
+                new[] { "Pack 1", "Pack 1::Extra" }.Select(path => "DLC::" + path).ToArray(),
+                tree.Skip(5).Take(2).ToArray());
         }
     }
 }

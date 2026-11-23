@@ -19,20 +19,20 @@
         <StackPanel Margin="20">
 
             <!-- Provider Header -->
-            <StackPanel Style="{StaticResource ProviderHeaderPanelStyle}">
-                <Viewbox Style="{StaticResource ProviderHeaderIconStyle}">
-                    <Path Data="{StaticResource GeoMinecraft}" Fill="{StaticResource PlayAch.Brush.ProviderMinecraft}"/>
-                </Viewbox>
-                <TextBlock Text="{DynamicResource LOCPlayAch_Provider_Minecraft}" Style="{StaticResource ProviderTitleTextStyle}"/>
-            </StackPanel>
-
-            <Border Style="{StaticResource ProviderEnableToggleBorderStyle}" Grid.IsSharedSizeScope="True">
-                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"
-                                     FontWeight="SemiBold"
-                                     Margin="0">
-                    <CheckBox IsChecked="{Binding Settings.IsEnabled, Mode=TwoWay}"/>
-                </controls:SettingRow>
-            </Border>
+            <DockPanel Style="{StaticResource ProviderHeaderRowStyle}">
+                <StackPanel Style="{StaticResource ProviderEnableTogglePanelStyle}">
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}" Style="{StaticResource ProviderEnableLabelStyle}"/>
+                    <CheckBox IsChecked="{Binding Settings.IsEnabled, Mode=TwoWay}"
+                              VerticalAlignment="Center"
+                              AutomationProperties.Name="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"/>
+                </StackPanel>
+                <StackPanel Style="{StaticResource ProviderHeaderPanelStyle}">
+                    <Viewbox Style="{StaticResource ProviderHeaderIconStyle}">
+                        <Path Data="{StaticResource GeoMinecraft}" Fill="{StaticResource PlayAch.Brush.ProviderMinecraft}"/>
+                    </Viewbox>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Provider_Minecraft}" Style="{StaticResource ProviderTitleTextStyle}"/>
+                </StackPanel>
+            </DockPanel>
 
             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ProviderDisabledMessage}" Style="{StaticResource ProviderDisabledMessageStyle}"/>
 
@@ -40,55 +40,46 @@
                 <StackPanel>
                     <TextBlock x:Name="ConnectionLabel"
                                Style="{StaticResource SectionHeaderStyle}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
 
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="180"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
+                    <Border Style="{StaticResource ProviderConfigStatusBorderStyle}">
+                        <StackPanel>
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
 
-                        <TextBlock Grid.Column="0"
-                                   Text="{DynamicResource LOCPlayAch_Settings_ShadPS4GameDataPath}"
-                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                   VerticalAlignment="Top"
-                                   Margin="{StaticResource PlayAch.Thickness.Top.Sm}"/>
+                                <TextBlock Grid.Column="0"
+                                           Style="{StaticResource ProviderConfigStatusIconStyle}">
+                                    <TextBlock.RenderTransform>
+                                        <ScaleTransform ScaleX="1.5" ScaleY="1.5"/>
+                                    </TextBlock.RenderTransform>
+                                </TextBlock>
 
-                        <Border Grid.Column="1" Style="{StaticResource ProviderConfigStatusBorderStyle}">
-                            <StackPanel>
-                                <Grid Margin="0,0,0,10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding AuthStatus, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                           VerticalAlignment="Center"
+                                           TextWrapping="Wrap"/>
+                            </Grid>
 
-                                    <TextBlock Grid.Column="0"
-                                               Style="{StaticResource ProviderConfigStatusIconStyle}">
-                                        <TextBlock.RenderTransform>
-                                            <ScaleTransform ScaleX="1.5" ScaleY="1.5"/>
-                                        </TextBlock.RenderTransform>
-                                    </TextBlock>
+                            <Border BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                                    BorderThickness="0,1,0,0"
+                                    Padding="0,12,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ShadPS4GameDataPath}"
+                                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                               Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+                                    <controls:ProviderPathListEditor x:Name="GameFoldersEditor"/>
 
-                                    <TextBlock Grid.Column="1"
-                                               Text="{Binding AuthStatus, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                               VerticalAlignment="Center"
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_MinecraftGameFoldersHint}"
+                                               Style="{StaticResource MutedTextStyle}"
+                                               Margin="{StaticResource PlayAch.Thickness.Top.Sm}"
                                                TextWrapping="Wrap"/>
-                                </Grid>
-
-                                <Border BorderBrush="{DynamicResource PopupBorderBrush}"
-                                        BorderThickness="0,1,0,0"
-                                        Padding="0,12,0,0">
-                                    <StackPanel>
-                                        <controls:ProviderPathListEditor x:Name="GameFoldersEditor"/>
-
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_MinecraftGameFoldersHint}"
-                                                   Style="{StaticResource MutedTextStyle}"
-                                                   Margin="{StaticResource PlayAch.Thickness.Top.Sm}"
-                                                   TextWrapping="Wrap"/>
-                                    </StackPanel>
-                                </Border>
-                            </StackPanel>
-                        </Border>
-                    </Grid>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </Border>
 

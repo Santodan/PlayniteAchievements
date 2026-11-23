@@ -390,25 +390,55 @@ namespace PlayniteAchievements.Providers.ShadPS4
         }
 
         /// <summary>
-        /// Extracts the PS4 title ID from the game's install directory path,
-        /// falling back to the EmuLibrary source path for uninstalled EmuLibrary games.
-        /// PS4 title IDs follow pattern: AAAA12345 (e.g., CUSA00432)
+        /// The game's on-disk locations, expanded and de-duplicated: install directory, each ROM
+        /// path (a folder dump's eboot.bin or a packed .zar image), then the EmuLibrary source
+        /// directory and file for uninstalled EmuLibrary games.
         /// </summary>
-        private string ExtractTitleIdFromGame(Game game)
+        internal IEnumerable<string> EnumerateGamePathCandidates(Game game)
         {
-            var installDir = ExpandGamePath(game, game?.InstallDirectory);
-
-            if (string.IsNullOrWhiteSpace(installDir) &&
-                !EmuLibraryPathResolver.TryResolveSourcePath(_playniteApi, game, out installDir))
+            if (game == null)
             {
-                return null;
+                yield break;
             }
 
-            // Search for title ID pattern in the path
-            var match = TitleIdPattern.Match(installDir);
-            if (match.Success)
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var raw = new List<string> { ExpandGamePath(game, game.InstallDirectory) };
+            if (game.Roms != null)
             {
-                return ShadPS4MatchIdHelper.Normalize(match.Groups[1].Value);
+                raw.AddRange(game.Roms.Select(rom => ExpandGamePath(game, rom?.Path)));
+            }
+
+            if (EmuLibraryPathResolver.TryResolveSourceDirectory(_playniteApi, game, out var emuDirectory))
+            {
+                raw.Add(emuDirectory);
+            }
+
+            if (EmuLibraryPathResolver.TryResolveSourceFilePath(_playniteApi, game, out var emuFile))
+            {
+                raw.Add(emuFile);
+            }
+
+            foreach (var path in raw)
+            {
+                if (!string.IsNullOrWhiteSpace(path) && seen.Add(path.Trim()))
+                {
+                    yield return path.Trim();
+                }
+            }
+        }
+
+        /// <summary>
+        /// The PS4 title ID (AAAA12345, e.g. CUSA00432) found in any of the game's paths.
+        /// </summary>
+        internal string ExtractTitleIdFromGame(Game game)
+        {
+            foreach (var path in EnumerateGamePathCandidates(game))
+            {
+                var match = TitleIdPattern.Match(path);
+                if (match.Success)
+                {
+                    return ShadPS4MatchIdHelper.Normalize(match.Groups[1].Value);
+                }
             }
 
             return null;
@@ -577,9 +607,14 @@ namespace PlayniteAchievements.Providers.ShadPS4
                             ? npXml
                             : null;
                     case ShadPS4MatchIdKind.TitleId:
-                        return GetOrBuildTitleCache().TryGetValue(matchId, out var titleDirectory)
-                            ? Path.Combine(titleDirectory, "trophyfiles", "trophy00", "Xml", "TROP.XML")
-                            : null;
+                        // Title ids only key the legacy layout; on a miss the game resolves as
+                        // if no override were set.
+                        if (GetOrBuildTitleCache().TryGetValue(matchId, out var titleDirectory))
+                        {
+                            return Path.Combine(titleDirectory, "trophyfiles", "trophy00", "Xml", "TROP.XML");
+                        }
+
+                        break;
                 }
             }
 
@@ -713,8 +748,7 @@ namespace PlayniteAchievements.Providers.ShadPS4
         /// </summary>
         internal string ResolveNpCommIdForGame(Game game)
         {
-            var npbindPath = FindNpbindPath(game);
-            return npbindPath == null ? null : ExtractNpCommIdFromNpbind(npbindPath);
+            return TryReadNpbind(game, out var bytes, out _) ? ExtractNpCommIdFromNpbind(bytes) : null;
         }
 
         /// <summary>
@@ -726,84 +760,145 @@ namespace PlayniteAchievements.Providers.ShadPS4
         /// </summary>
         internal string ResolveRegionHintForGame(Game game)
         {
-            var npbindPath = FindNpbindPath(game);
-            if (npbindPath == null)
+            if (!TryReadNpbind(game, out var bytes, out _))
             {
                 return null;
             }
 
-            try
-            {
-                var content = Encoding.ASCII.GetString(File.ReadAllBytes(npbindPath));
-                var match = System.Text.RegularExpressions.Regex.Match(
-                    content,
-                    @"([A-Z]P)\d{4}-NPWR\d{5}_\d{2}",
-                    System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                return match.Success
-                    ? ExophaseGameNameMatcher.MapPsnContentIdToRegionHint(match.Groups[1].Value)
-                    : null;
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, $"[ShadPS4] Failed to read region hint from '{npbindPath}'");
-                return null;
-            }
+            var match = System.Text.RegularExpressions.Regex.Match(
+                Encoding.ASCII.GetString(bytes),
+                @"([A-Z]P)\d{4}-NPWR\d{5}_\d{2}",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            return match.Success
+                ? ExophaseGameNameMatcher.MapPsnContentIdToRegionHint(match.Groups[1].Value)
+                : null;
         }
 
-        private string FindNpbindPath(Game game)
+        private const int MaxNpbindBytes = 1024 * 1024;
+
+        // npbind.dat read from a .zar image, keyed by archive path; reused while the archive's
+        // size and write time are unchanged so repeated lookups do not reopen the archive.
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, ArchivedNpbind> _archivedNpbind =
+            new System.Collections.Concurrent.ConcurrentDictionary<string, ArchivedNpbind>(StringComparer.OrdinalIgnoreCase);
+
+        private sealed class ArchivedNpbind
         {
-            var installDir = ExpandGamePath(game, game?.InstallDirectory);
-            if (string.IsNullOrWhiteSpace(installDir) &&
-                !EmuLibraryPathResolver.TryResolveSourceDirectory(_playniteApi, game, out installDir))
-            {
-                return null;
-            }
-
-            var searchDirs = new List<string> { installDir };
-
-            var normalized = installDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            var parentDir = Path.GetDirectoryName(normalized);
-            if (!string.IsNullOrWhiteSpace(parentDir) && !PathsEqual(parentDir, installDir))
-            {
-                searchDirs.Add(parentDir);
-            }
-
-            foreach (var dir in searchDirs)
-            {
-                var npbindPath = Path.Combine(dir, "sce_sys", "npbind.dat");
-                if (File.Exists(npbindPath))
-                {
-                    return npbindPath;
-                }
-            }
-
-            return null;
+            public long Length;
+            public DateTime LastWriteUtc;
+            public byte[] Bytes;
         }
 
         /// <summary>
-        /// Extracts the first npcommid from a binary npbind.dat file
-        /// by searching for the NPWR pattern in raw bytes.
+        /// The game's sce_sys/npbind.dat contents and where they came from. A .zar ROM is read
+        /// from inside the archive; any other path probes sce_sys in the path's folder (or the
+        /// file's folder) and that folder's parent.
         /// </summary>
-        private string ExtractNpCommIdFromNpbind(string npbindPath)
+        internal bool TryReadNpbind(Game game, out byte[] bytes, out string source)
         {
-            try
+            foreach (var candidate in EnumerateGamePathCandidates(game))
             {
-                var bytes = File.ReadAllBytes(npbindPath);
-                var content = Encoding.ASCII.GetString(bytes);
-                var match = System.Text.RegularExpressions.Regex.Match(
-                    content,
-                    @"(NPWR\d{5}_\d{2})",
-                    System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                if (match.Success)
+                try
                 {
-                    return ShadPS4MatchIdHelper.Normalize(match.Groups[1].Value);
+                    if (File.Exists(candidate))
+                    {
+                        if (candidate.EndsWith(".zar", StringComparison.OrdinalIgnoreCase))
+                        {
+                            bytes = ReadArchivedNpbind(candidate);
+                            if (bytes != null)
+                            {
+                                source = candidate;
+                                return true;
+                            }
+
+                            continue;
+                        }
+
+                        if (TryReadNpbindNear(Path.GetDirectoryName(candidate), out bytes, out source))
+                        {
+                            return true;
+                        }
+                    }
+                    else if (Directory.Exists(candidate) &&
+                             TryReadNpbindNear(candidate, out bytes, out source))
+                    {
+                        return true;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, $"[ShadPS4] Failed to read npbind.dat for '{candidate}'");
                 }
             }
-            catch (Exception ex)
+
+            bytes = null;
+            source = null;
+            return false;
+        }
+
+        private static bool TryReadNpbindNear(string directory, out byte[] bytes, out string source)
+        {
+            bytes = null;
+            source = null;
+            if (string.IsNullOrWhiteSpace(directory))
             {
-                _logger?.Debug(ex, $"[ShadPS4] Failed to parse npbind.dat at '{npbindPath}'");
+                return false;
             }
-            return null;
+
+            var trimmed = directory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            foreach (var dir in new[] { trimmed, Path.GetDirectoryName(trimmed) })
+            {
+                if (string.IsNullOrWhiteSpace(dir))
+                {
+                    continue;
+                }
+
+                var npbindPath = Path.Combine(dir, "sce_sys", "npbind.dat");
+                if (File.Exists(npbindPath))
+                {
+                    bytes = File.ReadAllBytes(npbindPath);
+                    source = npbindPath;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private byte[] ReadArchivedNpbind(string archivePath)
+        {
+            var info = new FileInfo(archivePath);
+            if (_archivedNpbind.TryGetValue(archivePath, out var cached) &&
+                cached.Length == info.Length &&
+                cached.LastWriteUtc == info.LastWriteTimeUtc)
+            {
+                return cached.Bytes;
+            }
+
+            var bytes = ZArchiveReader.TryReadFile(archivePath, "sce_sys/npbind.dat", MaxNpbindBytes);
+            _archivedNpbind[archivePath] = new ArchivedNpbind
+            {
+                Length = info.Length,
+                LastWriteUtc = info.LastWriteTimeUtc,
+                Bytes = bytes
+            };
+            return bytes;
+        }
+
+        /// <summary>
+        /// The first npcommid in npbind.dat's raw bytes (NPWR#####_##).
+        /// </summary>
+        internal static string ExtractNpCommIdFromNpbind(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length == 0)
+            {
+                return null;
+            }
+
+            var match = System.Text.RegularExpressions.Regex.Match(
+                Encoding.ASCII.GetString(bytes),
+                @"(NPWR\d{5}_\d{2})",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            return match.Success ? ShadPS4MatchIdHelper.Normalize(match.Groups[1].Value) : null;
         }
     }
 }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Media;
 using Playnite.SDK;
 using PlayniteAchievements.Common;
@@ -17,27 +18,33 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
     /// The tooltip and the popup header are formatted on demand (only the hovered or clicked
     /// cell needs one), so a year of cells costs no string work.
     /// </summary>
-    public sealed class ActivityCalendarDayViewModel
+    public sealed class ActivityCalendarDayViewModel : Common.ObservableObject
     {
         private static readonly ActivityCalendarDayViewModel PlaceholderCell =
             new ActivityCalendarDayViewModel(-1, default(DateTime), 0);
+
+        private readonly Func<DateTime, IReadOnlyList<AchievementDisplayItem>> _loadUnlocks;
+        private IReadOnlyList<AchievementDisplayItem> _unlocks;
+        private bool _loading;
 
         private ActivityCalendarDayViewModel(
             int intensity,
             DateTime date,
             int count,
-            IReadOnlyList<AchievementDisplayItem> unlocks = null)
+            Func<DateTime, IReadOnlyList<AchievementDisplayItem>> loadUnlocks = null)
         {
             Intensity = intensity;
             Date = date;
             Count = count;
-            Unlocks = unlocks;
+            _loadUnlocks = loadUnlocks;
         }
 
         public static ActivityCalendarDayViewModel Placeholder => PlaceholderCell;
 
-        public static ActivityCalendarDayViewModel ForDay(ShowcaseActivityDay day) =>
-            new ActivityCalendarDayViewModel(day.Intensity, day.Date, day.Count, day.Unlocks);
+        public static ActivityCalendarDayViewModel ForDay(
+            ShowcaseActivityDay day,
+            Func<DateTime, IReadOnlyList<AchievementDisplayItem>> loadUnlocks) =>
+            new ActivityCalendarDayViewModel(day.Intensity, day.Date, day.Count, loadUnlocks);
 
         public int Intensity { get; }
 
@@ -45,10 +52,33 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         public int Count { get; }
 
-        /// <summary>The day's unlocks in unlock order, or null; shown by the day popup.</summary>
-        public IReadOnlyList<AchievementDisplayItem> Unlocks { get; }
+        /// <summary>
+        /// The day's unlocks in unlock order, shown by the day popup: read off the UI thread when
+        /// first asked for, and null until then.
+        /// </summary>
+        public IReadOnlyList<AchievementDisplayItem> Unlocks
+        {
+            get
+            {
+                if (_unlocks == null && !_loading && _loadUnlocks != null && HasUnlocks)
+                {
+                    _loading = true;
+                    var load = _loadUnlocks;
+                    var date = Date;
+                    Task.Run(() => load(date)).ContinueWith(
+                        task =>
+                        {
+                            _unlocks = task.Status == TaskStatus.RanToCompletion ? task.Result : Array.Empty<AchievementDisplayItem>();
+                            OnPropertyChanged(nameof(Unlocks));
+                        },
+                        TaskScheduler.FromCurrentSynchronizationContext());
+                }
 
-        public bool HasUnlocks => Unlocks != null && Unlocks.Count > 0;
+                return _unlocks;
+            }
+        }
+
+        public bool HasUnlocks => Count > 0;
 
         /// <summary>False for the placeholder and legend cells, which have no date.</summary>
         public bool IsDay => Intensity >= 0 && Date != default(DateTime);
@@ -104,6 +134,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         // The calendar the week columns were built from; rebuilding them re-renders the whole
         // heatmap, so an unrelated refresh must leave them alone.
         private ShowcaseActivityCalendar _builtCalendar;
+
+        // Reads one day's unlocks of the calendar shown, for its day popup.
+        private Func<DateTime, IReadOnlyList<AchievementDisplayItem>> _loadDay;
         private IReadOnlyList<string> _weekdayLabels;
         private bool _showLegend = true;
         private Brush _cellColor;
@@ -297,6 +330,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             adapter.UpdateOptions(games);
             var kept = adapter.Apply(games);
             var clipsUnlocks = adapter.HasAchievementSelection;
+            var snapshot = kept.Count == games.Count ? source : OverviewLinkedSnapshots.NarrowToGames(source, kept);
+            _loadDay = DayLoader(snapshot, completions, adapter);
             if (kept.Count == games.Count && pickedWindow == null && !clipsUnlocks && !completions)
             {
                 return Projection.ActivityCalendar ?? new ShowcaseActivityCalendar();
@@ -318,16 +353,15 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 return _filteredCalendar;
             }
 
-            var snapshot = kept.Count == games.Count ? source : OverviewLinkedSnapshots.NarrowToGames(source, kept);
             if (completions)
             {
-                // Each completed game's finish day, its day's popup listing the finishing unlock.
+                // Each completed game's finish day.
                 snapshot = TimelinePlatformSeries.CompletionSnapshot(snapshot);
             }
             else if (clipsUnlocks)
             {
                 // Only the unlocks the tag, rarity and trophy filters keep fill the days.
-                snapshot = OverviewLinkedSnapshots.ClipToAchievements(snapshot, adapter.MatchesAchievement);
+                snapshot = OverviewLinkedSnapshots.ClipToAchievements(snapshot, fact => adapter.MatchesTally(fact.Tally));
             }
             var calendar = ShowcaseWidgetProjectionService.BuildActivityCalendar(
                 snapshot,
@@ -338,6 +372,35 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             _filteredSource = source;
             _filteredCalendar = calendar;
             return calendar;
+        }
+
+        /// <summary>
+        /// Reads a day's unlocks of <paramref name="snapshot"/>'s games that the achievement
+        /// filters keep, in unlock order; counting completions, each game's finishing unlock.
+        /// </summary>
+        private static Func<DateTime, IReadOnlyList<AchievementDisplayItem>> DayLoader(
+            OverviewDataSnapshot snapshot,
+            bool completions,
+            ActivityCalendarControlBarAdapter adapter)
+        {
+            var query = adapter.ApplyAchievementFilters(snapshot.UnlockQuery()).OrderBy(Services.Database.AchievementSort.UnlockTime);
+            if (!completions)
+            {
+                return day => ShowcaseRows.Load(query.WhereUnlockedBetween(day, day));
+            }
+
+            var finishes = TimelinePlatformSeries.CompletionFinishes(snapshot);
+            return day =>
+            {
+                var finished = finishes.Where(pair => UnlockDayCounts.DayOf(pair.Value) == day).ToDictionary(pair => pair.Key, pair => pair.Value);
+                return finished.Count == 0
+                    ? Array.Empty<AchievementDisplayItem>()
+                    : ShowcaseRows.Load(query.ForGames(finished.Keys).WhereUnlockedBetween(day, day))
+                        .Where(row => row.PlayniteGameId is Guid id && finished.TryGetValue(id, out var utc) && row.UnlockTimeUtc == utc)
+                        .GroupBy(row => row.PlayniteGameId)
+                        .Select(group => group.First())
+                        .ToList();
+            };
         }
 
         private void BuildWeeks(ShowcaseActivityCalendar calendar)
@@ -387,7 +450,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                         yearShown = true;
                     }
 
-                    cells.Add(ActivityCalendarDayViewModel.ForDay(day));
+                    cells.Add(ActivityCalendarDayViewModel.ForDay(day, _loadDay));
                 }
 
                 weeks.Add(new ActivityCalendarWeekViewModel(monthLabel, cells));

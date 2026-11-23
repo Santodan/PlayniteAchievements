@@ -113,6 +113,15 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
         }
 
         [TestMethod]
+        public void PositionsAreLeftToTheMatchNotGuessedAsAField()
+        {
+            var guessed = Guess(new[] { "Index", "Done" }, new[] { "0", "true" }, new[] { "1", "false" });
+            Assert.IsFalse(guessed.ContainsKey("Index"), "Which achievement a row is belongs to the match column.");
+            Assert.IsFalse(guessed.ContainsKey(LinkedFileSchema.PositionColumn));
+            Assert.AreEqual(LinkedFileField.Unlocked, guessed["Done"]);
+        }
+
+        [TestMethod]
         public void CsvImportRecognizesOnlyItsOwnHeaders()
         {
             Assert.AreEqual(LinkedFileField.ApiName, LinkedFileColumnGuesser.ResolveCsvHeader("ID"));

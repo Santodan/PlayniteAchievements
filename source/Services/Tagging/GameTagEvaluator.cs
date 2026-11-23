@@ -102,7 +102,7 @@ namespace PlayniteAchievements.Services.Tagging
             // HasAchievements defaults to true on unscanned stubs (so bulk scans do not skip
             // them) and can survive as true with an empty list on rows written by the legacy
             // JSON import or old schema migrations. Tags must match what the UI reports, so
-            // require actual achievements like SummaryCacheReader does, not just the flag.
+            // require actual achievements like the summary reads do, not just the flag.
             if (data == null || !data.HasAchievements ||
                 data.Achievements == null || data.Achievements.Count == 0)
             {

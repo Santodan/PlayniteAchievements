@@ -15,7 +15,7 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/PlayAchImplicitControlStyles.xaml"/>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+                <helpers:SharedResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
             </ResourceDictionary.MergedDictionaries>
 
             <!-- Type selector buttons: each button binds Tag to its VM selection flag; the
@@ -33,7 +33,7 @@
                                     Background="{TemplateBinding Background}"
                                     BorderBrush="{TemplateBinding BorderBrush}"
                                     BorderThickness="{TemplateBinding BorderThickness}"
-                                    CornerRadius="{StaticResource PlayAch.Radius.Small}"
+                                    CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                                     SnapsToDevicePixels="True">
                                 <ContentPresenter Margin="{TemplateBinding Padding}"
                                                   HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
@@ -147,7 +147,7 @@
                         Background="#FF101010"
                         BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                         BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                        CornerRadius="4"
+                        CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                         ClipToBounds="True">
                     <Grid>
                         <!-- Screenshot. DecodePixel 0 asks AsyncImage to infer the decode size from

@@ -144,7 +144,8 @@
                                  differs, matching the rounded card this art is clipped to. -->
                             <controls:RarityRayBurst UseCompletedColors="True"
                                                      BurstScale="1.55"
-                                                     CornerRadiusRatio="0.14">
+                                                     CornerRadiusRatio="0.14"
+                                                     CornerRadiusPx="{DynamicResource PlayAch.Radius.Art}">
                                 <controls:RarityRayBurst.Style>
                                     <Style TargetType="controls:RarityRayBurst">
                                         <Setter Property="Visibility" Value="Collapsed"/>
@@ -214,18 +215,25 @@
                                         </Style.Triggers>
                                     </Style>
                                 </Border.Style>
+                                <!-- Each glow sits on a wrapper and the rounding clip on the art
+                                     inside it, so the bloom is cast from the rounded art and the
+                                     clip never cuts the blur. -->
                                 <Grid>
-                                    <Image Style="{StaticResource GameImageStyle}"
-                                           Effect="{DynamicResource PlayAch.Effect.CompletedGlowStart}"/>
-                                    <Image Style="{StaticResource GameImageStyle}"
-                                           Effect="{DynamicResource PlayAch.Effect.CompletedGlowEnd}"/>
+                                    <Border Effect="{DynamicResource PlayAch.Effect.CompletedGlowStart}">
+                                        <Image Style="{StaticResource GameImageStyle}"
+                                               helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.Art}"/>
+                                    </Border>
+                                    <Border Effect="{DynamicResource PlayAch.Effect.CompletedGlowEnd}">
+                                        <Image Style="{StaticResource GameImageStyle}"
+                                               helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.Art}"/>
+                                    </Border>
                                     <!-- Edge that comes with the rays: the bloom's own colour at a small
                                          blur, so it reads as a line along the art rather than around it.
                                          The enclosing layer already gates on completion, so this only
                                          has to follow the selection's completion entry. -->
-                                    <Image Effect="{DynamicResource PlayAch.Effect.CompletedGlowEdge}">
-                                        <Image.Style>
-                                            <Style TargetType="Image" BasedOn="{StaticResource GameImageStyle}">
+                                    <Border Effect="{DynamicResource PlayAch.Effect.CompletedGlowEdge}">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
                                                 <Setter Property="Visibility" Value="Collapsed"/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding RayGlowTiers, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}, Converter={StaticResource RaritySelectionIncludesCompleted}}" Value="True">
@@ -233,8 +241,10 @@
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
-                                        </Image.Style>
-                                    </Image>
+                                        </Border.Style>
+                                        <Image Style="{StaticResource GameImageStyle}"
+                                               helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.Art}"/>
+                                    </Border>
                                 </Grid>
                             </Border>
                             <!-- Centered and sized to the art, so the completion frame hugs the
@@ -242,12 +252,13 @@
                                  taller than the art. -->
                             <Grid HorizontalAlignment="Center"
                                   VerticalAlignment="Center">
-                                <Border CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                                <Border CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                                         ClipToBounds="True"
                                         RenderOptions.BitmapScalingMode="HighQuality"
                                         UseLayoutRounding="True"
                                         SnapsToDevicePixels="True">
-                                    <Image Style="{StaticResource GameImageStyle}"/>
+                                    <Image Style="{StaticResource GameImageStyle}"
+                                           helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.Art}"/>
                                 </Border>
 
                                 <!-- Completion frame, drawn on the art itself. Last, so it draws

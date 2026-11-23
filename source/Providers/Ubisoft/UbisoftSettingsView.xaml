@@ -19,20 +19,20 @@
         <StackPanel Margin="20">
 
             <!-- Provider Header -->
-            <StackPanel Style="{StaticResource ProviderHeaderPanelStyle}">
-                <Viewbox Style="{StaticResource ProviderHeaderIconStyle}">
-                    <Path Data="{StaticResource GeoUbisoft}" Fill="{StaticResource PlayAch.Brush.ProviderUbisoft}"/>
-                </Viewbox>
-                <TextBlock Text="{DynamicResource LOCPlayAch_Provider_Ubisoft}" Style="{StaticResource ProviderTitleTextStyle}"/>
-            </StackPanel>
-
-            <Border Style="{StaticResource ProviderEnableToggleBorderStyle}" Grid.IsSharedSizeScope="True">
-                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"
-                                     FontWeight="SemiBold"
-                                     Margin="0">
-                    <CheckBox IsChecked="{Binding Settings.IsEnabled, Mode=TwoWay}"/>
-                </controls:SettingRow>
-            </Border>
+            <DockPanel Style="{StaticResource ProviderHeaderRowStyle}">
+                <StackPanel Style="{StaticResource ProviderEnableTogglePanelStyle}">
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}" Style="{StaticResource ProviderEnableLabelStyle}"/>
+                    <CheckBox IsChecked="{Binding Settings.IsEnabled, Mode=TwoWay}"
+                              VerticalAlignment="Center"
+                              AutomationProperties.Name="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"/>
+                </StackPanel>
+                <StackPanel Style="{StaticResource ProviderHeaderPanelStyle}">
+                    <Viewbox Style="{StaticResource ProviderHeaderIconStyle}">
+                        <Path Data="{StaticResource GeoUbisoft}" Fill="{StaticResource PlayAch.Brush.ProviderUbisoft}"/>
+                    </Viewbox>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Provider_Ubisoft}" Style="{StaticResource ProviderTitleTextStyle}"/>
+                </StackPanel>
+            </DockPanel>
 
             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ProviderDisabledMessage}" Style="{StaticResource ProviderDisabledMessageStyle}"/>
 
@@ -40,38 +40,33 @@
                 <StackPanel>
                     <TextBlock x:Name="ConnectionLabel"
                                Style="{StaticResource SectionHeaderStyle}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Ubisoft_Help}"
                                Style="{StaticResource MutedTextStyle}"
                                Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"
                                TextWrapping="Wrap"/>
 
-                    <Grid>
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="180"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" x:Name="AuthLabel"
-                                   Foreground="{DynamicResource PlayAch.Brush.Text}" VerticalAlignment="Top" Margin="{StaticResource PlayAch.Thickness.Top.Sm}"/>
+                    <Border
+                            Style="{StaticResource AuthStatusBorderStyle}">
+                        <StackPanel>
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                           Style="{StaticResource AuthStatusIconStyle}"/>
+                                <TextBlock Grid.Column="1" Text="{Binding AuthStatus, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                           VerticalAlignment="Center" TextWrapping="Wrap"/>
+                            </Grid>
 
-                        <Border Grid.Column="1"
-                                Style="{StaticResource AuthStatusBorderStyle}">
-                            <StackPanel>
-                                <Grid Margin="0,0,0,10">
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0"
-                                               Style="{StaticResource AuthStatusIconStyle}"/>
-                                    <TextBlock Grid.Column="1" Text="{Binding AuthStatus, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                               VerticalAlignment="Center" TextWrapping="Wrap"/>
-                                </Grid>
-
-                                <StackPanel Orientation="Horizontal">
-                                    <Button Content="{DynamicResource LOCPlayAch_Button_Login}" Click="LoginWeb_Click"
-                                            Style="{StaticResource AuthActionButtonStyle}" Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
-                                    <Button Content="{DynamicResource LOCPlayAch_Common_Check}" Click="Auth_Check_Click"
-                                            Style="{StaticResource AuthActionButtonStyle}" Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
-                                    <Button Content="{DynamicResource LOCPlayAch_Button_SignOut}" Click="Logout_Click"
-                                            Style="{StaticResource AuthActionButtonStyle}"/>
-                                </StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="{DynamicResource LOCPlayAch_Button_Login}" Click="LoginWeb_Click"
+                                        Style="{StaticResource AuthActionButtonStyle}" Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
+                                <Button Content="{DynamicResource LOCPlayAch_Common_Check}" Click="Auth_Check_Click"
+                                        Style="{StaticResource AuthActionButtonStyle}" Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
+                                <Button Content="{DynamicResource LOCPlayAch_Button_SignOut}" Click="Logout_Click"
+                                        Style="{StaticResource AuthActionButtonStyle}"/>
                             </StackPanel>
-                        </Border>
-                    </Grid>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </Border>
 

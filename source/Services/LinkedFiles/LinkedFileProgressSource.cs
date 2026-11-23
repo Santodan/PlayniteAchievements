@@ -53,7 +53,7 @@ namespace PlayniteAchievements.Services.LinkedFiles
         {
             if (game == null || game.Id == Guid.Empty ||
                 !_store.TryLoad(game.Id, out var data) ||
-                !LinkedFileSyncService.IsEligible(data))
+                data == null)
             {
                 return null;
             }
@@ -159,7 +159,10 @@ namespace PlayniteAchievements.Services.LinkedFiles
                     {
                         ApiName = rowMatch.Achievement.ApiName,
                         Unlocked = unlocked,
-                        UnlockTimeUtc = unlocked ? values.UnlockTimeUtc : null,
+                        // An unlock the file does not date happened now; one already recorded keeps its time.
+                        UnlockTimeUtc = unlocked
+                            ? values.UnlockTimeUtc ?? (rowMatch.Achievement.Unlocked ? (DateTime?)null : nowUtc)
+                            : null,
                         ProgressNum = values.ProgressNum,
                         ProgressDenom = values.ProgressDenom
                     });

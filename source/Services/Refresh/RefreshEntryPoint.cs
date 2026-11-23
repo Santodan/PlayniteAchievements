@@ -104,6 +104,15 @@ namespace PlayniteAchievements.Services.Refresh
 
         public bool HasAuthenticatedProviders => AuthenticatedProviders.Count > 0;
 
+        /// <summary>
+        /// Set when the request names only games that read a linked file, which the linked-file
+        /// pass refreshes with no provider.
+        /// </summary>
+        public bool CoveredByLinkedFiles { get; internal set; }
+
+        /// <summary>Whether the refresh has any work it can do after the auth preflight.</summary>
+        public bool CanProceed => HasAuthenticatedProviders || CoveredByLinkedFiles;
+
         public void SetProbeResult(
             string providerKey,
             AuthProbeResult result,
@@ -276,7 +285,7 @@ namespace PlayniteAchievements.Services.Refresh
                         .ConfigureAwait(false);
                 }
 
-                if (authContext == null || !authContext.HasAuthenticatedProviders)
+                if (authContext == null || !authContext.CanProceed)
                 {
                     return;
                 }

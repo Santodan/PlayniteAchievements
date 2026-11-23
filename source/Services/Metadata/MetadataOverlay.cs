@@ -403,6 +403,7 @@ namespace PlayniteAchievements.Services.Metadata
             }
 
             Replace(plan.CategoryKeys, sets, drafts, ApplyCategory, MetadataField.Categories);
+            FileUnmatched(plan.CategoryKeys, sets, drafts);
             KeepStored(Failed(plan.CategoryKeys, MetadataField.Categories), AchievementField.Categories);
             Replace(plan.TagKeys, sets, drafts, ApplyTags, MetadataField.Tags);
             KeepStored(Failed(plan.TagKeys, MetadataField.Tags), AchievementField.Tags);
@@ -1335,6 +1336,40 @@ namespace PlayniteAchievements.Services.Metadata
                         copy(draft, match.Source);
                     }
                 }
+            }
+        }
+
+        /// <summary>
+        /// Takes the platform's category off the achievements no category source matched, when a
+        /// category source answered: its categories replace the platform's for the whole game, so
+        /// none of the platform's own stay beside them. The achievements the source does not have
+        /// are left with no category.
+        /// </summary>
+        private static void FileUnmatched(
+            IReadOnlyList<string> keys,
+            IReadOnlyDictionary<string, MatchedSet> sets,
+            IReadOnlyDictionary<AchievementDetail, LayerDraft> drafts)
+        {
+            var answered = keys
+                .Select(key => sets.TryGetValue(key, out var set) ? set : null)
+                .Where(set => set != null && (set.Set.UnavailableFields & MetadataField.Categories) == 0)
+                .ToList();
+            if (answered.Count == 0)
+            {
+                return;
+            }
+
+            var matched = new HashSet<AchievementDetail>(answered.SelectMany(set => set.Matches).Select(match => match.Target));
+            if (matched.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var pair in drafts.Where(pair => !matched.Contains(pair.Key)))
+            {
+                pair.Value.Category = null;
+                pair.Value.CategoryKind = null;
+                pair.Value.Cleared |= AchievementField.Categories;
             }
         }
 

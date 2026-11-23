@@ -1,9 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using PlayniteAchievements.Services.Achievements;
-using PlayniteAchievements.ViewModels;
-using PlayniteAchievements.ViewModels.Items;
+using PlayniteAchievements.Services.Overview;
 
 namespace PlayniteAchievements.Services.Showcase
 {
@@ -28,36 +26,28 @@ namespace PlayniteAchievements.Services.Showcase
             public double? RarestAchievement { get; internal set; }
         }
 
-        /// <summary>Groups the unlocked achievements with a percent by their Playnite game.</summary>
-        public static Dictionary<Guid, Candidates> Index(IEnumerable<AchievementDisplayItem> achievements)
+        /// <summary>Groups the unlocks with a percent by their Playnite game.</summary>
+        public static Dictionary<Guid, Candidates> Index(IEnumerable<UnlockFact> unlocks)
         {
             var index = new Dictionary<Guid, Candidates>();
-            foreach (var item in achievements ?? Enumerable.Empty<AchievementDisplayItem>())
+            foreach (var fact in unlocks ?? Enumerable.Empty<UnlockFact>())
             {
-                if (item?.Unlocked != true ||
-                    !item.PlayniteGameId.HasValue ||
-                    !(item.GlobalPercentUnlocked is double percent) ||
-                    percent <= 0)
+                if (fact?.MinPercent == null || fact.GameId == Guid.Empty)
                 {
                     continue;
                 }
 
-                if (!index.TryGetValue(item.PlayniteGameId.Value, out var candidates))
+                if (!index.TryGetValue(fact.GameId, out var candidates))
                 {
                     candidates = new Candidates();
-                    index[item.PlayniteGameId.Value] = candidates;
+                    index[fact.GameId] = candidates;
                 }
 
-                candidates.RarestAchievement = Min(candidates.RarestAchievement, percent);
-                if (!item.IsCapstone)
+                candidates.RarestAchievement = Min(candidates.RarestAchievement, fact.MinPercent);
+                if (fact.Tally.IsCapstone)
                 {
-                    continue;
-                }
-
-                candidates.RarestCapstone = Min(candidates.RarestCapstone, percent);
-                if (CategoryKindHelper.IsBase(item.CategoryKind))
-                {
-                    candidates.BaseCapstone = Min(candidates.BaseCapstone, percent);
+                    candidates.RarestCapstone = Min(candidates.RarestCapstone, fact.MinPercent);
+                    candidates.BaseCapstone = Min(candidates.BaseCapstone, fact.MinBasePercent);
                 }
             }
 
@@ -80,7 +70,7 @@ namespace PlayniteAchievements.Services.Showcase
                 : candidates.RarestAchievement;
         }
 
-        private static double Min(double? current, double value) =>
-            current.HasValue ? Math.Min(current.Value, value) : value;
+        private static double? Min(double? current, double? value) =>
+            current.HasValue && value.HasValue ? Math.Min(current.Value, value.Value) : current ?? value;
     }
 }

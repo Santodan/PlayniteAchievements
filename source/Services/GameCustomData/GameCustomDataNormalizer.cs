@@ -129,7 +129,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             normalized.ManualLink = NormalizeManualLink(normalized.ManualLink);
             normalized.CustomAchievements = NormalizeCustomAchievements(normalized.CustomAchievements, splitLegacyTypes);
             normalized.CustomProviderId = NormalizeCustomProviderId(normalized.CustomProviderId, normalized.CustomAchievements);
-            normalized.LinkedFile = NormalizeLinkedFile(normalized.LinkedFile, normalized.ManualLink != null, normalized.CustomAchievements);
+            normalized.LinkedFile = NormalizeLinkedFile(normalized.LinkedFile);
             PruneOrphanedCustomAchievementReferences(normalized);
             return normalized;
         }
@@ -206,7 +206,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             normalized.CustomAchievements = NormalizeCustomAchievements(normalized.CustomAchievements, splitLegacyTypes);
             normalized.CustomProviderId = NormalizeCustomProviderId(normalized.CustomProviderId, normalized.CustomAchievements);
             normalized.CustomProvider = NormalizeCustomProviderSnapshot(normalized.CustomProvider, normalized.CustomProviderId);
-            normalized.LinkedFileSchema = NormalizeLinkedFileSchema(normalized.LinkedFileSchema, normalized.ManualLink != null, normalized.CustomAchievements);
+            normalized.LinkedFileSchema = LinkedFileSchema.Normalize(normalized.LinkedFileSchema);
             PruneOrphanedCustomAchievementReferences(normalized);
             return normalized;
         }
@@ -1526,20 +1526,13 @@ namespace PlayniteAchievements.Services.GameCustomData
         }
 
         /// <summary>
-        /// A link to a file is kept on any game, since reading it can create the game's custom
-        /// achievements. A mapping without a file only has meaning while the game is
-        /// custom-tracked or has custom achievements, so it is dropped otherwise and never keeps
-        /// an empty row alive. The mapping is normalized like any package model; the path and
-        /// read status are local state.
+        /// A link is kept on any game, with or without a file, and dropped when it has no mapping.
+        /// The mapping is normalized like any package model; the path and read status are local
+        /// state.
         /// </summary>
-        private static LinkedFileLink NormalizeLinkedFile(
-            LinkedFileLink link,
-            bool hasManualLink,
-            IReadOnlyCollection<CustomAchievementDefinition> customAchievements)
+        private static LinkedFileLink NormalizeLinkedFile(LinkedFileLink link)
         {
-            var schema = link?.HasFilePath == true && link.Schema != null
-                ? LinkedFileSchema.Normalize(link.Schema)
-                : NormalizeLinkedFileSchema(link?.Schema, hasManualLink, customAchievements);
+            var schema = LinkedFileSchema.Normalize(link?.Schema);
             if (schema == null)
             {
                 return null;
@@ -1574,19 +1567,6 @@ namespace PlayniteAchievements.Services.GameCustomData
             }
 
             return normalized.Count == 0 ? null : normalized;
-        }
-
-        private static LinkedFileSchema NormalizeLinkedFileSchema(
-            LinkedFileSchema schema,
-            bool hasManualLink,
-            IReadOnlyCollection<CustomAchievementDefinition> customAchievements)
-        {
-            if (schema == null || (!hasManualLink && (customAchievements == null || customAchievements.Count == 0)))
-            {
-                return null;
-            }
-
-            return LinkedFileSchema.Normalize(schema);
         }
 
         /// <summary>
@@ -1973,7 +1953,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                     LockedIconPath = NormalizeString(definition.LockedIconPath),
                     Points = NormalizeNonNegativeInt(definition.Points),
                     ScaledPoints = NormalizeNonNegativeInt(definition.ScaledPoints),
-                    Category = AchievementCategoryHelper.NormalizeCategoryOrDefault(definition.Category),
+                    Category = CategoryPathHelper.NormalizePath(definition.Category),
                     // Before v9 the type field held kinds and tags together.
                     Tags = splitLegacyTypes
                         ? LegacyCategoryTypes.SplitTags(definition.CategoryKind)

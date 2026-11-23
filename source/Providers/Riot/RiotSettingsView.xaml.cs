@@ -47,8 +47,8 @@ namespace PlayniteAchievements.Providers.Riot
             InitializeComponent();
 
             RegionCombo.ItemsSource = RiotRegions.Choices;
-            AuthLabel.Text = string.Format(
-                ResourceProvider.GetString("LOCPlayAch_Settings_ProviderAuth"),
+            ConnectionLabel.Text = string.Format(
+                ResourceProvider.GetString("LOCPlayAch_Settings_ProviderConnection"),
                 ResourceProvider.GetString("LOCPlayAch_Provider_Riot"));
         }
 

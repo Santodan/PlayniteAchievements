@@ -1,16 +1,16 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.ViewModels.Items;
 
 namespace PlayniteAchievements.Services.Overview
 {
     /// <summary>
-    /// Chooses which games and which of their locked achievements the Unlock Next candidate pool
-    /// keeps. Split from <see cref="OverviewDataBuilder"/> because the caps are the whole point of
-    /// the pool - locked rows are excluded from the overview snapshot for memory reasons - and
-    /// they are worth testing without a cache, a Playnite API, or a snapshot build.
+    /// Chooses which games the Unlock Next candidate pool keeps, and how many locked achievements
+    /// of each (<see cref="Database.AchievementQuerySql.SlicedKeys"/> chooses which). Split from
+    /// <see cref="OverviewDataBuilder"/> because the caps are the whole point of the pool - locked
+    /// rows are excluded from the overview snapshot for memory reasons - and they are worth testing
+    /// without a cache, a Playnite API, or a snapshot build.
     ///
     /// The pool is a superset that dominates every per-widget combination of criterion and
     /// window, because editing those options re-projects from the existing snapshot rather than
@@ -64,42 +64,6 @@ namespace PlayniteAchievements.Services.Overview
                 .Distinct()
                 .Take(GameCap)
                 .ToList();
-        }
-
-        /// <summary>
-        /// The locked rows worth retaining for one game: the most commonly unlocked (what both
-        /// criteria rank by) plus the head of its own order, which carries achievements that have
-        /// no global percentage. Hidden rows stay in; the projection drops them unless the widget
-        /// opts in.
-        /// </summary>
-        public static IReadOnlyList<AchievementDetail> SelectAchievements(
-            IEnumerable<AchievementDetail> achievements) =>
-            SelectAchievements(achievements, PerGameSlice);
-
-        /// <inheritdoc cref="SelectAchievements(IEnumerable{AchievementDetail})"/>
-        /// <param name="slice">Rows taken from each ranking; see <see cref="SliceFor"/>.</param>
-        public static IReadOnlyList<AchievementDetail> SelectAchievements(
-            IEnumerable<AchievementDetail> achievements,
-            int slice)
-        {
-            var locked = (achievements ?? new List<AchievementDetail>())
-                .Where(detail => detail != null && !detail.Unlocked)
-                .ToList();
-
-            var byOrder = locked
-                .OrderBy(detail => detail.DefaultOrderIndex)
-                .ThenBy(detail => detail.ApiName, StringComparer.OrdinalIgnoreCase)
-                .Take(slice);
-
-            // An achievement with no global percentage is not known to be easy, so it never takes
-            // a slot in the commonness slice; the order slice still carries it.
-            var byCommonness = locked
-                .Where(detail => detail.GlobalPercentUnlocked.HasValue)
-                .OrderByDescending(detail => detail.GlobalPercentUnlocked.Value)
-                .ThenBy(detail => detail.ApiName, StringComparer.OrdinalIgnoreCase)
-                .Take(slice);
-
-            return byOrder.Concat(byCommonness).Distinct().ToList();
         }
 
         /// <summary>

@@ -8,7 +8,6 @@ using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Overview;
-using PlayniteAchievements.Services.StartPage;
 using StartPage.SDK;
 
 namespace PlayniteAchievements.ViewModels.StartPage
@@ -23,7 +22,7 @@ namespace PlayniteAchievements.ViewModels.StartPage
         private PersistedSettings _subscribedPersistedSettings;
 
         protected StartPageWidgetViewModelBase(
-            StartPageDataCoordinator dataCoordinator,
+            Services.Widgets.WidgetDataCoordinator dataCoordinator,
             PlayniteAchievementsSettings settings,
             ILogger logger)
         {
@@ -36,7 +35,7 @@ namespace PlayniteAchievements.ViewModels.StartPage
             AttachPersistedSettings(Settings.Persisted);
         }
 
-        protected StartPageDataCoordinator DataCoordinator { get; }
+        protected Services.Widgets.WidgetDataCoordinator DataCoordinator { get; }
 
         protected PlayniteAchievementsSettings Settings { get; }
 

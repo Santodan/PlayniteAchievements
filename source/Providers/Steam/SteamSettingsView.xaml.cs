@@ -123,8 +123,8 @@ public static readonly DependencyProperty DefaultSteamAccountIdProperty =
             _api = api ?? throw new ArgumentNullException(nameof(api));
             _ownedGamesImporter = new SteamOwnedGamesImporter(_api, Logger, _sessionManager);
             InitializeComponent();
-            AuthLabel.Text = string.Format(
-                ResourceProvider.GetString("LOCPlayAch_Settings_ProviderAuth"),
+            ConnectionLabel.Text = string.Format(
+                ResourceProvider.GetString("LOCPlayAch_Settings_ProviderConnection"),
                 ResourceProvider.GetString("LOCPlayAch_Provider_Steam"));
         }
 

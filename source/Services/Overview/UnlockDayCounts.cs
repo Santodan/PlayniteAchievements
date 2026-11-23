@@ -1,12 +1,94 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using PlayniteAchievements.Common;
+using PlayniteAchievements.Models.Achievements;
 
 namespace PlayniteAchievements.Services.Overview
 {
     /// <summary>
+    /// The current user's unlocks that share a game, a local unlock day, a stored tag text, a
+    /// rarity tier, a trophy grade and a capstone flag, read as one totals group: their count,
+    /// scores and global percents. Day charts, score history, statistics and every filtered view
+    /// count from these rather than from rows.
+    /// </summary>
+    public sealed class UnlockFact
+    {
+        public Guid GameId { get; set; }
+
+        /// <summary>The local unlock day; null for unlocks without a time.</summary>
+        public DateTime? Day { get; set; }
+
+        /// <summary>The facets, with the stored tags as the key; unlocked and total are the count.</summary>
+        public AchievementTally Tally { get; set; }
+
+        public int Count => Tally.Unlocked;
+
+        public int CollectionScore { get; set; }
+
+        public int PrestigeScore { get; set; }
+
+        /// <summary>Points toward a platform score: softcore unlocks are left out.</summary>
+        public int PlatformScorePoints { get; set; }
+
+        public double PercentSum { get; set; }
+
+        public int PercentCount { get; set; }
+
+        /// <summary>The lowest positive global percent among them, and among the base-game capstones.</summary>
+        public double? MinPercent { get; set; }
+
+        public double? MinBasePercent { get; set; }
+
+        /// <summary>One <see cref="Database.AchievementGroup.DayTally"/> group.</summary>
+        internal static UnlockFact From(Database.AchievementTotalsRecord totals)
+        {
+            var parts = (totals?.Key ?? string.Empty).Split('\u001f');
+            if (parts.Length != 6)
+            {
+                return null;
+            }
+
+            return new UnlockFact
+            {
+                GameId = Guid.TryParse(parts[0], out var id) ? id : Guid.Empty,
+                Day = parts[1].Length == 0 ? (DateTime?)null : DateTime.ParseExact(parts[1], "yyyy-MM-dd", CultureInfo.InvariantCulture),
+                Tally = new AchievementTally(
+                    parts[2],
+                    (RarityTier)Enum.Parse(typeof(RarityTier), parts[3]),
+                    AchievementTally.NormalizeTrophy(parts[4]),
+                    parts[5] == "1",
+                    (int)totals.Count,
+                    (int)totals.Count),
+                CollectionScore = (int)totals.CollectionScore,
+                PrestigeScore = (int)totals.PrestigeScore,
+                PlatformScorePoints = (int)totals.PlatformScorePoints,
+                PercentSum = totals.PercentSum,
+                PercentCount = (int)totals.PercentCount,
+                MinPercent = totals.MinPercent,
+                MinBasePercent = totals.MinBasePercent
+            };
+        }
+
+        /// <summary>Adds the dated unlocks of <paramref name="facts"/> to both day count maps.</summary>
+        public static void CountDays(
+            IEnumerable<UnlockFact> facts,
+            IDictionary<DateTime, int> global,
+            IDictionary<Guid, Dictionary<DateTime, int>> byGame)
+        {
+            foreach (var fact in facts ?? Array.Empty<UnlockFact>())
+            {
+                if (fact?.Day is DateTime day)
+                {
+                    UnlockDayCounts.AddDay(global, byGame, fact.GameId, day, fact.Count);
+                }
+            }
+        }
+    }
+
+    /// <summary>
     /// The one place that turns an unlock instant into the day key used by every
-    /// <c>*UnlockCountsByDate</c> dictionary, and the shared increment/decrement for the global
+    /// <c>*UnlockCountsByDate</c> dictionary, and the shared increment for the global
     /// and per-game maps. Keys are local calendar days (00:00, Kind Unspecified); compare by value.
     /// A runtime time-zone change takes effect on the next full rebuild.
     /// </summary>
@@ -14,17 +96,6 @@ namespace PlayniteAchievements.Services.Overview
     {
         /// <summary>Local calendar day of a UTC unlock instant.</summary>
         public static DateTime DayOf(DateTime unlockUtc) => DateTimeUtilities.ToLocalDay(unlockUtc);
-
-        /// <summary>Adds <paramref name="amount"/> to the day of <paramref name="unlockUtc"/> in both maps.</summary>
-        public static void Add(
-            IDictionary<DateTime, int> global,
-            IDictionary<Guid, Dictionary<DateTime, int>> byGame,
-            Guid? gameId,
-            DateTime unlockUtc,
-            int amount = 1)
-        {
-            AddDay(global, byGame, gameId, DayOf(unlockUtc), amount);
-        }
 
         /// <summary>Adds <paramref name="amount"/> to an already-resolved day key in both maps.</summary>
         public static void AddDay(
@@ -54,37 +125,6 @@ namespace PlayniteAchievements.Services.Overview
             }
 
             Increment(gameCounts, key, amount);
-        }
-
-        /// <summary>
-        /// Removes <paramref name="amount"/> from a day key in both maps, deleting keys that reach zero.
-        /// Returns false when the global map held nothing for that day.
-        /// </summary>
-        public static bool RemoveDay(
-            IDictionary<DateTime, int> global,
-            IDictionary<Guid, Dictionary<DateTime, int>> byGame,
-            Guid? gameId,
-            DateTime day,
-            int amount = 1)
-        {
-            if (amount <= 0)
-            {
-                return false;
-            }
-
-            var key = day.Date;
-            var removed = Decrement(global, key, amount);
-
-            if (byGame != null && gameId.HasValue && byGame.TryGetValue(gameId.Value, out var gameCounts) && gameCounts != null)
-            {
-                Decrement(gameCounts, key, amount);
-                if (gameCounts.Count == 0)
-                {
-                    byGame.Remove(gameId.Value);
-                }
-            }
-
-            return removed;
         }
 
         /// <summary>Earliest day with a positive count, or null.</summary>
@@ -193,26 +233,6 @@ namespace PlayniteAchievements.Services.Overview
             }
 
             counts[key] = counts.TryGetValue(key, out var existing) ? existing + amount : amount;
-        }
-
-        private static bool Decrement(IDictionary<DateTime, int> counts, DateTime key, int amount)
-        {
-            if (counts == null || !counts.TryGetValue(key, out var existing))
-            {
-                return false;
-            }
-
-            var next = existing - amount;
-            if (next <= 0)
-            {
-                counts.Remove(key);
-            }
-            else
-            {
-                counts[key] = next;
-            }
-
-            return true;
         }
     }
 }

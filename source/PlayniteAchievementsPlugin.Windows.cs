@@ -100,6 +100,69 @@ namespace PlayniteAchievements
         }
 
         /// <summary>
+        /// The Achievement Editor: the Manage Achievements editor over every game. One window at a
+        /// time; opening it again brings the open one to the front.
+        /// </summary>
+        private void OpenLibraryEditorWindow()
+        {
+            if (_windowService.TryActivateOpenWindowHosting<Views.ManageAchievements.LibraryAchievementEditorControl>())
+            {
+                return;
+            }
+
+            ShowLibraryEditorWindow();
+        }
+
+        /// <summary>The Achievement Editor hotkey: opens the editor, or brings it forward, or closes it when it is the active window.</summary>
+        private void ToggleLibraryEditorWindow()
+        {
+            if (_windowService.TryToggleOpenWindowHosting<Views.ManageAchievements.LibraryAchievementEditorControl>())
+            {
+                return;
+            }
+
+            ShowLibraryEditorWindow();
+        }
+
+        private void ShowLibraryEditorWindow()
+        {
+            Views.ManageAchievements.LibraryAchievementEditorControl view;
+            try
+            {
+                EnsureAchievementResourcesLoaded();
+                view = new Views.ManageAchievements.LibraryAchievementEditorControl(
+                    _refreshService,
+                    _achievementOverridesService,
+                    _achievementDataService,
+                    _settingsViewModel.Settings,
+                    _logger);
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Failed to open the Achievement Editor.");
+                PlayniteApi?.Dialogs?.ShowErrorMessage(
+                    string.Format(ResourceProvider.GetString("LOCPlayAch_Status_Failed"), ex.Message),
+                    ResourceProvider.GetString("LOCPlayAch_Title_PluginName"));
+                return;
+            }
+
+            _windowService.OpenManagedPopout(
+                view.WindowTitle,
+                view,
+                new Views.Helpers.WindowOptions
+                {
+                    ShowMinimizeButton = true,
+                    ShowMaximizeButton = true,
+                    ShowCloseButton = true,
+                    CanBeResizable = true,
+                    Width = 1280,
+                    Height = 800
+                },
+                "LibraryAchievementEditor",
+                view.Cleanup);
+        }
+
+        /// <summary>
         /// Opens the Workshop browser, optionally landing on one kind's tab or on the game-data
         /// items that match one library game.
         /// </summary>

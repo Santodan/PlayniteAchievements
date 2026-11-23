@@ -52,10 +52,10 @@
             </LinearGradientBrush>
 
             <Style x:Key="ColorPickerPanelStyle" TargetType="Border">
-                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Surface}"/>
+                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Panel}"/>
                 <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Border}"/>
                 <Setter Property="BorderThickness" Value="{StaticResource PlayAch.Thickness.Border}"/>
-                <Setter Property="CornerRadius" Value="{StaticResource PlayAch.Radius.Card}"/>
+                <Setter Property="CornerRadius" Value="{DynamicResource PlayAch.Radius.Layout}"/>
                 <Setter Property="SnapsToDevicePixels" Value="True"/>
             </Style>
 
@@ -262,7 +262,7 @@
                                 MinHeight="110"
                                 BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                                 BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                                CornerRadius="{StaticResource PlayAch.Radius.Small}"
+                                CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                                 ClipToBounds="True"
                                 Cursor="Cross"
                                 MouseLeftButtonDown="ColorSpace_MouseLeftButtonDown"
@@ -330,7 +330,7 @@
                                 Background="{StaticResource CheckerBrush}"
                                 BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                                 BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                                CornerRadius="{StaticResource PlayAch.Radius.Small}"
+                                CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                                 ClipToBounds="True">
                             <Border x:Name="PreviewSwatch"/>
                         </Border>

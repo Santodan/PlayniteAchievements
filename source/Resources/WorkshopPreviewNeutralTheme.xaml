@@ -40,6 +40,16 @@
     <sys:Double x:Key="PlayAch.FontSize.Body">14</sys:Double>
     <sys:Double x:Key="PlayAch.FontSize.Title">16</sys:Double>
 
+    <!-- Shared previews show icons square, whatever the sharer's own corner rounding is. -->
+    <sys:Double x:Key="PlayAch.Radius.AchievementIcon">0</sys:Double>
+    <CornerRadius x:Key="PlayAch.CornerRadius.AchievementIcon">0</CornerRadius>
+
+    <!-- Shared previews draw layout corners at the default radius, whatever the viewer's own setting is. -->
+    <CornerRadius x:Key="PlayAch.Radius.Layout">4</CornerRadius>
+    <CornerRadius x:Key="PlayAch.Radius.Layout.Left">4,0,0,4</CornerRadius>
+    <CornerRadius x:Key="PlayAch.Radius.Layout.Right">0,4,4,0</CornerRadius>
+    <sys:Double x:Key="PlayAch.Radius.Layout.Value">4</sys:Double>
+
     <FontFamily x:Key="PlayAch.FontFamily.Body">Segoe UI</FontFamily>
 
     <!-- Aliases (PlayAchResourceService.Aliases), with the alias alpha applied. -->

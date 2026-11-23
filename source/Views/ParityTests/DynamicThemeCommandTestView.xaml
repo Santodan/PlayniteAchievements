@@ -11,7 +11,7 @@
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementResources.xaml" />
+                <helpers:SharedResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementResources.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </UserControl.Resources>
@@ -24,7 +24,7 @@
 
         <Border Grid.Row="0"
                 Padding="{StaticResource PlayAch.Thickness.CardPadding}"
-                CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                 BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                 BorderThickness="{StaticResource PlayAch.Thickness.Border}"
                 Background="{DynamicResource PlayAch.Brush.Surface}">

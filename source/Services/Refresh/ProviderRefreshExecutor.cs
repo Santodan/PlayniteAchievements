@@ -254,12 +254,14 @@ namespace PlayniteAchievements.Services.Refresh
                 return sequentialResults;
             }
 
+            // Each plan starts on its own pool thread so a provider that scans synchronously before
+            // its first await (Minecraft, local file scanners) does not delay the plans after it.
             var tasks = plans
-                .Select(async plan =>
+                .Select(plan => Task.Run(async () =>
                 {
                     cancel.ThrowIfCancellationRequested();
                     return await ExecutePlanContainedAsync(plan, executeProviderAsync, cancel).ConfigureAwait(false);
-                })
+                }))
                 .ToArray();
 
             return await Task.WhenAll(tasks).ConfigureAwait(false);

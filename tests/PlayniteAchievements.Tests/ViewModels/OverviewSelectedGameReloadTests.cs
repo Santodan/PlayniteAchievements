@@ -67,7 +67,7 @@ namespace PlayniteAchievements.Tests.ViewModels
 
             var applySnapshotTail = Between(
                 source,
-                "private void ApplySnapshot(",
+                "_selectedGameReloadRequested = SelectedGame?.PlayniteGameId != null;",
                 "private bool IsTransientRebuildSnapshot");
             StringAssert.Contains(
                 applySnapshotTail,
@@ -76,30 +76,26 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
-        public void APerGameDelta_ForTheSelectedGame_AlwaysReloadsIt()
+        public void EveryDataChange_ReloadsTheSummary_WhichReloadsTheSelectedGame()
         {
             var source = ReadViewModel();
 
-            // The delta path is the other half of the safety argument: a real data change for the
-            // selected game reaches the rows without going through the property setter at all.
-            // Reloading only when the icon re-stamp refused left every other customization -- a
-            // category created or renamed in the Manage window above all -- out of the pane for as
-            // long as the game stayed selected.
-            // Anchored on the branch's own comment: the same condition appears earlier, in the
-            // branch that drops a removed game.
-            var deltaBranch = Between(
+            // A data change reaches the selected game's rows without going through the property
+            // setter: each change queues one summary reload, and every applied summary reloads
+            // the selected game in place.
+            var handlers = Between(
                 source,
-                "// The delta replaces the library rows but not the selected game's",
-                "if (fragment.Achievements != null");
-            StringAssert.Contains(deltaBranch, "if (SelectedGame?.PlayniteGameId == gameId)");
-            StringAssert.Contains(
-                deltaBranch,
-                "_selectedGameReloadRequested = true;",
-                "Every delta for the selected game must reach the reload.");
-            Assert.IsFalse(
-                deltaBranch.Contains("ApplySelectedGameIconOverrides"),
-                "Icons ride the in-place update like every other facet; a per-facet patch " +
-                "beside it is the sibling path this replaced.");
+                "private void OnAchievementDataChanged(object sender, AchievementDataChange e)",
+                "private void QueueReload()");
+            Assert.AreEqual(
+                2,
+                handlers.Split(new[] { "QueueReload();" }, StringSplitOptions.None).Length - 1,
+                "The change feed, refresh saves included, and the summary-affecting custom data change each queue the reload.");
+            Assert.IsFalse(source.Contains("CacheDeltaUpdated"), "refresh saves arrive on the change feed");
+            StringAssert.Contains(handlers, "e.Touches(AchievementQuery.CurrentUser)");
+
+            var tick = Between(source, "private async void OnReloadTimerTick(", "private void RecalculateOverviewStats()");
+            StringAssert.Contains(tick, "await RefreshViewAsync();");
         }
 
         [TestMethod]

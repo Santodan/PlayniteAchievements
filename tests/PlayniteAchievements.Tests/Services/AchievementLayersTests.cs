@@ -27,6 +27,39 @@ namespace PlayniteAchievements.Services.Achievements.Tests
         }
 
         [TestMethod]
+        public void SortByMetadataOrder_PlacedRowsFirstByPosition_RestKeepTheirOrder()
+        {
+            var rows = new System.Collections.Generic.List<AchievementDetail>
+            {
+                new AchievementDetail { ApiName = "unplaced-1" },
+                new AchievementDetail { ApiName = "third", MetadataOrderIndex = 7 },
+                new AchievementDetail { ApiName = "first", MetadataOrderIndex = 0 },
+                new AchievementDetail { ApiName = "unplaced-2" },
+                new AchievementDetail { ApiName = "second", MetadataOrderIndex = 3 }
+            };
+
+            AchievementLayers.SortByMetadataOrder(rows);
+
+            CollectionAssert.AreEqual(
+                new[] { "first", "second", "third", "unplaced-1", "unplaced-2" },
+                rows.ConvertAll(row => row.ApiName));
+        }
+
+        [TestMethod]
+        public void SortByMetadataOrder_NoPlacedRows_LeavesTheListAsItIs()
+        {
+            var rows = new System.Collections.Generic.List<AchievementDetail>
+            {
+                new AchievementDetail { ApiName = "b" },
+                new AchievementDetail { ApiName = "a" }
+            };
+
+            AchievementLayers.SortByMetadataOrder(rows);
+
+            CollectionAssert.AreEqual(new[] { "b", "a" }, rows.ConvertAll(row => row.ApiName));
+        }
+
+        [TestMethod]
         public void Resolve_ClearedMetadataCategory_HasNoCategory()
         {
             var row = new AchievementDetail { ApiName = "A", Category = "Steam", CategoryKind = "dlc" };

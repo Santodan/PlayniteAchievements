@@ -20,6 +20,7 @@
             </ResourceDictionary.MergedDictionaries>
 
             <converters:BooleanConverter x:Key="BoolToVis" Mode="ToVisibility" />
+            <converters:DefaultGameImageConverter x:Key="EditorDefaultGameImage" />
             <converters:BooleanConverter x:Key="InverseBoolToVis" Mode="InvertedToVisibility" />
             <converters:ProviderIconConverter x:Key="ProviderIconConverter" />
             <converters:FontLineHeightConverter x:Key="FontLineHeightConverter" />
@@ -32,10 +33,10 @@
             <helpers:BindingProxy x:Key="EditorTabContext" Data="{Binding}" />
 
             <Style x:Key="CardBorderStyle" TargetType="Border">
-                <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
-                <Setter Property="BorderBrush" Value="{DynamicResource NormalBorderBrush}" />
+                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Panel}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Border}" />
                 <Setter Property="BorderThickness" Value="1" />
-                <Setter Property="CornerRadius" Value="6" />
+                <Setter Property="CornerRadius" Value="{DynamicResource PlayAch.Radius.Layout}" />
                 <Setter Property="Padding" Value="12" />
             </Style>
 
@@ -58,11 +59,11 @@
                 <Setter Property="MinHeight" Value="26" />
                 <Setter Property="Padding" Value="6,2" />
                 <Setter Property="VerticalAlignment" Value="Center" />
-                <Setter Property="Background" Value="{DynamicResource PanelBackgroundBrush}" />
-                <Setter Property="BorderBrush" Value="{DynamicResource NormalBorderBrush}" />
+                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Input.Background}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Input.Border}" />
                 <Setter Property="BorderThickness" Value="1" />
-                <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
-                <Setter Property="CaretBrush" Value="{DynamicResource TextBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}" />
+                <Setter Property="CaretBrush" Value="{DynamicResource PlayAch.Brush.Text}" />
                 <Setter Property="VerticalContentAlignment" Value="Center" />
                 <!-- The font's own pitch, fixed, so a wrapped line sits at the same height in the
                      TextBox and in its resting TextBlock face; see FontLineHeightConverter. -->
@@ -77,7 +78,7 @@
                 </Setter>
                 <Style.Triggers>
                     <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                        <Setter Property="BorderBrush" Value="{DynamicResource HighlightGlyphBrush}" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}" />
                     </Trigger>
                 </Style.Triggers>
             </Style>
@@ -91,10 +92,10 @@
             <Style x:Key="GridEditorDisplayBorderStyle" TargetType="Border">
                 <Setter Property="MinHeight" Value="26" />
                 <Setter Property="VerticalAlignment" Value="Center" />
-                <Setter Property="Background" Value="{DynamicResource PanelBackgroundBrush}" />
-                <Setter Property="BorderBrush" Value="{DynamicResource NormalBorderBrush}" />
+                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Input.Background}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Input.Border}" />
                 <Setter Property="BorderThickness" Value="1" />
-                <Setter Property="CornerRadius" Value="{StaticResource PlayAch.Radius.Small}" />
+                <Setter Property="CornerRadius" Value="{DynamicResource PlayAch.Radius.Layout}" />
                 <Setter Property="SnapsToDevicePixels" Value="True" />
                 <Setter Property="Cursor" Value="IBeam" />
                 <Style.Triggers>
@@ -122,7 +123,7 @@
             <Style x:Key="GridEditorDisplayTextStyle" TargetType="TextBlock">
                 <Setter Property="Margin" Value="2,0" />
                 <Setter Property="TextWrapping" Value="Wrap" />
-                <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}" />
                 <Setter Property="FontFamily" Value="{DynamicResource PlayAch.FontFamily.Body}" />
                 <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Body}" />
                 <!-- The font's own pitch, fixed, so a wrapped line sits at the same height in the
@@ -149,7 +150,7 @@
                 <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Input.Background}" />
                 <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Input.Border}" />
                 <Setter Property="BorderThickness" Value="{StaticResource PlayAch.Thickness.Border}" />
-                <Setter Property="CornerRadius" Value="{StaticResource PlayAch.Radius.Small}" />
+                <Setter Property="CornerRadius" Value="{DynamicResource PlayAch.Radius.Layout}" />
                 <Setter Property="SnapsToDevicePixels" Value="True" />
                 <Setter Property="Cursor" Value="Hand" />
                 <Style.Triggers>
@@ -224,7 +225,7 @@
             </Style>
 
             <Style x:Key="MaskedCellTextStyle" TargetType="TextBlock">
-                <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}" />
                 <Setter Property="Opacity" Value="0.55" />
                 <Setter Property="FontStyle" Value="Italic" />
                 <Setter Property="TextTrimming" Value="CharacterEllipsis" />
@@ -247,10 +248,10 @@
                 <Setter Property="Margin" Value="8,0,0,0" />
                 <Setter Property="FontSize" Value="16" />
                 <Setter Property="FontWeight" Value="SemiBold" />
-                <Setter Property="Background" Value="{DynamicResource PanelBackgroundBrush}" />
-                <Setter Property="BorderBrush" Value="{DynamicResource NormalBorderBrush}" />
+                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Button.Border}" />
                 <Setter Property="BorderThickness" Value="1" />
-                <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}" />
                 <Setter Property="VerticalAlignment" Value="Center" />
             </Style>
 
@@ -261,18 +262,18 @@
             </Style>
 
             <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
-                <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}" />
                 <Setter Property="Opacity" Value="0.72" />
                 <Setter Property="Margin" Value="0,8,0,4" />
             </Style>
 
             <Style x:Key="StatusTextStyle" TargetType="TextBlock">
-                <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}" />
                 <Setter Property="Opacity" Value="0.82" />
                 <Setter Property="TextWrapping" Value="Wrap" />
                 <Style.Triggers>
                     <DataTrigger Binding="{Binding StatusIsError}" Value="True">
-                        <Setter Property="Foreground" Value="#FFE07070" />
+                        <Setter Property="Foreground" Value="{StaticResource PlayAch.Brush.ErrorText}" />
                         <Setter Property="Opacity" Value="1" />
                     </DataTrigger>
                 </Style.Triggers>
@@ -281,10 +282,10 @@
             <Style x:Key="PreviewBorderStyle" TargetType="Border" BasedOn="{StaticResource PlayAch.FilePickTarget.Style}">
                 <Setter Property="Width" Value="56" />
                 <Setter Property="Height" Value="56" />
-                <Setter Property="CornerRadius" Value="4" />
-                <Setter Property="BorderBrush" Value="{DynamicResource NormalBorderBrush}" />
+                <Setter Property="CornerRadius" Value="{DynamicResource PlayAch.Radius.Layout}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Border}" />
                 <Setter Property="BorderThickness" Value="1" />
-                <Setter Property="Background" Value="{DynamicResource PanelBackgroundBrush}" />
+                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Panel}" />
                 <Setter Property="VerticalAlignment" Value="Center" />
             </Style>
 
@@ -292,7 +293,7 @@
                  the slot's override flag. -->
             <Style x:Key="IconSourceCaptionStyle" TargetType="TextBlock">
                 <Setter Property="Text" Value="{DynamicResource LOCPlayAch_Common_Default}" />
-                <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}" />
                 <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Secondary}" />
                 <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Caption}" />
                 <Setter Property="HorizontalAlignment" Value="Center" />
@@ -320,9 +321,9 @@
                 <Setter Property="Width" Value="24" />
                 <Setter Property="Height" Value="24" />
                 <Setter Property="CornerRadius" Value="12" />
-                <Setter Property="BorderBrush" Value="{DynamicResource NormalBorderBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Border}" />
                 <Setter Property="BorderThickness" Value="1" />
-                <Setter Property="Background" Value="#12000000" />
+                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Chrome.Background}" />
                 <Setter Property="VerticalAlignment" Value="Center" />
             </Style>
         </ResourceDictionary>
@@ -348,7 +349,7 @@
                          custom bucket, or the provider. The rail already says which tab this is. -->
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{Binding SourceHeading}"
-                                   Foreground="{DynamicResource TextBrush}"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
                                    FontWeight="SemiBold"
                                    VerticalAlignment="Center"
                                    TextTrimming="CharacterEllipsis" />
@@ -376,7 +377,7 @@
                                 Command="{Binding OpenLinkedFileCommand}"
                                 Style="{StaticResource ToolbarButtonStyle}"
                                 Margin="12,0,0,0"
-                                Visibility="{Binding HasLinkedFile, Converter={StaticResource BoolToVis}}">
+                                Visibility="{Binding ShowEditLinkedFileButton, Converter={StaticResource BoolToVis}}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xEF1B;"
                                            FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
@@ -520,7 +521,8 @@
                                 Click="ContextMenuButton_Click"
                                 Style="{StaticResource ToolbarIconButtonStyle}">
                             <Button.ContextMenu>
-                                <ContextMenu>
+                                <ContextMenu Style="{StaticResource AchievementContextMenuStyle}"
+                                             ItemContainerStyle="{StaticResource AchievementContextMenuItemStyle}">
                                     <MenuItem Header="{DynamicResource LOCPlayAch_Workshop_Menu_FromFile}"
                                               Command="{Binding ImportFileCommand}" />
                                     <MenuItem Header="{DynamicResource LOCPlayAch_Workshop_Menu_FromWorkshop}"
@@ -534,12 +536,13 @@
                                 Click="ContextMenuButton_Click"
                                 Style="{StaticResource ToolbarIconButtonStyle}">
                             <Button.ContextMenu>
-                                <ContextMenu>
+                                <ContextMenu Style="{StaticResource AchievementContextMenuStyle}"
+                                             ItemContainerStyle="{StaticResource AchievementContextMenuItemStyle}">
                                     <MenuItem Header="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_CustomDataHeader}"
                                               Command="{Binding ExportAllCustomDataCommand}" />
                                     <MenuItem Header="{DynamicResource LOCPlayAch_Workshop_Share}"
                                               Command="{Binding ShareToWorkshopCommand}" />
-                                    <Separator />
+                                    <Separator Style="{StaticResource AchievementContextMenuSeparatorStyle}" />
                                     <MenuItem Header="{DynamicResource LOCPlayAch_ManageAchievements_Custom_ExportTemplate}"
                                               Command="{Binding ExportTemplateCommand}" />
                                 </ContextMenu>
@@ -612,6 +615,25 @@
                     </Grid>
 
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,0,0,0">
+                        <!-- The library editor's games: one picked lists that game whole, with every
+                             editing feature; none or several list rows across games. -->
+                        <Button x:Name="GameFilterButton"
+                                DataContext="{Binding GameFilter.Item}"
+                                Style="{StaticResource AchievementSelectorButtonStyle}"
+                                Content="{Binding DisplayText}"
+                                Click="MultiSelectFilter_Click"
+                                MinWidth="140"
+                                MaxWidth="{Binding Width}"
+                                Height="{StaticResource PlayAch.Size.Control.Height}"
+                                Margin="0,0,6,0"
+                                VerticalAlignment="Center"
+                                Visibility="{Binding DataContext.IsLibraryScope, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"
+                                ToolTip="{DynamicResource LOCPlayAch_Column_Game}">
+                            <Button.ContextMenu>
+                                <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                             ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}" />
+                            </Button.ContextMenu>
+                        </Button>
                         <!-- The same summary-button-over-checkable-menu the overview grids use,
                              so these read and behave like every other filter in the plugin: several
                              choices at once, and a button that names its facet until something is
@@ -716,7 +738,9 @@
 
             <DataGrid x:Name="CustomAchievementsGrid"
                       Grid.Row="0"
-                      ItemsSource="{Binding AchievementRows}"
+                      Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
+                      Foreground="{DynamicResource PlayAch.Brush.Text}"
+                      ItemsSource="{Binding GridRows}"
                       SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
                       SelectionChanged="AchievementsGrid_SelectionChanged"
                       AutoGenerateColumns="False"
@@ -726,7 +750,6 @@
                       AllowDrop="True"
                       HeadersVisibility="Column"
                       GridLinesVisibility="None"
-                      RowBackground="Transparent"
                       BorderThickness="0"
                       Background="Transparent"
                       CanUserAddRows="False"
@@ -774,6 +797,12 @@
                         <DataGridTemplateColumn.CellStyle>
                             <Style TargetType="DataGridCell" BasedOn="{StaticResource ManageAchievementsControllerCellStyle}">
                                 <Setter Property="Cursor" Value="SizeAll" />
+                                <!-- Rows listed across games keep their games' orders and do not drag. -->
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsListEditLocked}" Value="True">
+                                        <Setter Property="Cursor" Value="Arrow" />
+                                    </DataTrigger>
+                                </Style.Triggers>
                             </Style>
                         </DataGridTemplateColumn.CellStyle>
                         <DataGridTemplateColumn.CellTemplate>
@@ -784,9 +813,19 @@
                                 <Border Tag="DragHandle"
                                         Background="Transparent"
                                         HorizontalAlignment="Stretch"
-                                        VerticalAlignment="Stretch"
-                                        Cursor="SizeAll"
-                                        ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Order_Hint}">
+                                        VerticalAlignment="Stretch">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Cursor" Value="SizeAll" />
+                                            <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_ManageAchievements_Order_Hint}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsListEditLocked}" Value="True">
+                                                    <Setter Property="Cursor" Value="Arrow" />
+                                                    <Setter Property="ToolTip" Value="{x:Null}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
                                     <Grid>
                                         <!-- Customization marker. It shares the handle cell rather
                                              than taking a column of its own: the grid is already
@@ -832,7 +871,17 @@
                                                    Margin="8,0,0,0"
                                                    VerticalAlignment="Center"
                                                    Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                                   Opacity="0.65" />
+                                                   Opacity="0.65">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsListEditLocked}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
                                     </Grid>
                                 </Border>
                             </DataTemplate>
@@ -878,6 +927,40 @@
                                           IsTabStop="False"
                                           Click="RoutedCheckBox_Click"
                                           helpers:EditorCellRouting.Field="UnlockedState" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <!-- The library editor's rows span games, so each names its own. A per-game
+                         editor drops this column before its layout is read. -->
+                    <!-- The library editor's only: the game's icon, named in its tooltip, sized by the
+                         column like the achievement icon beside it. The Manage window removes it. -->
+                    <DataGridTemplateColumn x:Name="EditorGameColumn"
+                                            Width="58"
+                                            MinWidth="32"
+                                            MaxWidth="180"
+                                            SortMemberPath="GameName"
+                                            IsReadOnly="True"
+                                            helpers:ColumnVisibilityHelper.ColumnKey="EditorGameIcon"
+                                            helpers:ColumnVisibilityHelper.ColumnDisplayName="{DynamicResource LOCPlayAch_Column_Game}"
+                                            Header="{DynamicResource LOCPlayAch_Column_Game}">
+                        <DataGridTemplateColumn.CellStyle>
+                            <Style TargetType="DataGridCell" BasedOn="{StaticResource ManageAchievementsIconCellStyle}">
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                <Setter Property="ToolTip" Value="{Binding GameName}"/>
+                            </Style>
+                        </DataGridTemplateColumn.CellStyle>
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <controls:SquareDecorator>
+                                    <Image Stretch="Uniform"
+                                           Margin="2"
+                                           RenderOptions.BitmapScalingMode="HighQuality"
+                                           helpers:AsyncImage.Uri="{Binding GameIconPath, Converter={StaticResource EditorDefaultGameImage}, ConverterParameter=icon}"
+                                           helpers:AsyncImage.DecodePixel="96"
+                                           helpers:AsyncImage.CapAtOwnSize="{DynamicResource PlayAch.Image.CapAtOwnSize}"
+                                           helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.Art}" />
+                                </controls:SquareDecorator>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
@@ -947,7 +1030,7 @@
                                      late, and the grid packed rows in at the short height before they grew. -->
                                 <controls:SquareDecorator>
                                     <Grid Background="Transparent"
-                                          AllowDrop="True"
+                                          AllowDrop="{Binding CanEditIcons}"
                                           PreviewDragOver="IconDropTarget_PreviewDragOver"
                                           PreviewDrop="IconDropTarget_Drop">
                                         <!-- Sized by the cell rather than fixed, the way the shared
@@ -959,6 +1042,7 @@
                                                helpers:AsyncImage.Uri="{Binding DisplayIcon}"
                                                helpers:AsyncImage.DecodePixel="128"
                                                helpers:AsyncImage.CapAtOwnSize="{DynamicResource PlayAch.Image.CapAtOwnSize}"
+                                               helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.AchievementIcon}"
                                                PreviewMouseLeftButtonDown="IconImage_PreviewMouseLeftButtonDown">
                                             <Image.Style>
                                                 <Style TargetType="Image">
@@ -1388,7 +1472,7 @@
                                                                             <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
                                                                                 <Style.Triggers>
                                                                                     <DataTrigger Binding="{Binding IsValidTime}" Value="False">
-                                                                                        <Setter Property="BorderBrush" Value="#FFE07070" />
+                                                                                        <Setter Property="BorderBrush" Value="{StaticResource PlayAch.Brush.ErrorText}" />
                                                                                         <Setter Property="BorderThickness" Value="2" />
                                                                                     </DataTrigger>
                                                                                 </Style.Triggers>
@@ -1630,7 +1714,7 @@
                                                IsHitTestVisible="False"
                                                Margin="8,0,0,0"
                                                VerticalAlignment="Center"
-                                               Foreground="{DynamicResource TextBrush}"
+                                               Foreground="{DynamicResource PlayAch.Brush.Text}"
                                                Opacity="0.4">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
@@ -1992,7 +2076,7 @@
                                                Text="/"
                                                Margin="4,0"
                                                VerticalAlignment="Center"
-                                               Foreground="{DynamicResource TextBrush}"
+                                               Foreground="{DynamicResource PlayAch.Brush.Text}"
                                                Opacity="{StaticResource PlayAch.Opacity.Secondary}" />
                                     <controls:EditOnClickPresenter Grid.Column="2"
                                                                    VerticalAlignment="Center"
@@ -2138,10 +2222,10 @@
                                                TextTrimming="CharacterEllipsis"
                                                VerticalAlignment="Center"
                                                Opacity="0.8"
-                                               Foreground="{DynamicResource TextBrush}" />
+                                               Foreground="{DynamicResource PlayAch.Brush.Text}" />
                                     <Button Grid.Column="1"
                                             Content="{DynamicResource LOCPlayAch_Common_Edit}"
-                                            IsEnabled="{Binding CanEditAssignments}"
+                                            IsEnabled="{Binding CanEditNote}"
                                             Click="NoteCell_Click"
                                             Padding="8,1"
                                             MinHeight="22"
@@ -2215,7 +2299,7 @@
 
                         <StackPanel Grid.Column="1">
                             <TextBlock Text="{DynamicResource LOCPlayAch_Common_Details}"
-                                       Foreground="{DynamicResource TextBrush}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
                                        FontWeight="SemiBold"
                                        Visibility="{Binding IsBulkEditing, Converter={StaticResource InverseBoolToVis}}" />
 
@@ -2223,11 +2307,11 @@
                                  so and explains what a blank field means. -->
                             <StackPanel Visibility="{Binding IsBulkEditing, Converter={StaticResource BoolToVis}}">
                                 <TextBlock Text="{Binding BulkEditHeader}"
-                                           Foreground="{DynamicResource TextBrush}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
                                            FontWeight="SemiBold"
                                            TextWrapping="Wrap" />
                                 <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Editor_BulkHint}"
-                                           Foreground="{DynamicResource TextBrush}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
                                            Opacity="0.72"
                                            TextWrapping="Wrap"
                                            Margin="0,4,0,0" />
@@ -2239,7 +2323,7 @@
                 <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                     <StackPanel>
                         <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Custom_NoSelection}"
-                                   Foreground="{DynamicResource TextBrush}"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
                                    Opacity="0.72"
                                    TextWrapping="Wrap"
                                    Margin="0,10,0,0"
@@ -2250,7 +2334,7 @@
                              icon editors. Wraps rather than clips when the pane is narrow. -->
                         <Border Margin="0,14,0,0"
                                 Padding="0,12,0,0"
-                                BorderBrush="{DynamicResource NormalBorderBrush}"
+                                BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                                 BorderThickness="0,1,0,0"
                                 Visibility="{Binding HasEditTarget, Converter={StaticResource BoolToVis}}">
                             <StackPanel DataContext="{Binding EditTarget}">
@@ -2372,12 +2456,12 @@
 
                         <Border Margin="0,14,0,0"
                                 Padding="0,12,0,0"
-                                BorderBrush="{DynamicResource NormalBorderBrush}"
+                                BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                                 BorderThickness="0,1,0,0"
                                 Visibility="{Binding HasEditTarget, Converter={StaticResource BoolToVis}}">
                             <StackPanel DataContext="{Binding EditTarget}">
                                 <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Tab_CustomIcons}"
-                                           Foreground="{DynamicResource TextBrush}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
                                            FontWeight="SemiBold"
                                            Margin="0,0,0,8" />
 
@@ -2409,7 +2493,7 @@
                                             <TextBlock Text="&#x2713;"
                                                        FontSize="13"
                                                        FontWeight="Bold"
-                                                       Foreground="{DynamicResource GlyphBrush}"
+                                                       Foreground="{DynamicResource PlayAch.Brush.Glyph}"
                                                        HorizontalAlignment="Center"
                                                        VerticalAlignment="Center" />
                                         </Border>
@@ -2419,7 +2503,7 @@
                                                     Style="{StaticResource PreviewBorderStyle}"
                                                     Tag="Unlocked"
                                                     ToolTipService.InitialShowDelay="300"
-                                                    helpers:FilePickTarget.IsEnabled="True"
+                                                    helpers:FilePickTarget.IsEnabled="{Binding CanEditIcons}"
                                                     helpers:FilePickTarget.Picked="IconPickTarget_Picked">
                                                 <!-- A larger preview of the art, sized up front so the tooltip does not grow as it loads. -->
                                                 <Border.ToolTip>
@@ -2495,7 +2579,7 @@
                                                     Style="{StaticResource PreviewBorderStyle}"
                                                     Tag="Locked"
                                                     ToolTipService.InitialShowDelay="300"
-                                                    helpers:FilePickTarget.IsEnabled="True"
+                                                    helpers:FilePickTarget.IsEnabled="{Binding CanEditIcons}"
                                                     helpers:FilePickTarget.Picked="IconPickTarget_Picked">
                                                 <!-- A larger preview of the art, sized up front so the tooltip does not grow as it loads. -->
                                                 <Border.ToolTip>
@@ -2603,7 +2687,7 @@
                                            IsHitTestVisible="False"
                                            Margin="8,0,0,0"
                                            VerticalAlignment="Center"
-                                           Foreground="{DynamicResource TextBrush}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
                                            Opacity="0.4">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
@@ -2790,7 +2874,7 @@
                                         <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsValidTime}" Value="False">
-                                                    <Setter Property="BorderBrush" Value="#FFE07070" />
+                                                    <Setter Property="BorderBrush" Value="{StaticResource PlayAch.Brush.ErrorText}" />
                                                     <Setter Property="BorderThickness" Value="2" />
                                                 </DataTrigger>
                                             </Style.Triggers>
@@ -2871,18 +2955,18 @@
                                            MaxHeight="52"
                                            VerticalAlignment="Center"
                                            Opacity="0.8"
-                                           Foreground="{DynamicResource TextBrush}" />
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}" />
                                 <Button Grid.Column="1"
                                         Content="{DynamicResource LOCPlayAch_Common_Edit}"
                                         Padding="8,2"
                                         MinHeight="26"
                                         Margin="8,0,0,0"
-                                        IsEnabled="{Binding CanEditAssignments}"
+                                        IsEnabled="{Binding CanEditNote}"
                                         Click="EditNoteButton_Click" />
                             </Grid>
 
                             <TextBlock Text="{Binding ValidationMessage}"
-                                       Foreground="#FFE07070"
+                                       Foreground="{StaticResource PlayAch.Brush.ErrorText}"
                                        TextWrapping="Wrap"
                                        Margin="0,12,0,0"
                                        Visibility="{Binding HasValidationMessage, Converter={StaticResource BoolToVis}}" />
@@ -2896,7 +2980,7 @@
                 <TextBlock Grid.Row="2"
                            DataContext="{Binding EditTarget}"
                            Text="{Binding ApiNameResolved}"
-                           Foreground="{DynamicResource TextBrush}"
+                           Foreground="{DynamicResource PlayAch.Brush.Text}"
                            Opacity="0.58"
                            TextWrapping="Wrap"
                            TextAlignment="Left"
@@ -2928,13 +3012,13 @@
                AllowsTransparency="True"
                StaysOpen="True"
                IsHitTestVisible="False">
-            <Border Background="{StaticResource PlayAch.Brush.DialogBackdrop}"
+            <Border Background="{DynamicResource PlayAch.Brush.PopupSurface}"
                     BorderBrush="{DynamicResource PlayAch.Brush.Accent}"
                     BorderThickness="{StaticResource PlayAch.Thickness.Border}"
                     CornerRadius="10"
                     Padding="8,3">
                 <TextBlock x:Name="DragCountText"
-                           Foreground="White"
+                           Foreground="{DynamicResource PlayAch.Brush.Text}"
                            FontWeight="SemiBold"
                            FontSize="{DynamicResource PlayAch.FontSize.Caption}" />
             </Border>

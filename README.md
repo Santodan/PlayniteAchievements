@@ -117,8 +117,12 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
-- v4.3.0 merge
+- v4.3.2 merge
 - Added native emulator, recompilation and PC port achievement support #93
+- Fixed the `Capture delay (ms)` in `Memories` not being applied to the screenshots
+- Fixed the `Refresh when game closes` hint pointing to the wrong settings tab
+- Removed old unused notification monitors and screenshot code
+- Updated the `Achievement Notifications` and `Local Provider Troubleshooting` guides
 
 ## 2026-11-17 - v4.2.1.2
 

@@ -1,8 +1,8 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-11-22T11:45:21.4022025Z",
-    "baselineRef":  "v4.3.0",
-    "baselineCommit":  "804cf50d641d7b68dd5c23dbbe6b104114deb8a0",
+    "generatedUtc":  "2026-11-23T10:59:31.0704189Z",
+    "baselineRef":  "v4.3.2",
+    "baselineCommit":  "9ae07a4dcae40c13c9c6246ba3598e9414f0766f",
     "protectedPaths":  [
                            "AddonDBManifest.yaml",
                            "README.md",
@@ -11,34 +11,50 @@
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "78168DDBD5079B7EAF7D8D061C824F0F38A9CDB8DC0769DD7E6D6AE85264AD03"
+                  "sha256":  "80B0F2C1A89358B9EEE8C4D5BB9FAC1D762DA7E3CDDEE993A69E630B3F09342B"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",
-                                "sha256":  "6FDE5FA165C18F5ED17E2746F67784A0F3987347DAE3F1D17016B0B7F30E8884",
+                                "sha256":  "A4A53D7BB2A4A3B940B1ED1AC808659BFAE28AFA3FE63EC3611C546DD746AAB0",
                                 "fileCount":  3,
-                                "entryCount":  483
+                                "entryCount":  453
                             },
     "overlayFiles":  [
                          {
                              "path":  ".agents/skills/santodan-fork-context/references/source-map.md",
-                             "sha256":  "27210AEA36B5474E5D3990C636ABF790CF229B58663D9CA3A747F96584747360"
+                             "sha256":  "C5E90811C63252732DDA09140A0594BBE6DEFEC28BB7B3713FB14867622DA9F1"
                          },
                          {
                              "path":  ".agents/skills/santodan-fork-context/SKILL.md",
-                             "sha256":  "055593ED6852DD67950279A476C308983390DD0D05476CED5984D34A1B2F9E73"
+                             "sha256":  "DE1BA6FDA39E011FBF7986367B843A42DC3B303E779510849C935FA2DCCE6AAE"
                          },
                          {
                              "path":  ".agents/skills/santodan-fork-development/SKILL.md",
                              "sha256":  "B4417BF8A2BF165EC6AC7734E0FF604BDD12581A2E0EEF96711E6480B0A6C934"
                          },
                          {
+                             "path":  ".agents/skills/santodan-fork-local-provider/SKILL.md",
+                             "sha256":  "666C42188FC3C78CABE57B5C27BF427AE104A440C0BDFAB354A3B53F9991E0A8"
+                         },
+                         {
                              "path":  ".agents/skills/santodan-fork-maintenance/SKILL.md",
-                             "sha256":  "2577C416D3570C34147E4E9E803D3BFE70C7DBFFFB6712D2D3B38C80317F34A6"
+                             "sha256":  "44DFD8A2AA40E7520E08D19447E48CDAE5A03094F2E0FAA6EE8E6D4527712ACA"
+                         },
+                         {
+                             "path":  ".agents/skills/santodan-fork-notifications/SKILL.md",
+                             "sha256":  "6094A1D801128B7CD24833B9E6B2C92C23F0D9B3524C6201258661FB31B4AC34"
+                         },
+                         {
+                             "path":  ".agents/skills/santodan-fork-recipes/SKILL.md",
+                             "sha256":  "AE3CA3B985A1215AC9D642A2BE263E2632C33CB718D78F15336BA60F209438AB"
+                         },
+                         {
+                             "path":  ".agents/skills/santodan-fork-settings-ui/SKILL.md",
+                             "sha256":  "ED91B9A47D13E727EB32C5D97346D11D22CCE840DEAEFD212F938EF10E5762E9"
                          },
                          {
                              "path":  ".agents/skills/santodan-fork-upstream-update/SKILL.md",
-                             "sha256":  "50D7D5FD2C85B6C79E3315563C81E972A0A4DC6BC97DB57D4FFEE40869605754"
+                             "sha256":  "218DCAD4127780F842702B4BB303F361B9BD59A08F9DA953AB69665662913686"
                          },
                          {
                              "path":  "ACHIEVEMENT_NOTIFICATIONS_GUIDE.md",
@@ -414,7 +430,7 @@
                          },
                          {
                              "path":  "source/Services/Achievements/AchievementDataService.SantodanNotifications.cs",
-                             "sha256":  "C3E483A93266DD8C23C15F3BFA4DB3D3D7F48FEA36F50759D6C7D8642B432780"
+                             "sha256":  "E4E2F8D5A27B40E254B802EB996CDD7F93BAD02EF7695C0906ABFD76EF69E384"
                          },
                          {
                              "path":  "source/Services/Achievements/NotificationGameSummaryCache.cs",
@@ -465,10 +481,6 @@
                              "sha256":  "6CDFB9723E868600553FC60208620BFCE0B81A2CD2E20461F20D4BD8F9A0C337"
                          },
                          {
-                             "path":  "source/Services/Library/LibraryProjectionService.SantodanPolling.cs",
-                             "sha256":  "C73EA38AA1C01AF9D1EA48E3A85CE5D9B6141D5EC30ADB563AACD443F64AEA5E"
-                         },
-                         {
                              "path":  "source/Services/Local/LocalAchievementScreenshotService.cs",
                              "sha256":  "9E33F0130EF915D7E229FD8287237EADE6084BB5913BE6215CB9E70C152BA3D2"
                          },
@@ -506,7 +518,7 @@
                          },
                          {
                              "path":  "source/Services/NotificationPublisher.SantodanScores.cs",
-                             "sha256":  "DBDD994C22642DAE7B2BED00CB875DB8D99A742D017801A573908B659984028D"
+                             "sha256":  "90BD8873D5F1BA14125EE3E95D792C407188E7BE15D871636B14935F80BEE221"
                          },
                          {
                              "path":  "source/Services/Refresh/CustomRefreshGameMatcher.cs",
@@ -601,6 +613,10 @@
                              "sha256":  "B66063E60779F187E7849316015972DE7A64C6934F7A765475BC051B3A953BB1"
                          },
                          {
+                             "path":  "source/ViewModels/OverviewViewModel.SantodanSidebarAll.cs",
+                             "sha256":  "D92E70876A0A07122DEE67CB5F8ACC9CA5E9A2E0A9D5A54FAE354165B81841DA"
+                         },
+                         {
                              "path":  "source/Views/Controls/FolderVariableButtons.xaml",
                              "sha256":  "AA82E71BFA1BDECE3C72ADF0AEBF6776BF487647D2F9C9E5E8FEBC98A46F14E2"
                          },
@@ -638,11 +654,11 @@
                          },
                          {
                              "path":  "source/Views/LegacyNotificationSettingsControl.xaml",
-                             "sha256":  "035649B6FB762C1F2A5F8B0ECCED6E5979B25802A0A1FD270819AC98E7F96089"
+                             "sha256":  "9FFCF4C27E1286466EC3336568A381B21C9FC966E94091BBD90AD6A7EEF6AA50"
                          },
                          {
                              "path":  "source/Views/LegacyNotificationSettingsControl.xaml.cs",
-                             "sha256":  "490BF31686C5FD4A32497D7D682C35E4E8AAF4BF776D448B78D221C5202A965C"
+                             "sha256":  "106515660C348251E4AE755E71B27B78E8CAB00D19065B57D44E5311AE7BD7B1"
                          },
                          {
                              "path":  "source/Views/LocalAchievementEditorControl.xaml",

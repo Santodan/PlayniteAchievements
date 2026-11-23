@@ -10,7 +10,7 @@
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/OverviewStyles.xaml"/>
+                <helpers:SharedResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/OverviewStyles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
 
             <Style x:Key="FriendSummariesGridRowStyle"
@@ -137,7 +137,7 @@
                 </DataGridTemplateColumn.CellStyle>
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
-                        <Border CornerRadius="{StaticResource PlayAch.Radius.Small}"
+                        <Border CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                                 ClipToBounds="True"
                                 Margin="6,2"
                                 HorizontalAlignment="Center"

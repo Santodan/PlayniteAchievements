@@ -136,6 +136,50 @@ namespace PlayniteAchievements.Providers.Tests
         }
 
         [TestMethod]
+        public async Task RefreshAsync_TitleIdOverrideWithoutLegacyData_FallsBackToNpbind()
+        {
+            var tempDir = CreateTempDirectory();
+            var appDataRoot = Path.Combine(tempDir, "shadps4");
+            var installDir = Path.Combine(tempDir, "game");
+            var gameId = Guid.NewGuid();
+            var previousPlugin = PlayniteAchievementsPlugin.Instance;
+
+            try
+            {
+                CreateNewFormatTrophyData(appDataRoot, "1000", "NPWR22222_00", "Detected Trophy");
+                CreateNpbindFile(installDir, "NPWR22222_00");
+
+                var store = new GameCustomDataStore(Path.Combine(tempDir, "store"));
+                store.Save(gameId, new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    ShadPS4MatchIdOverride = "CUSA01623"
+                });
+
+                PlayniteAchievementsPlugin.Instance = new PlayniteAchievementsPlugin
+                {
+                    GameCustomDataStore = store
+                };
+
+                var provider = CreateProvider(appDataRoot);
+                var data = await RefreshSingleGameAsync(provider, new Game
+                {
+                    Id = gameId,
+                    Name = "Title Override Game",
+                    InstallDirectory = installDir
+                }).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.AreEqual("Detected Trophy", data.Achievements.Single().DisplayName);
+            }
+            finally
+            {
+                PlayniteAchievementsPlugin.Instance = previousPlugin;
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
         public async Task RefreshAsync_TwoRoots_FindsLegacyTitleInSecondRoot()
         {
             var tempDir = CreateTempDirectory();

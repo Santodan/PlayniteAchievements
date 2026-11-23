@@ -620,35 +620,35 @@ namespace PlayniteAchievements.SqlNado.Tests
         }
 
         [TestMethod]
-        public void CacheStore_RewritesOnlyTheOverrideRowsThatMoved()
+        public void CustomLayerWrite_RewritesOnlyTheAchievementRowsThatMoved()
         {
-            var store = File.ReadAllText(FindRepoFile("source", "Services", "Database", "SqlNadoCacheStore.cs"));
-            var replace = Between(
-                store,
-                "public bool ReplaceAchievementOverrides(",
-                "public int ResyncAllAchievementOverrides(");
+            var repository = File.ReadAllText(FindRepoFile("source", "Services", "GameCustomData", "GameCustomDataRepository.cs"));
+            var write = Between(
+                repository,
+                "private static bool Write(",
+                "private static string CategorySignature(");
 
-            // ReplaceAchievementOverrides runs on the caller's thread inside the synchronous
-            // CustomDataChanged, which for an editor write is the UI thread. Deleting every one
-            // of a game's override rows and re-inserting them, to change one achievement's
-            // points or trophy grade, made that edit scale with how customized the game is.
+            // A save runs on the caller's thread, which for an editor write is the UI thread.
+            // Deleting every one of a game's achievement rows and re-inserting them, to change one
+            // achievement's points or trophy grade, made that edit scale with how customized the
+            // game is.
             Assert.IsFalse(
-                replace.Contains("DELETE FROM AchievementOverrides WHERE PlayniteGameId = ?;"),
+                write.Contains("DELETE FROM {AchievementLayerSql.AchievementsTable} WHERE PlayniteGameId = ?;"),
                 "The whole-game delete must not come back: the write has to be the rows that " +
                 "actually differ, not every row the game has.");
 
             StringAssert.Contains(
-                replace,
-                "DELETE FROM AchievementOverrides WHERE PlayniteGameId = ? AND ApiName = ?;",
-                "Rows are removed and rewritten one ApiName at a time.");
+                write,
+                "DELETE FROM {AchievementLayerSql.AchievementsTable} WHERE PlayniteGameId = ? AND ApiName = ? AND IsAuthored = ?;",
+                "Rows are removed and rewritten one row at a time.");
 
-            // The unchanged-save short circuit is what keeps a no-op write out of the WAL.
-            StringAssert.Contains(replace, "if (toWrite.Count == 0 && toDelete.Count == 0)");
+            // An unchanged row is skipped, which keeps a no-op save out of the WAL.
+            StringAssert.Contains(write, "string.Equals(stored.Signature(), row.Signature(), StringComparison.Ordinal)");
 
-            // The insert is INSERT OR IGNORE, so a changed row must lose its stored version
-            // first or the new values are silently dropped.
-            var deleteChanged = replace.IndexOf("foreach (var entry in toWrite)", StringComparison.Ordinal);
-            var insert = replace.IndexOf("InsertAchievementOverrideRows(", StringComparison.Ordinal);
+            // The insert is a plain INSERT under a UNIQUE key, so a changed row must lose its
+            // stored version first.
+            var deleteChanged = write.LastIndexOf("db.ExecuteNonQuery(deleteSql, idText, row.ApiName, row.IsAuthored);", StringComparison.Ordinal);
+            var insert = write.IndexOf("db.ExecuteNonQuery(insertSql", StringComparison.Ordinal);
             Assert.IsTrue(
                 deleteChanged >= 0 && insert > deleteChanged,
                 "Changed rows must be deleted before they are re-inserted.");
@@ -722,16 +722,16 @@ namespace PlayniteAchievements.SqlNado.Tests
 
             StringAssert.Contains(store, "GameLogo = presentation.IconPath ?? MakeAbsolutePath(row.IconPath)");
             StringAssert.Contains(store, "GameCoverPath = presentation.CoverPath ?? MakeAbsolutePath(row.CoverPath)");
-            StringAssert.Contains(store, "GameIconPath = presentation.IconPath ?? MakeAbsolutePath(row.IconPath)");
-            StringAssert.Contains(store, "GameCoverPath = presentation.CoverPath ?? MakeAbsolutePath(row.CoverPath)");
+            StringAssert.Contains(store, "GameIconPath = presentation.IconPath ?? MakeAbsolutePath(row.GameIconPath)");
+            StringAssert.Contains(store, "GameCoverPath = presentation.CoverPath ?? MakeAbsolutePath(row.GameCoverPath)");
         }
 
         [TestMethod]
         public void CacheStore_FriendAchievementRowsRequireCurrentOwnership()
         {
-            var store = File.ReadAllText(FindRepoFile("source", "Services", "Database", "SqlNadoCacheStore.cs"));
+            var sql = File.ReadAllText(FindRepoFile("source", "Services", "Database", "AchievementQuerySql.cs"));
 
-            StringAssert.Contains(store, "INNER JOIN FriendOwnership fo ON fo.UserId = u.Id AND fo.GameId = g.Id");
+            StringAssert.Contains(sql, "INNER JOIN FriendOwnership fo ON fo.UserId = r.UserId AND fo.GameId = r.GameId");
         }
 
         [TestMethod]
@@ -863,25 +863,22 @@ namespace PlayniteAchievements.SqlNado.Tests
         [TestMethod]
         public void CacheStore_FriendAchievementRowsCoverFullDefinitionSchema()
         {
-            var store = File.ReadAllText(FindRepoFile("source", "Services", "Database", "SqlNadoCacheStore.cs"));
+            var layers = File.ReadAllText(FindRepoFile("source", "Services", "Database", "AchievementLayerSql.cs"));
 
             // The friend+game view shows the game's full schema with the friend's unlock state
             // joined per definition, not just the rows the friend scrape happened to store.
-            StringAssert.Contains(store, "INNER JOIN \" + AchievementLayerSql.ViewName + @\" ad ON ad.GameId = g.Id");
-            StringAssert.Contains(store, "LEFT JOIN UserAchievements ua ON ua.UserGameProgressId = ugp.Id");
-            StringAssert.Contains(store, "AND ua.AchievementDefinitionId = ad.Id");
-            StringAssert.Contains(store, "COALESCE(ua.Unlocked, 0) AS Unlocked");
+            StringAssert.Contains(layers, "INNER JOIN \" + ViewName + @\" ad ON ad.GameId = ugp.GameId");
+            StringAssert.Contains(layers, "LEFT JOIN UserAchievements ua ON ua.UserGameProgressId = ugp.Id AND ua.AchievementDefinitionId = ad.Id");
         }
 
         [TestMethod]
         public void CacheStore_FriendAchievementRowsResolveMyUnlocksByPlayniteGameAndApiName()
         {
-            var store = File.ReadAllText(FindRepoFile("source", "Services", "Database", "SqlNadoCacheStore.cs"));
+            var sql = File.ReadAllText(FindRepoFile("source", "Services", "Database", "AchievementQuerySql.cs"));
 
-            StringAssert.Contains(store, "WITH CurrentUnlocks AS");
-            StringAssert.Contains(store, "GROUP BY cg.PlayniteGameId, cad.ApiName");
-            StringAssert.Contains(store, "LEFT JOIN CurrentUnlocks cu ON cu.PlayniteGameId = g.PlayniteGameId");
-            StringAssert.Contains(store, "AND cu.ApiName = ad.ApiName");
+            StringAssert.Contains(sql, "WITH SelfUnlocks AS");
+            StringAssert.Contains(sql, "GROUP BY s.PlayniteGameId, s.ApiName");
+            StringAssert.Contains(sql, "LEFT JOIN SelfUnlocks me ON me.PlayniteGameId = r.PlayniteGameId AND me.ApiName = r.ApiName");
         }
 
         [TestMethod]
@@ -893,13 +890,14 @@ namespace PlayniteAchievements.SqlNado.Tests
             StringAssert.Contains(store, "GameCustomDataLookup.ResolveGameCustomData(");
             StringAssert.Contains(store, "_plugin?.GameCustomDataStore");
             // Capstone, category kind and note come resolved from the achievement view.
-            StringAssert.Contains(store, "ad.IsCapstone AS IsCapstone,");
-            StringAssert.Contains(store, "ad.CategoryKind AS CategoryKind,");
-            StringAssert.Contains(store, "ad.Note AS Note,");
+            var sql = File.ReadAllText(FindRepoFile("source", "Services", "Database", "AchievementQuerySql.cs"));
+            StringAssert.Contains(sql, "r.IsCapstone AS IsCapstone");
+            StringAssert.Contains(sql, "r.CategoryKind AS CategoryKind");
+            StringAssert.Contains(sql, "r.Note AS Note");
             StringAssert.Contains(store, "AchievementNote = string.IsNullOrWhiteSpace(row.Note) ? null : row.Note.Trim(),");
             // Category art is keyed by the category before the user's rename.
-            StringAssert.Contains(store, "ad.ProviderCategory AS ProviderCategory,");
-            StringAssert.Contains(store, "AchievementCategoryHelper.NormalizeCategoryOrDefault(row.ProviderCategory),");
+            StringAssert.Contains(sql, "r.ProviderCategory AS ProviderCategory");
+            StringAssert.Contains(store, "AchievementCategoryHelper.NormalizeCategoryOrDefault(providerCategory),");
             Assert.IsFalse(store.Contains("ApplyCustomDataToFriendAchievement"));
         }
 

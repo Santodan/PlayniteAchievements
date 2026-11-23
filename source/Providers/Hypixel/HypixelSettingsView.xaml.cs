@@ -46,8 +46,8 @@ namespace PlayniteAchievements.Providers.Hypixel
         public HypixelSettingsView()
         {
             InitializeComponent();
-            AuthLabel.Text = string.Format(
-                ResourceProvider.GetString("LOCPlayAch_Settings_ProviderAuth"),
+            ConnectionLabel.Text = string.Format(
+                ResourceProvider.GetString("LOCPlayAch_Settings_ProviderConnection"),
                 ResourceProvider.GetString("LOCPlayAch_Provider_Hypixel"));
         }
 

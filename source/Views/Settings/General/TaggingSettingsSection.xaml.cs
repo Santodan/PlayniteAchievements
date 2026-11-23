@@ -130,6 +130,10 @@ namespace PlayniteAchievements.Views.Settings.General
 
                 // One pass over every enabled field: orphan cleanup and re-tagging with new names.
                 tagSyncService.SyncAll();
+
+                // The library now carries these names, so they are saved: a Cancel must not
+                // restore old names that the next sync would rename the items back to.
+                _plugin.SaveTaggingSettings();
             }
             catch (Exception ex)
             {
@@ -175,6 +179,7 @@ namespace PlayniteAchievements.Views.Settings.General
                 }
 
                 remove(tagSyncService);
+                _plugin.SaveTaggingSettings();
             }
             catch (Exception ex)
             {

@@ -77,8 +77,7 @@ namespace PlayniteAchievements.Views
             OverviewLaunchContext launchContext = OverviewLaunchContext.Sidebar,
             IPlayniteAPI playniteApi = null,
             ICacheManager cacheManager = null,
-            AchievementOverridesService achievementOverridesService = null,
-            FriendsOverviewDataCoordinator friendsOverviewDataCoordinator = null)
+            AchievementOverridesService achievementOverridesService = null)
         {
             InitializeComponent();
             _logger = logger;
@@ -97,6 +96,7 @@ namespace PlayniteAchievements.Views
                 () => PlayniteAchievementsPlugin.Instance?.IsSettingsEditSessionActive == true);
             _viewModel = new FriendsOverviewViewModel(
                 friendCache,
+                friendCache?.FriendReads,
                 refreshCoordinator,
                 refreshRuntime,
                 settings,
@@ -118,12 +118,10 @@ namespace PlayniteAchievements.Views
                         logger,
                         gameId,
                         gameName,
-                        friendsOverviewDataCoordinator,
                         out var options)
                         ? options
                         : null;
-                },
-                friendsOverviewDataCoordinator: friendsOverviewDataCoordinator);
+                });
             _viewModel.PersistAchievementUnlockToggles(
                 Services.Showcase.ShowcaseControlBarStateStore.Instance.LoadSurface(
                     GridOptionKeys.Achievement.FriendsOverviewSelectedFriendGame),
@@ -528,7 +526,7 @@ namespace PlayniteAchievements.Views
             }
             else if (sortAction.Direction.HasValue)
             {
-                _viewModel.SortDataGrid(grid, sortAction.SortMemberPath, sortAction.Direction.Value);
+                _viewModel.SortAchievements(sortAction.SortMemberPath, sortAction.Direction.Value);
             }
 
             ResetAchievementsSortDirection();

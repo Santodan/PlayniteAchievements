@@ -7,9 +7,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
     {
         public bool HasData =>
             TotalTrophies > 0 ||
-            (AllAchievements != null && AllAchievements.Count > 0) ||
             (AllGamesWithAchievements != null && AllGamesWithAchievements.Count > 0);
-        public bool HeavyListsBuilt { get; set; } = true;
 
         public List<GameAchievementSummary> AllGamesWithAchievements { get; set; } = new List<GameAchievementSummary>();
         public List<GameAchievementSummary> CompletedGamesAsc { get; set; } = new List<GameAchievementSummary>();
@@ -75,13 +73,6 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         /// <summary>Every points family with points to earn, most earned first.</summary>
         public List<PointsScoreItem> PointsScores { get; set; } = new List<PointsScoreItem>();
 
-        public List<AchievementDetail> AllAchievements { get; set; } = new List<AchievementDetail>();
-        public List<AchievementDetail> AllAchievementsUnlockAsc { get; set; } = new List<AchievementDetail>();
-        public List<AchievementDetail> AllAchievementsUnlockDesc { get; set; } = new List<AchievementDetail>();
-        public List<AchievementDetail> AllAchievementsRarityAsc { get; set; } = new List<AchievementDetail>();
-        public List<AchievementDetail> AllAchievementsRarityDesc { get; set; } = new List<AchievementDetail>();
-        public List<AchievementDetail> MostRecentUnlocks { get; set; } = new List<AchievementDetail>();
-        public List<AchievementDetail> RarestRecentUnlocks { get; set; } = new List<AchievementDetail>();
         public List<AchievementDetail> MostRecentUnlocksTop3 { get; set; } = new List<AchievementDetail>();
         public List<AchievementDetail> MostRecentUnlocksTop5 { get; set; } = new List<AchievementDetail>();
         public List<AchievementDetail> MostRecentUnlocksTop10 { get; set; } = new List<AchievementDetail>();

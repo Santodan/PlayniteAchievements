@@ -31,14 +31,34 @@ namespace PlayniteAchievements.Common
     {
         private const double BytesPerMb = 1024d * 1024d;
 
+        /// <summary>The opt-in marker file in the plugin's user data folder.</summary>
+        internal const string TracingOptInFileName = "memtrace.enabled";
+
         /// <summary>
         /// Independent switch for the memory lines, so residual-memory work can be traced
-        /// without the per-operation timing noise. Off by default: the retention report forces
-        /// a blocking collection after every refresh, which is too expensive to ship enabled.
-        /// Flip to true (with a rebuild) to re-arm the [MemPerf] lines, the per-cache occupancy
-        /// report, and the LeakWatch live counts.
+        /// without the per-operation timing noise. Off unless the opt-in marker file exists: the
+        /// retention report forces a blocking collection after every refresh, which is too
+        /// expensive to ship enabled. Arms the [MemPerf] lines, the per-cache occupancy report,
+        /// and the LeakWatch live counts.
         /// </summary>
-        internal static readonly bool MemoryTracingEnabled = false;
+        internal static bool MemoryTracingEnabled { get; private set; }
+
+        /// <summary>
+        /// Arms memory tracing when the opt-in marker file is present. Call once at startup,
+        /// before the first probe registers. A probe failure leaves tracing off.
+        /// </summary>
+        public static void ConfigureTracing(string pluginUserDataPath)
+        {
+            try
+            {
+                MemoryTracingEnabled = !string.IsNullOrWhiteSpace(pluginUserDataPath) &&
+                    System.IO.File.Exists(System.IO.Path.Combine(pluginUserDataPath, TracingOptInFileName));
+            }
+            catch
+            {
+                MemoryTracingEnabled = false;
+            }
+        }
 
         // Two gates, deliberately different -- and neither answers to PerfScope.PerfTracingEnabled.
         //
@@ -119,7 +139,8 @@ namespace PlayniteAchievements.Common
         /// detail string, which is itself expensive.
         /// </para>
         /// </summary>
-        public static void LogRetained(ILogger logger, string point, string detail = null)
+        /// <param name="describe">Builds the detail after the collection, so a census in it counts only what is still rooted.</param>
+        public static void LogRetained(ILogger logger, string point, Func<string> describe = null)
         {
             if (!RetentionReportEnabled)
             {
@@ -139,7 +160,7 @@ namespace PlayniteAchievements.Common
                 return;
             }
 
-            Log(logger, point, detail);
+            Log(logger, point, describe?.Invoke());
         }
 
         /// <summary>

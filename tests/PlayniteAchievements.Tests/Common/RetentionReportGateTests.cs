@@ -97,8 +97,14 @@ namespace PlayniteAchievements.Tests.Common
             GC.WaitForPendingFinalizers();
             var before = GC.CollectionCount(2);
 
-            MemoryDiagnostics.LogRetained(logger, "test.disabled", "detail=x");
+            var described = false;
+            MemoryDiagnostics.LogRetained(logger, "test.disabled", () =>
+            {
+                described = true;
+                return "detail=x";
+            });
 
+            Assert.IsFalse(described, "A disabled report must not run its census.");
             Assert.AreEqual(
                 before,
                 GC.CollectionCount(2),
@@ -113,7 +119,7 @@ namespace PlayniteAchievements.Tests.Common
             MemoryDiagnostics.TestEnabledOverride = true;
             var logger = new CapturingLogger();
 
-            MemoryDiagnostics.LogRetained(logger, "test.enabled", "images=1/2MB");
+            MemoryDiagnostics.LogRetained(logger, "test.enabled", () => "images=1/2MB");
 
             Assert.AreEqual(
                 1,
@@ -121,6 +127,25 @@ namespace PlayniteAchievements.Tests.Common
                 "Arming the switch must still produce the report; the split removed no capability.");
             StringAssert.Contains(logger.DebugMessages[0], "point=test.enabled");
             StringAssert.Contains(logger.DebugMessages[0], "images=1/2MB");
+        }
+
+        [TestMethod]
+        public void LogRetained_RunsTheCensusAfterTheForcedCollection()
+        {
+            MemoryDiagnostics.TestEnabledOverride = true;
+            var logger = new CapturingLogger();
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            var before = GC.CollectionCount(2);
+            var atCensus = -1;
+
+            MemoryDiagnostics.LogRetained(logger, "test.order", () =>
+            {
+                atCensus = GC.CollectionCount(2);
+                return "live=x";
+            });
+
+            Assert.IsTrue(atCensus > before, "The census must count what survives the collection, so it runs after it.");
         }
 
         [TestMethod]

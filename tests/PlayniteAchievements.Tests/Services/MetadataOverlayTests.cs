@@ -882,6 +882,51 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public async Task Categories_UnmatchedAchievements_LoseThePlatformsCategory()
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.Categories);
+            playstation.Rows.Add(Row("t1", "One", category: "Story"));
+            playstation.Rows.Add(Row("t2", "Two", category: "Side"));
+            var one = Row("s1", "One", category: "Chapter 1");
+            var two = Row("s2", "Two", category: "Chapter 1");
+            var unmatched = Row("s3", "Only on this platform", category: "The Expansion");
+            unmatched.CategoryKind = "DLC";
+            var data = Game("Steam", one, two, unmatched);
+
+            using (var run = Overlay(new[] { playstation }, Choices(categories: playstation.Key)).BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual("Story", one.Category);
+            Assert.AreEqual("Side", two.Category);
+            Assert.IsNull(unmatched.Category);
+            Assert.IsNull(unmatched.CategoryKind);
+        }
+
+        [TestMethod]
+        public async Task Categories_UnmatchedAchievements_StayOutOfTheSourcesOnlyCategory()
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.Categories);
+            var source = Row("t1", "One", category: "The game");
+            source.CategoryKind = "Base";
+            playstation.Rows.Add(source);
+            var matched = Row("s1", "One", category: "Chapter 1");
+            var unmatched = Row("s2", "Only on this platform", category: "The Expansion");
+            unmatched.CategoryKind = "DLC";
+            var data = Game("Steam", matched, unmatched);
+
+            using (var run = Overlay(new[] { playstation }, Choices(categories: playstation.Key)).BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual("The game", matched.Category);
+            Assert.IsNull(unmatched.Category);
+            Assert.IsNull(unmatched.CategoryKind);
+        }
+
+        [TestMethod]
         public async Task Tags_ReplaceProviderTags_AndKeepItsCategory()
         {
             var hunters = new FakeSource("SteamHunters", MetadataField.Categories | MetadataField.Tags);

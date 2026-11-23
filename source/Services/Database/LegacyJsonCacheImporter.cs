@@ -76,7 +76,7 @@ namespace PlayniteAchievements.Services.Database
 
                     try
                     {
-                        _store.SaveCurrentUserGameData(key, data);
+                        _store.SaveCurrentUserGameData(key, data, out _);
                         imported++;
                     }
                     catch (Exception ex)

@@ -30,21 +30,21 @@
                         <ControlTemplate TargetType="RadioButton">
                             <Border x:Name="BorderRoot"
                                     Background="{TemplateBinding Background}"
-                                    CornerRadius="4"
+                                    CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                                     Padding="{TemplateBinding Padding}">
                                 <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                                   VerticalAlignment="Center" />
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsChecked" Value="True">
-                                    <Setter TargetName="BorderRoot" Property="Background" Value="{StaticResource PlayAch.Brush.Overlay.Tint.1F}" />
+                                    <Setter TargetName="BorderRoot" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Selected}" />
                                     <Setter Property="FontWeight" Value="SemiBold" />
                                 </Trigger>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="BorderRoot" Property="Background" Value="{StaticResource PlayAch.Brush.Overlay.Tint.14}" />
+                                    <Setter TargetName="BorderRoot" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}" />
                                 </Trigger>
                                 <Trigger Property="IsKeyboardFocused" Value="True">
-                                    <Setter TargetName="BorderRoot" Property="Background" Value="{StaticResource PlayAch.Brush.Overlay.Tint.20}" />
+                                    <Setter TargetName="BorderRoot" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}" />
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
@@ -94,10 +94,10 @@
         </Grid.ColumnDefinitions>
 
         <Border Grid.Column="0"
-                Background="{DynamicResource PlayAch.Brush.Surface}"
+                Background="Transparent"
                 BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                 BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                 Padding="{StaticResource PlayAch.Thickness.CardPadding}">
             <DockPanel LastChildFill="True">
                 <!-- Always-visible stats, docked at the bottom so every tab shows them. Right-click
@@ -380,14 +380,15 @@
                     </Grid.RowDefinitions>
 
                     <controls:WidthFollowingDecorator Grid.Row="2">
-                        <Border CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                        <Border CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                                 ClipToBounds="False"
                                 Background="Transparent">
                             <Image Stretch="Uniform"
                                    VerticalAlignment="Center"
                                    HorizontalAlignment="Center"
                                    helpers:AsyncImage.Uri="{Binding GameImagePath, Converter={StaticResource DefaultGameImage}, ConverterParameter=cover}"
-                                   helpers:AsyncImage.DecodePixel="480" />
+                                   helpers:AsyncImage.DecodePixel="480"
+                                   helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.Art}" />
                         </Border>
                     </controls:WidthFollowingDecorator>
 
@@ -434,10 +435,10 @@
 
         <Border x:Name="ManageAchievementsContentHost"
                 Grid.Column="2"
-                Background="{DynamicResource PlayAch.Brush.Surface}"
+                Background="Transparent"
                 BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                 BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                 Padding="{StaticResource PlayAch.Thickness.CardPadding}">
             <Grid>
                 <!-- Every tab is a host, and every host is Hidden rather than Collapsed when

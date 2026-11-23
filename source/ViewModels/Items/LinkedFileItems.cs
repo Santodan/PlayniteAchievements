@@ -31,16 +31,27 @@ namespace PlayniteAchievements.ViewModels.Items
     {
         private LinkedFileOption<LinkedFileField> _selectedField;
 
-        public LinkedFileColumnItem(int index, string columnName, LinkedFileOption<LinkedFileField> selectedField)
+        public LinkedFileColumnItem(
+            int index,
+            string columnName,
+            LinkedFileOption<LinkedFileField> selectedField,
+            string displayName = null)
         {
             Index = index;
             ColumnName = columnName;
+            DisplayName = string.IsNullOrEmpty(displayName) ? columnName : displayName;
             _selectedField = selectedField;
         }
 
         public int Index { get; }
 
         public string ColumnName { get; }
+
+        /// <summary>What the header calls the column; the position column is named for its field.</summary>
+        public string DisplayName { get; }
+
+        /// <summary>The position column, whose cells are the plugin's own row numbers.</summary>
+        public bool IsPosition => string.Equals(ColumnName, LinkedFileSchema.PositionColumn, StringComparison.Ordinal);
 
         /// <summary>Raised after the user picks a field; the view model keeps one column per field.</summary>
         public event Action<LinkedFileColumnItem> FieldChanged;
@@ -140,7 +151,7 @@ namespace PlayniteAchievements.ViewModels.Items
         public string RowKey => _rowKey;
 
         /// <summary>Whether the row can be paired by hand; not before the file was matched.</summary>
-        public bool CanPick => _pairing != null;
+        public override bool CanPick => _pairing != null;
 
         private string _matchIcon;
         private bool[] _failedCells = Array.Empty<bool>();
@@ -243,32 +254,192 @@ namespace PlayniteAchievements.ViewModels.Items
     }
 
     /// <summary>
-    /// One of the game's achievements that no file row pairs with, as the unlinked list shows it:
-    /// masked per the display settings until revealed.
+    /// One way to match the file's rows, as the window's match dropdown lists it: the column, how
+    /// its cells are read, and how many rows that pairs, each in a column of its own.
     /// </summary>
-    public sealed class LinkedFileUnlinkedItem
+    public sealed class LinkedFileMatchChoice
     {
-        public LinkedFileUnlinkedItem(string apiName, string name, string description, string icon, bool canReveal, bool isRevealed)
+        public LinkedFileMatchChoice(string column, LinkedFileMatchBy by, string columnText, string readingText, string countText)
+        {
+            Column = column;
+            By = by;
+            ColumnText = columnText;
+            ReadingText = readingText;
+            CountText = countText;
+            Name = string.IsNullOrEmpty(readingText) ? columnText : columnText + ", " + readingText;
+        }
+
+        public string Column { get; }
+
+        public LinkedFileMatchBy By { get; }
+
+        /// <summary>The file's column name, or the row order for the position column.</summary>
+        public string ColumnText { get; }
+
+        /// <summary>How the cells are read; empty for the row order.</summary>
+        public string ReadingText { get; }
+
+        public string CountText { get; }
+
+        /// <summary>Column and reading as one phrase, for screen readers and search.</summary>
+        public string Name { get; }
+
+        public bool Is(string column, LinkedFileMatchBy by) =>
+            by == By && string.Equals(column, Column, StringComparison.OrdinalIgnoreCase);
+
+        public override string ToString() => Name;
+    }
+
+    /// <summary>
+    /// A column of the achievements list beside each achievement's name: the unlock status, or
+    /// a field a file column is mapped to.
+    /// </summary>
+    public sealed class LinkedFileValueColumn
+    {
+        public LinkedFileValueColumn(LinkedFileField field, string header)
+        {
+            Field = field;
+            Header = header;
+        }
+
+        /// <summary>The field shown; Unlocked is the status column, shown whether or not a column feeds it.</summary>
+        public LinkedFileField Field { get; }
+
+        public string Header { get; }
+    }
+
+    /// <summary>
+    /// What an achievement row's dropdown offers and where a pick goes: the file's rows, the
+    /// Automatic and None choices, and the window's handler for a pick (the achievement's API
+    /// name, then the row key, "" for none, or null for automatic).
+    /// </summary>
+    public sealed class LinkedFileRowPickContext
+    {
+        public LinkedFileRowPickContext(MatchOption automatic, MatchOption none, Action<string, string> pick)
+        {
+            Automatic = automatic;
+            None = none;
+            Pick = pick;
+        }
+
+        public MatchOption Automatic { get; }
+
+        public MatchOption None { get; }
+
+        public Action<string, string> Pick { get; }
+
+        public IReadOnlyList<MatchOption> Rows { get; set; } = Array.Empty<MatchOption>();
+    }
+
+    /// <summary>
+    /// One of the game's achievements in the achievements list: masked per the display settings,
+    /// the file row it pairs with, and what that row says. Its row cell is a dropdown that pairs
+    /// it with a row by hand.
+    /// </summary>
+    public sealed class LinkedFileAchievementRow : MatchPickerItem
+    {
+        private string _name;
+        private string _description;
+        private string _icon;
+        private string _rowText;
+        private bool _isMatched;
+        private bool _isUserSet;
+        private string[] _values = Array.Empty<string>();
+        private LinkedFileRowPickContext _pick;
+
+        public LinkedFileAchievementRow(string apiName)
         {
             ApiName = apiName;
-            Name = name;
-            Description = description;
-            Icon = icon;
-            CanReveal = canReveal;
-            IsRevealed = isRevealed;
         }
 
         public string ApiName { get; }
 
-        public string Name { get; }
+        public string Name => _name;
 
-        public string Description { get; }
+        public string Description => _description;
 
-        public string Icon { get; }
+        public string Icon => _icon;
 
-        /// <summary>Whether the display settings mask the achievement, so clicking it reveals or masks it.</summary>
-        public bool CanReveal { get; }
+        /// <summary>The row it pairs with, or that it pairs with none.</summary>
+        public string RowText => _rowText;
 
-        public bool IsRevealed { get; }
+        public bool IsMatched => _isMatched;
+
+        /// <summary>Whether the user paired it by hand.</summary>
+        public bool IsUserSet => _isUserSet;
+
+        public override bool CanPick => _pick != null;
+
+        /// <summary>What the paired row says, by the window's value column index.</summary>
+        public string this[int index] => index >= 0 && index < _values.Length ? _values[index] : string.Empty;
+
+        internal void Set(string name, string description, string icon, string rowText, bool isMatched, bool isUserSet, string[] values, LinkedFileRowPickContext pick)
+        {
+            _pick = pick;
+            SetField(ref _name, name, nameof(Name));
+            SetField(ref _description, description, nameof(Description));
+            SetField(ref _icon, icon, nameof(Icon));
+            SetField(ref _rowText, rowText, nameof(RowText));
+            if (_isMatched != isMatched)
+            {
+                _isMatched = isMatched;
+                OnPropertyChanged(nameof(IsMatched));
+            }
+
+            if (_isUserSet != isUserSet)
+            {
+                _isUserSet = isUserSet;
+                OnPropertyChanged(nameof(IsUserSet));
+            }
+
+            values = values ?? Array.Empty<string>();
+            if (!values.SequenceEqual(_values))
+            {
+                _values = values;
+                OnPropertyChanged("Item[]");
+            }
+
+            OnPropertyChanged(nameof(CanPick));
+            RefreshOptions();
+        }
+
+        private void SetField(ref string field, string value, string propertyName)
+        {
+            if (!string.Equals(field, value, StringComparison.Ordinal))
+            {
+                field = value;
+                OnPropertyChanged(propertyName);
+            }
+        }
+
+        /// <summary>Automatic (when paired by hand), None, then the rows the search matches.</summary>
+        protected override IReadOnlyList<MatchOption> BuildOptions(string search)
+        {
+            if (_pick == null)
+            {
+                return Array.Empty<MatchOption>();
+            }
+
+            var options = new List<MatchOption>();
+            if (_isUserSet)
+            {
+                options.Add(_pick.Automatic);
+            }
+
+            options.Add(_pick.None);
+            options.AddRange(_pick.Rows.Where(row => MatchesSearch(row, search)));
+            return options;
+        }
+
+        public override void Pick(MatchOption option)
+        {
+            if (option == null || _pick == null)
+            {
+                return;
+            }
+
+            IsPickerOpen = false;
+            _pick.Pick?.Invoke(ApiName, option.Key);
+        }
     }
 }

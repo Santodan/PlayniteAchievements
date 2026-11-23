@@ -186,7 +186,8 @@ foreach ($relativePath in $localizationPaths)
         }
 
         $desiredValue = [string]$currentElements[$key]
-        if ($baseValue -ne $desiredValue)
+        # Only real edits: the baseline is read through Git with LF, the working file raw.
+        if (-not (Test-FmSameXmlValue $baseValue $desiredValue))
         {
             $entries += [ordered]@{
                 key = $key

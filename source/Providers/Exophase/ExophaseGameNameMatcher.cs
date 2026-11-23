@@ -106,9 +106,10 @@ namespace PlayniteAchievements.Providers.Exophase
             }
 
             var normalizedSearch = NormalizeGameName(gameName);
-            var targetPlatform = string.IsNullOrWhiteSpace(platformSlug)
+            var rawTarget = string.IsNullOrWhiteSpace(platformSlug)
                 ? null
                 : platformSlug.Trim().ToLowerInvariant();
+            var targetPlatform = ExophaseFriendPlatformMatcher.NormalizePlatformSlug(rawTarget);
 
             var candidates = new List<(ExophaseGame Game, int Score, string Slug, bool PlatformKnown, bool PlatformMatch)>();
             foreach (var game in games)
@@ -131,14 +132,14 @@ namespace PlayniteAchievements.Providers.Exophase
                 }
 
                 var platformSlugs = game.Platforms?
-                    .Select(platform => platform?.Slug?.Trim().ToLowerInvariant())
+                    .Select(platform => ExophaseFriendPlatformMatcher.NormalizePlatformSlug(platform?.Slug))
                     .Where(slug => !string.IsNullOrWhiteSpace(slug))
                     .ToList();
                 var platformKnown = platformSlugs != null && platformSlugs.Count > 0;
                 var platformMatch = targetPlatform != null &&
                     (platformKnown
                         ? platformSlugs.Contains(targetPlatform)
-                        : game.EndpointAwards.IndexOf($"-{targetPlatform}", StringComparison.OrdinalIgnoreCase) >= 0);
+                        : game.EndpointAwards.IndexOf($"-{rawTarget}", StringComparison.OrdinalIgnoreCase) >= 0);
 
                 var resolvedSlug = ExophaseApiClient.ExtractSlugFromUrl(game.EndpointAwards) ?? game.EndpointAwards;
                 candidates.Add((game, score, resolvedSlug, platformKnown, platformMatch));

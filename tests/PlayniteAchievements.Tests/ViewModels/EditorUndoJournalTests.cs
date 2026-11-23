@@ -32,7 +32,7 @@ namespace PlayniteAchievements.Tests.ViewModels
         {
             var journal = new EditorUndoJournal();
 
-            journal.Record(Order("a"), Order("b"), true, true, PointsEdit);
+            journal.Record(Order("a"), Order("b"), true, PointsEdit);
             Assert.IsFalse(journal.CanUndo, "A step still being collected is not on the history yet.");
 
             journal.CommitOpenStep();
@@ -48,9 +48,9 @@ namespace PlayniteAchievements.Tests.ViewModels
 
             // What a fan-out looks like from the store: one write per selected row, all belonging
             // to the same gesture.
-            journal.Record(Order("a"), Order("b"), true, true, PointsEdit);
-            journal.Record(Order("b"), Order("c"), true, true, PointsEdit);
-            journal.Record(Order("c"), Order("d"), true, true, PointsEdit);
+            journal.Record(Order("a"), Order("b"), true, PointsEdit);
+            journal.Record(Order("b"), Order("c"), true, PointsEdit);
+            journal.Record(Order("c"), Order("d"), true, PointsEdit);
             journal.CommitOpenStep();
 
             var entry = journal.Undo();
@@ -70,8 +70,8 @@ namespace PlayniteAchievements.Tests.ViewModels
         {
             var journal = new EditorUndoJournal();
 
-            journal.Record(Order("a"), Order("b"), true, true, PointsEdit);
-            journal.Record(Order("b"), Order("c"), true, true, TrophyEdit);
+            journal.Record(Order("a"), Order("b"), true, PointsEdit);
+            journal.Record(Order("b"), Order("c"), true, TrophyEdit);
             journal.CommitOpenStep();
 
             Assert.IsNotNull(journal.Undo());
@@ -85,8 +85,8 @@ namespace PlayniteAchievements.Tests.ViewModels
         {
             var journal = new EditorUndoJournal();
 
-            journal.Record(Order("a"), Order("b"), true, true, ResetAll);
-            journal.Record(Order("b"), Order("c"), true, true, ResetAll);
+            journal.Record(Order("a"), Order("b"), true, ResetAll);
+            journal.Record(Order("b"), Order("c"), true, ResetAll);
             journal.CommitOpenStep();
 
             Assert.IsNotNull(journal.Undo());
@@ -100,8 +100,8 @@ namespace PlayniteAchievements.Tests.ViewModels
         {
             var journal = new EditorUndoJournal();
 
-            journal.Record(Order("a"), Order("b"), true, true, PointsEdit);
-            journal.Record(Order("b"), Order("a"), true, true, PointsEdit);
+            journal.Record(Order("a"), Order("b"), true, PointsEdit);
+            journal.Record(Order("b"), Order("a"), true, PointsEdit);
             journal.CommitOpenStep();
 
             Assert.IsFalse(journal.CanUndo, "Typing a value and typing it back changed nothing.");
@@ -112,23 +112,22 @@ namespace PlayniteAchievements.Tests.ViewModels
         {
             var journal = new EditorUndoJournal();
 
-            journal.Record(Order("a"), Order("b"), false, false, PointsEdit);
-            journal.Record(Order("b"), Order("c"), true, false, PointsEdit);
+            journal.Record(Order("a"), Order("b"), false, PointsEdit);
+            journal.Record(Order("b"), Order("c"), true, PointsEdit);
             journal.CommitOpenStep();
 
             var entry = journal.Undo();
 
             Assert.IsTrue(
                 entry.AffectsSummaryData,
-                "A reversal has to resync everything the gesture did, so the flags widen.");
-            Assert.IsFalse(entry.AffectsOverrideMirror);
+                "A reversal has to resync everything the gesture did, so the flag widens.");
         }
 
         [TestMethod]
         public void UndoThenRedo_MovesTheStepBetweenTheStacks()
         {
             var journal = new EditorUndoJournal();
-            journal.Record(Order("a"), Order("b"), true, true, PointsEdit);
+            journal.Record(Order("a"), Order("b"), true, PointsEdit);
             journal.CommitOpenStep();
 
             journal.Undo();
@@ -144,12 +143,12 @@ namespace PlayniteAchievements.Tests.ViewModels
         public void ANewStep_MakesTheForwardHistoryUnreachable()
         {
             var journal = new EditorUndoJournal();
-            journal.Record(Order("a"), Order("b"), true, true, PointsEdit);
+            journal.Record(Order("a"), Order("b"), true, PointsEdit);
             journal.CommitOpenStep();
             journal.Undo();
             Assert.IsTrue(journal.CanRedo);
 
-            journal.Record(Order("a"), Order("z"), true, true, TrophyEdit);
+            journal.Record(Order("a"), Order("z"), true, TrophyEdit);
             journal.CommitOpenStep();
 
             Assert.IsFalse(journal.CanRedo);
@@ -160,7 +159,7 @@ namespace PlayniteAchievements.Tests.ViewModels
         {
             var journal = new EditorUndoJournal();
 
-            journal.Record(Order("a"), Order("b"), true, true, PointsEdit);
+            journal.Record(Order("a"), Order("b"), true, PointsEdit);
 
             // Pressing undo right after an edit has to reverse that edit, not the one before it.
             var entry = journal.Undo();
@@ -176,7 +175,7 @@ namespace PlayniteAchievements.Tests.ViewModels
         {
             var journal = new EditorUndoJournal();
 
-            journal.Record(Order("a"), Order("b"), true, true, intent: null);
+            journal.Record(Order("a"), Order("b"), true, intent: null);
 
             Assert.IsFalse(journal.CanUndo, "A write nobody claimed is not the editor's to undo.");
         }
@@ -185,10 +184,10 @@ namespace PlayniteAchievements.Tests.ViewModels
         public void AWriteWithNoKnownStartingPoint_DropsTheHistory()
         {
             var journal = new EditorUndoJournal();
-            journal.Record(Order("a"), Order("b"), true, true, PointsEdit);
+            journal.Record(Order("a"), Order("b"), true, PointsEdit);
             journal.CommitOpenStep();
 
-            journal.Record(null, Order("c"), true, true, PointsEdit);
+            journal.Record(null, Order("c"), true, PointsEdit);
 
             Assert.IsFalse(
                 journal.CanUndo,
@@ -199,7 +198,7 @@ namespace PlayniteAchievements.Tests.ViewModels
         public void AForeignWriteTouchingAHeldFacet_DropsTheHistory()
         {
             var journal = new EditorUndoJournal();
-            journal.Record(Order("a"), Order("b"), true, true, PointsEdit);
+            journal.Record(Order("a"), Order("b"), true, PointsEdit);
             journal.CommitOpenStep();
 
             journal.NoteForeignWrite(Order("b"), Order("elsewhere"));
@@ -211,7 +210,7 @@ namespace PlayniteAchievements.Tests.ViewModels
         public void AForeignWriteElsewhere_LeavesTheHistoryAlone()
         {
             var journal = new EditorUndoJournal();
-            journal.Record(Order("a"), Order("b"), true, true, PointsEdit);
+            journal.Record(Order("a"), Order("b"), true, PointsEdit);
             journal.CommitOpenStep();
 
             // A refresh writing something the editor does not edit. Clearing here would empty the
@@ -235,7 +234,6 @@ namespace PlayniteAchievements.Tests.ViewModels
                     Order("step" + index),
                     Order("step" + (index + 1)),
                     true,
-                    true,
                     EditorEditIntent.Command("c" + index, "LOCPlayAch_Undo_FieldEdit"));
                 journal.CommitOpenStep();
             }
@@ -253,10 +251,10 @@ namespace PlayniteAchievements.Tests.ViewModels
         public void Clear_EmptiesBothStacksAndTheOpenStep()
         {
             var journal = new EditorUndoJournal();
-            journal.Record(Order("a"), Order("b"), true, true, PointsEdit);
+            journal.Record(Order("a"), Order("b"), true, PointsEdit);
             journal.CommitOpenStep();
             journal.Undo();
-            journal.Record(Order("a"), Order("b"), true, true, PointsEdit);
+            journal.Record(Order("a"), Order("b"), true, PointsEdit);
 
             journal.Clear();
 
@@ -272,7 +270,7 @@ namespace PlayniteAchievements.Tests.ViewModels
             var before = Order("a");
             var after = Order("b");
 
-            journal.Record(before, after, true, true, PointsEdit);
+            journal.Record(before, after, true, PointsEdit);
 
             // The store caches the record it wrote and the next write mutates that instance in
             // place, so a step holding it by reference would change underneath.
@@ -290,7 +288,7 @@ namespace PlayniteAchievements.Tests.ViewModels
         public void AStep_HoldsNoRowsAndNoDelegates()
         {
             var journal = new EditorUndoJournal();
-            journal.Record(Order("a"), Order("b"), true, true, PointsEdit, new[] { "one", "two" });
+            journal.Record(Order("a"), Order("b"), true, PointsEdit, new[] { "one", "two" });
             journal.CommitOpenStep();
 
             var entry = journal.Undo();
@@ -312,8 +310,8 @@ namespace PlayniteAchievements.Tests.ViewModels
         {
             var journal = new EditorUndoJournal();
 
-            journal.Record(Order("a"), Order("b"), true, true, PointsEdit, new[] { "one" });
-            journal.Record(Order("b"), Order("c"), true, true, PointsEdit, new[] { "one", "two" });
+            journal.Record(Order("a"), Order("b"), true, PointsEdit, new[] { "one" });
+            journal.Record(Order("b"), Order("c"), true, PointsEdit, new[] { "one", "two" });
             journal.CommitOpenStep();
 
             var entry = journal.Undo();
@@ -329,7 +327,7 @@ namespace PlayniteAchievements.Tests.ViewModels
         {
             var journal = new EditorUndoJournal();
 
-            journal.Record(Order("a"), Order("b"), true, true, PointsEdit);
+            journal.Record(Order("a"), Order("b"), true, PointsEdit);
             journal.RecordRowValue("one", "PointsText", "10", "20", PointsEdit);
             journal.CommitOpenStep();
 
@@ -354,7 +352,7 @@ namespace PlayniteAchievements.Tests.ViewModels
         public void AFieldWrittenRepeatedly_ReversesToWhereTheGestureStarted()
         {
             var journal = new EditorUndoJournal();
-            journal.Record(Order("a"), Order("b"), true, true, PointsEdit);
+            journal.Record(Order("a"), Order("b"), true, PointsEdit);
 
             // One gesture can write the same field more than once - a commit that raises several
             // changes, or a save that re-runs.
@@ -372,7 +370,7 @@ namespace PlayniteAchievements.Tests.ViewModels
         public void AFanOutFieldEdit_HoldsOneChangePerRow()
         {
             var journal = new EditorUndoJournal();
-            journal.Record(Order("a"), Order("b"), true, true, PointsEdit);
+            journal.Record(Order("a"), Order("b"), true, PointsEdit);
 
             journal.RecordRowValue("one", "PointsText", "1", "50", PointsEdit);
             journal.RecordRowValue("two", "PointsText", "2", "50", PointsEdit);
@@ -392,7 +390,7 @@ namespace PlayniteAchievements.Tests.ViewModels
         public void AFieldPutBackWithinOneGesture_IsNotAStep()
         {
             var journal = new EditorUndoJournal();
-            journal.Record(Order("a"), Order("a"), true, true, PointsEdit);
+            journal.Record(Order("a"), Order("a"), true, PointsEdit);
 
             journal.RecordRowValue("one", "PointsText", "10", "20", PointsEdit);
             journal.RecordRowValue("one", "PointsText", "20", "10", PointsEdit);
@@ -412,7 +410,7 @@ namespace PlayniteAchievements.Tests.ViewModels
             // does not clone the two records for a step like this -- cloning a game's whole
             // custom-data record twice per write, for a diff that is thrown away, is what made
             // an ordinary cell edit expensive on a heavily customized game.
-            journal.Record(Order("a"), Order("b"), true, true, PointsEdit);
+            journal.Record(Order("a"), Order("b"), true, PointsEdit);
 
             journal.RecordRowValue("one", "PointsText", "10", "20", PointsEdit);
             journal.RecordRowValue("one", "PointsText", "20", "10", PointsEdit);
@@ -431,7 +429,7 @@ namespace PlayniteAchievements.Tests.ViewModels
 
             // A reset rewrites several whole records at once, so a single field is not the unit
             // it can be reversed at.
-            journal.Record(Order("a"), Order("b"), true, true, ResetAll);
+            journal.Record(Order("a"), Order("b"), true, ResetAll);
             journal.RecordRowValue("one", "PointsText", "10", "20", ResetAll);
             journal.CommitOpenStep();
 
@@ -445,7 +443,7 @@ namespace PlayniteAchievements.Tests.ViewModels
         public void AFieldEditStep_StillHoldsNoRowsAndNoDelegates()
         {
             var journal = new EditorUndoJournal();
-            journal.Record(Order("a"), Order("b"), true, true, PointsEdit, new[] { "one" });
+            journal.Record(Order("a"), Order("b"), true, PointsEdit, new[] { "one" });
             journal.RecordRowValue("one", "DisplayName", "before", "after", PointsEdit);
             journal.CommitOpenStep();
 
@@ -462,7 +460,7 @@ namespace PlayniteAchievements.Tests.ViewModels
         {
             var import = EditorEditIntent.Command("ImportCsv", "LOCPlayAch_Common_Import");
             var journal = new EditorUndoJournal();
-            journal.Record(Order("a"), Order("b"), true, true, import, new[] { "one" });
+            journal.Record(Order("a"), Order("b"), true, import, new[] { "one" });
             journal.RecordArtRestore("one", "UnlockedIconPath", "old-copy.png", "new-copy.png");
             journal.CommitOpenStep();
 

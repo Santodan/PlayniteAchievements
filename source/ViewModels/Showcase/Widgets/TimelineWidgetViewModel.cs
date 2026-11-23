@@ -163,7 +163,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             var adapter = _controlBarSlot.Adapter;
             if (adapter.HasAchievementSelection)
             {
-                snapshot = OverviewLinkedSnapshots.ClipToAchievements(snapshot, adapter.MatchesAchievement);
+                snapshot = OverviewLinkedSnapshots.ClipToAchievements(snapshot, fact => adapter.MatchesTally(fact.Tally));
             }
 
             var unfiltered = ReferenceEquals(snapshot, source);

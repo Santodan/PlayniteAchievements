@@ -147,6 +147,7 @@ foreach ($recipe in $localizationRecipes)
         }
     }
 
+    $applicableEntries = @()
     foreach ($entry in @($recipe.entries))
     {
         $key = [string]$entry.key
@@ -158,15 +159,25 @@ foreach ($recipe in $localizationRecipes)
 
         $baseXml = if ($null -eq $entry.baseXml) { $null } else { [string]$entry.baseXml }
         $desiredXml = [string]$entry.desiredXml
-        $safeToApply = ($existingXml -eq $desiredXml) -or ($existingXml -eq $baseXml)
+        if ($null -ne $baseXml -and (Test-FmSameXmlValue $baseXml $desiredXml))
+        {
+            # Bundles exported before line endings were normalized can carry entries the fork
+            # never changed. Leave the upstream value, or upstream's removal of the key, alone.
+            continue
+        }
+
+        $safeToApply = (Test-FmSameXmlValue $existingXml $desiredXml) -or (Test-FmSameXmlValue $existingXml $baseXml)
         if (-not $safeToApply -and -not $ForceSemantic)
         {
             throw "Localization key changed independently upstream: $relativePath :: $key. Resolve it or use -ForceSemantic."
         }
+
+        $applicableEntries += $entry
     }
 
     $localizationOperations += [pscustomobject]@{
         Recipe = $recipe
+        Entries = $applicableEntries
         TargetPath = $targetPath
         Document = $document
         ExistingNodes = $existingNodes
@@ -175,6 +186,14 @@ foreach ($recipe in $localizationRecipes)
 
 if (-not $ResumeAfterConflict -and -not [string]::IsNullOrWhiteSpace($patchText))
 {
+    $missingTargets = @(Get-FmPatchEditsOfMissingFiles $repositoryRoot $patchText)
+    if ($missingTargets.Count -gt 0)
+    {
+        throw ("The fork patch edits files this checkout does not have (usually deleted upstream). " +
+            "git apply would reject the whole patch. Port each fork change to its upstream " +
+            "replacement or drop it, then export the bundle again:`n" + ($missingTargets -join "`n"))
+    }
+
     $checkResult = Invoke-FmGit $repositoryRoot @(
         "apply", "--check", "--3way", "--whitespace=nowarn", $patchPath
     ) -AllowFailure
@@ -224,7 +243,7 @@ try
         $document = $operation.Document
         $existingNodes = $operation.ExistingNodes
 
-        foreach ($entry in @($recipe.entries))
+        foreach ($entry in @($operation.Entries))
         {
             $key = [string]$entry.key
             $fragment = $document.CreateDocumentFragment()

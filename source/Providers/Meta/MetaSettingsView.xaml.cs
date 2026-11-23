@@ -34,9 +34,6 @@ namespace PlayniteAchievements.Providers.Meta
             ConnectionLabel.Text = string.Format(
                 ResourceProvider.GetString("LOCPlayAch_Settings_ProviderConnection"),
                 ResourceProvider.GetString("LOCPlayAch_Provider_Meta"));
-            AuthLabel.Text = string.Format(
-                ResourceProvider.GetString("LOCPlayAch_Settings_ProviderAuth"),
-                ResourceProvider.GetString("LOCPlayAch_Provider_Meta"));
         }
 
         public override void Initialize(IProviderSettings settings)

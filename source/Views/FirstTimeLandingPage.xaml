@@ -46,10 +46,10 @@
             </Style>
 
             <Style x:Key="LandingActionTrayStyle" TargetType="Border">
-                <Setter Property="Background" Value="{StaticResource PlayAch.Brush.Overlay.Shade.12}"/>
+                <Setter Property="Background" Value="Transparent"/>
                 <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Border}"/>
                 <Setter Property="BorderThickness" Value="{StaticResource PlayAch.Thickness.Border}"/>
-                <Setter Property="CornerRadius" Value="{StaticResource PlayAch.Radius.Card}"/>
+                <Setter Property="CornerRadius" Value="{DynamicResource PlayAch.Radius.Layout}"/>
                 <Setter Property="Padding" Value="8"/>
                 <Setter Property="HorizontalAlignment" Value="Center"/>
             </Style>
@@ -79,7 +79,7 @@
             <Style x:Key="LandingProviderCardStyle" TargetType="Border" BasedOn="{StaticResource PlayAch.CardBorderStyle}">
                 <Setter Property="Margin" Value="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
                 <Setter Property="Padding" Value="12,10"/>
-                <Setter Property="Background" Value="{StaticResource PlayAch.Brush.Overlay.Shade.12}"/>
+                <Setter Property="Background" Value="Transparent"/>
                 <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Border}"/>
                 <Style.Triggers>
                     <DataTrigger Binding="{Binding IsAuthenticated}" Value="True">
@@ -120,7 +120,7 @@
             </Style>
 
             <Style x:Key="LandingProviderBadgeBorderStyle" TargetType="Border">
-                <Setter Property="Background" Value="{StaticResource PlayAch.Brush.Overlay.Shade.20}"/>
+                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background}"/>
                 <Setter Property="CornerRadius" Value="{StaticResource PlayAch.Radius.PillSmall}"/>
                 <Setter Property="Padding" Value="8,3"/>
                 <Setter Property="VerticalAlignment" Value="Center"/>
@@ -133,7 +133,7 @@
                         <Setter Property="Background" Value="{StaticResource PlayAch.Brush.AuthPending}"/>
                     </DataTrigger>
                     <DataTrigger Binding="{Binding IsEnabled}" Value="False">
-                        <Setter Property="Background" Value="{StaticResource PlayAch.Brush.Overlay.Shade.12}"/>
+                        <Setter Property="Background" Value="Transparent"/>
                     </DataTrigger>
                 </Style.Triggers>
             </Style>
@@ -535,11 +535,11 @@
                         </StackPanel>
 
                         <!-- Custom Migration Expander -->
-                        <Border Background="{StaticResource PlayAch.Brush.Overlay.Shade.12}"
+                        <Border Background="Transparent"
                                 x:Name="ThemeMigrationCustomContainer"
                                 BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                                 BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                                CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                                CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                                 Margin="0,16,0,0"
                                 Padding="{StaticResource PlayAch.Thickness.None}"
                                 IsEnabled="{Binding HasThemesToMigrate}">

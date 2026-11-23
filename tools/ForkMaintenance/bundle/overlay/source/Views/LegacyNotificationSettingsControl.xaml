@@ -988,7 +988,7 @@
                                             </Grid.ColumnDefinitions>
 
                                             <TextBlock Grid.Column="0"
-                                                       Text="{DynamicResource LOCPlayAch_Settings_IconCache_ClearAllDescription}"
+                                                       Text="{DynamicResource LOCPlayAch_Settings_IconCache_ClearAll}"
                                                        Style="{StaticResource MutedTextStyle}"
                                                        VerticalAlignment="Center"/>
 

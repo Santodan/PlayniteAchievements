@@ -7,6 +7,7 @@ using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.Database;
 using PlayniteAchievements.ViewModels.Items;
 
 namespace PlayniteAchievements.ViewModels.Showcase.Widgets
@@ -16,10 +17,11 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
     /// Icon size follows density (compact 32 / standard 42 / expanded 54); every size shows the
     /// same icons. Rarity-glow appearance comes from the widget's own per-instance options.
     /// </summary>
-    public sealed class IconMosaicWidgetViewModel : ShowcaseMosaicWidgetViewModelBase
+    public sealed class IconMosaicWidgetViewModel : ShowcaseMosaicWidgetViewModelBase, IDisposable
     {
         // The widget instance's shared adapter, so the filters survive view model swaps.
         private readonly ShowcaseControlBarSlot<CrossGameAchievementControlBarAdapter> _controlBarSlot;
+        private ShowcaseRows _rows;
         private double _iconSize = 42;
         private Thickness _tileMargin = new Thickness(6);
         private bool _showRarityGlow = true;
@@ -91,12 +93,12 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             // The filter stays in effect while the bar is hidden. The dropdown lists the whole
             // library's platforms and rebuilds only when the library's games change.
             var adapter = _controlBarSlot.Adapter;
-            var list = (Projection?.MosaicAchievements ?? Array.Empty<AchievementDisplayItem>())
-                .Where(item => item != null)
-                .ToList();
             adapter.UpdateGames(Projection?.Snapshot?.GameSummaries);
             adapter.GameFilter.SetScope(Projection?.Collection?.GameIds);
             adapter.LocksRows = ShowcaseWidgetOptions.GetMosaicSource(Projection?.Instance) == ShowcaseMosaicSource.UnlockNext;
+            var list = (ReadRows(adapter) ?? Projection?.MosaicAchievements ?? Array.Empty<AchievementDisplayItem>())
+                .Where(item => item != null)
+                .ToList();
 
             // Sorted before the Count cap, so a sort picks which tiles show (the rarest of every
             // unlock, not of the newest few), as the grids do. Unlock Next keeps its ranking.
@@ -108,6 +110,34 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             CollectionHelper.Replace(Items, _reveals.Map(capped));
         }
 
+        // With a RowsQuery, the newest unlocks the bar keeps in its sort, up to Count.
+        private IReadOnlyList<AchievementDisplayItem> ReadRows(CrossGameAchievementControlBarAdapter adapter)
+        {
+            var query = Projection?.RowsQuery;
+            if (query == null)
+            {
+                return null;
+            }
+
+            var spec = BarSort();
+            query = adapter.ApplyTo(query);
+            query = !spec.PreservesSourceOrder && AchievementQuery.SortOfColumn(spec.SortMemberPath) is AchievementSort sort
+                ? query.OrderBy(sort, spec.Direction == ListSortDirection.Descending)
+                : query.OrderBy(AchievementSort.UnlockTime, descending: true);
+            return (_rows ??= new ShowcaseRows(RefreshTiles))
+                .For(query.Page(ShowcaseWidgetOptions.GetMosaicCount(Projection.Instance)));
+        }
+
+        private AchievementSortSpec BarSort() =>
+            MosaicSortChoices.TryGetBarSort(
+                _controlBarSlot.Adapter?.SortSelector,
+                out CompactListSortMode barMode,
+                out var barDirection)
+                ? new AchievementSortSpec(barMode, barDirection)
+                : new AchievementSortSpec(CompactListSortMode.None, ListSortDirection.Ascending);
+
+        public void Dispose() => _rows?.Dispose();
+
         /// <summary>
         /// Applies the control bar's Sort By, which starts at the widget's configured sort, over
         /// the projected tiles. Unsorted preserves the source order the mosaic's Source produced,
@@ -117,12 +147,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         private IEnumerable<AchievementDisplayItem> OrderAchievements(
             IEnumerable<AchievementDisplayItem> achievements)
         {
-            var spec = MosaicSortChoices.TryGetBarSort(
-                    _controlBarSlot.Adapter?.SortSelector,
-                    out CompactListSortMode barMode,
-                    out var barDirection)
-                ? new AchievementSortSpec(barMode, barDirection)
-                : new AchievementSortSpec(CompactListSortMode.None, ListSortDirection.Ascending);
+            var spec = BarSort();
             // Unlock Next ranks during selection and hides the sort rows, so a sort stored while
             // another source was selected must not re-arrange its tiles.
             if (spec.PreservesSourceOrder ||

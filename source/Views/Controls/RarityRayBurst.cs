@@ -250,6 +250,48 @@ namespace PlayniteAchievements.Views.Controls
             set => SetValue(CornerRadiusRatioProperty, value);
         }
 
+        /// <summary>
+        /// Pixel radius the subject's art is clipped to (RoundedClip.Radius at the same site). When it
+        /// rounds the art more than CornerRadiusRatio does, the fallback track follows it, so arrows do
+        /// not cut across a corner the art no longer has. 0 leaves CornerRadiusRatio alone.
+        /// </summary>
+        public static readonly DependencyProperty CornerRadiusPxProperty =
+            DependencyProperty.Register(
+                nameof(CornerRadiusPx), typeof(double), typeof(RarityRayBurst),
+                new PropertyMetadata(0.0, OnLayoutAffectingChanged));
+
+        public double CornerRadiusPx
+        {
+            get => (double)GetValue(CornerRadiusPxProperty);
+            set => SetValue(CornerRadiusPxProperty, value);
+        }
+
+        /// <summary>
+        /// The track's corner ratio for a subject of the given aspect fitted into the slot: the larger
+        /// of CornerRadiusRatio and the clipped art's own radius over its short side, quantized so a
+        /// resizing slot does not mint a new cached track on every pixel.
+        /// </summary>
+        internal static double EffectiveCornerRadiusRatio(
+            double ratio, double radiusPx, double aspect, Size slot, double inset)
+        {
+            if (!(radiusPx > 0) || !(aspect > 0))
+            {
+                return ratio;
+            }
+
+            var width = slot.Width - (2.0 * Math.Max(0.0, inset));
+            var height = slot.Height - (2.0 * Math.Max(0.0, inset));
+            var artHeight = Math.Min(height, width / aspect);
+            var artShort = Math.Min(artHeight, artHeight * aspect);
+            if (!(artShort > 0))
+            {
+                return ratio;
+            }
+
+            var own = Math.Round(Math.Min(0.5, radiusPx / artShort), 2);
+            return Math.Max(ratio, own);
+        }
+
         // The drawing lives in its own visual so a track arriving late, or a frame advancing, can be
         // re-issued without entering layout at all. It sits first so it stays behind anything a call
         // site might place inside this element.
@@ -1085,13 +1127,18 @@ namespace PlayniteAchievements.Views.Controls
                     ? slot.Width / slot.Height
                     : 1.0;
 
-                track = RayTrack.RoundedRect(aspect, CornerRadiusRatio);
+                track = RayTrack.RoundedRect(
+                    aspect,
+                    EffectiveCornerRadiusRatio(CornerRadiusRatio, CornerRadiusPx, aspect, slot, SubjectInset));
             }
             else if (track.IsAnalytic)
             {
                 // A traced-away subject (an opaque rectangle) carries no rounding of its own, because the
                 // radius belongs to the surface rather than to the image.
-                track = RayTrack.RoundedRect(track.SourceAspect, CornerRadiusRatio);
+                track = RayTrack.RoundedRect(
+                    track.SourceAspect,
+                    EffectiveCornerRadiusRatio(
+                        CornerRadiusRatio, CornerRadiusPx, track.SourceAspect, slot, SubjectInset));
             }
 
             _mapped = RayArrowLayout.Map(track, slot, SubjectInset);

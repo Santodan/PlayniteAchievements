@@ -55,6 +55,13 @@ upstream changes and the fork's behavior together. Use fork partials/helpers and
 small routing hooks. Do not blindly choose ours/theirs or force overlay/semantic
 replacement. Git rerere may assist but its results still need review.
 
+When preflight names patch targets the checkout lacks, upstream deleted those files:
+port each fork change to the upstream replacement (or drop it), remove those patch
+sections and any overlay partial of the deleted class from the bundle, and rebuild
+the bundle hashes before running Update. A clean merge is not proof of wiring: after
+upstream rewrites a shared file (event guards, lazy builders, read models), re-check the
+fork hooks it hosts and click through every Santodan-Fork sub-tab in Playnite.
+
 Stage only the conflict resolutions necessary for resume; this is distinct from
 permission to commit or stage unrelated work. Then resume without restarting or
 resetting the update:

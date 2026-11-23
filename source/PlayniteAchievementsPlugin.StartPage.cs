@@ -26,9 +26,10 @@ namespace PlayniteAchievements
     {
         private readonly Dictionary<string, IDisposable> _startPageViewModels =
             new Dictionary<string, IDisposable>(StringComparer.Ordinal);
-        private StartPageDataCoordinator _startPageDataCoordinator;
+        private Services.Widgets.WidgetDataCoordinator _startPageDataCoordinator;
         private readonly object _startPageInvalidateSync = new object();
         private System.Threading.Timer _startPageInvalidateTimer;
+        private volatile string _startPageInvalidateReason;
         private const int StartPageInvalidateDelayMs = 2000;
 
         private readonly object _retentionDiagnosticsSync = new object();
@@ -234,14 +235,12 @@ namespace PlayniteAchievements
             return null;
         }
 
-        private StartPageDataCoordinator GetStartPageDataCoordinator()
+        private Services.Widgets.WidgetDataCoordinator GetStartPageDataCoordinator()
         {
             if (_startPageDataCoordinator == null)
             {
-                _startPageDataCoordinator = new StartPageDataCoordinator(
+                _startPageDataCoordinator = new Services.Widgets.WidgetDataCoordinator(
                     _achievementDataService,
-                    _libraryProjectionService,
-                    Providers,
                     PlayniteApi,
                     _logger,
                     Settings,
@@ -251,9 +250,9 @@ namespace PlayniteAchievements
             return _startPageDataCoordinator;
         }
 
-        private void InvalidateStartPageData()
+        private void InvalidateStartPageData(string reason = null)
         {
-            _startPageDataCoordinator?.Invalidate();
+            _startPageDataCoordinator?.Invalidate(reason);
         }
 
         // Reports what the process-lifetime caches still hold once a refresh has settled, so
@@ -287,10 +286,13 @@ namespace PlayniteAchievements
             var delayMs = Math.Max(1, delaySeconds) * 1000;
             lock (_retentionDiagnosticsSync)
             {
-                // Last writer wins. When a deliberate one-shot point ("manage.closed",
-                // "overview.closed") collides with a refresh.settled burst, that point is the
-                // later and more interesting event, so naming the report after it is correct.
-                _pendingRetentionPoint = point;
+                // One report names every distinct point it covers, so "overview.closed" is not
+                // lost to an "overview.opened" scheduled before the report ran.
+                _pendingRetentionPoint = _pendingRetentionPoint == null
+                    ? point
+                    : _pendingRetentionPoint.Split('+').Contains(point, StringComparer.Ordinal)
+                        ? _pendingRetentionPoint
+                        : _pendingRetentionPoint + "+" + point;
 
                 if (_retentionDiagnosticsTimer == null)
                 {
@@ -333,6 +335,12 @@ namespace PlayniteAchievements
 
         private void LogRetentionDiagnostics(string point)
         {
+            Common.MemoryDiagnostics.LogRetained(_logger, point, DescribeRetained);
+        }
+
+        // Runs after the forced collection, so the census counts only what is still rooted.
+        private string DescribeRetained()
+        {
             var detail = new System.Text.StringBuilder();
 
             try
@@ -363,51 +371,9 @@ namespace PlayniteAchievements
 
             try
             {
-                detail.Append($"projections={_libraryProjectionService?.DescribeCachedProjections() ?? "n/a"} ");
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, "Failed to read projection cache stats.");
-            }
-
-            try
-            {
-                if (_achievementDataService != null)
+                if (_themeIntegrationService != null)
                 {
-                    _achievementDataService.GetOverviewMemoStats(out var memoEntries, out var memoRows);
-                    detail.Append($"summaryMemo={memoEntries}/{memoRows}rows ");
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, "Failed to read summary memo stats.");
-            }
-
-            try
-            {
-                if (_startPageDataCoordinator != null)
-                {
-                    _startPageDataCoordinator.GetRetentionStats(out var hasSnapshot, out var achRows, out var gameRows);
-                    detail.Append($"sharedSnapshot={(hasSnapshot ? "yes" : "no")}/{achRows}ach/{gameRows}games ");
-                }
-                else
-                {
-                    detail.Append("sharedSnapshot=none ");
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, "Failed to read shared snapshot stats.");
-            }
-
-            try
-            {
-                var modern = _settingsViewModel?.Settings?.ModernTheme;
-                if (modern != null)
-                {
-                    detail.Append(
-                        $"themeLists={modern.AllAchievementsUnlockDesc?.Count ?? 0}ach/" +
-                        $"{modern.GameSummariesDesc?.Count ?? 0}games ");
+                    detail.Append($"themeLists={_themeIntegrationService.DescribeLoadedLibraryLists()} ");
                 }
             }
             catch (Exception ex)
@@ -454,8 +420,7 @@ namespace PlayniteAchievements
             // Live instance counts come last: they are the discriminator when every cache
             // above reads flat but the heap still grows.
             detail.Append($"live={Common.LeakWatch.DescribeLive()}");
-
-            Common.MemoryDiagnostics.LogRetained(_logger, point, detail.ToString().TrimEnd());
+            return detail.ToString().TrimEnd();
         }
 
         // Trailing coalescer for high-frequency invalidation sources: per-game refresh saves,
@@ -464,7 +429,7 @@ namespace PlayniteAchievements
         // library snapshot, so bursts must collapse into one. Invalidate() is thread-safe;
         // no dispatcher marshaling is needed. Low-frequency user-driven changes keep calling
         // InvalidateStartPageData() directly.
-        private void ScheduleStartPageInvalidate()
+        private void ScheduleStartPageInvalidate(string reason = null)
         {
             lock (_startPageInvalidateSync)
             {
@@ -473,10 +438,13 @@ namespace PlayniteAchievements
                     return;
                 }
 
+                // Stale now, so an Overview opened before the coalesced invalidate does not adopt it.
+                _startPageDataCoordinator.MarkStale(reason);
+                _startPageInvalidateReason = reason;
                 if (_startPageInvalidateTimer == null)
                 {
                     _startPageInvalidateTimer = new System.Threading.Timer(
-                        _ => InvalidateStartPageData(),
+                        _ => InvalidateStartPageData("coalesced " + _startPageInvalidateReason),
                         null,
                         StartPageInvalidateDelayMs,
                         System.Threading.Timeout.Infinite);
@@ -488,9 +456,9 @@ namespace PlayniteAchievements
             }
         }
 
-        internal void InvalidateStartPageDataForUi()
+        internal void InvalidateStartPageDataForUi(string reason = null)
         {
-            InvalidateStartPageData();
+            InvalidateStartPageData(reason);
         }
 
         private void DisposeStartPageViews()

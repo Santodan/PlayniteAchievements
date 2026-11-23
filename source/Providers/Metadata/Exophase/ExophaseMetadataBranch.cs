@@ -43,7 +43,7 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
                 new ExophaseConsole("PS3", "ps3", "-ps3")
             },
             // A handheld's list usually differs from the home consoles', so it comes last either way.
-            others: new[] { new ExophaseConsole("PS Vita", "psvita", "-psvita") },
+            others: new[] { new ExophaseConsole("PS Vita", "ps-vita", "-ps-vita", "-psvita") },
             platformHint: "psn",
             ownPlatform: false);
 
@@ -160,6 +160,7 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
             ("-xbox-360", "Xbox 360"),
             ("-ps4", "PS4"),
             ("-ps3", "PS3"),
+            ("-ps-vita", "PS Vita"),
             ("-psvita", "PS Vita")
         };
 
@@ -185,7 +186,9 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
                 { "ps3", "PS3" },
                 { "ps4", "PS4" },
                 { "ps5", "PS5" },
+                { "ps-vita", "PS Vita" },
                 { "psvita", "PS Vita" },
+                { "vita", "PS Vita" },
                 { "xbox-360", "Xbox 360" },
                 { "xbox-one", "Xbox One" }
             };
@@ -215,7 +218,7 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
                 case "SHADPS4":
                     return "ps4";
                 case "VITA3K":
-                    return "psvita";
+                    return "ps-vita";
                 default:
                     return null;
             }

@@ -378,6 +378,11 @@ at the repository root for remaining missing features and live-verification task
 - Santodan-Fork is the first settings tab, with General, Platforms, Achievement
   Notification, and Theme Migration inside it. Its General page hosts cached-unlock
   protection and log tools; upstream General/Maintenance retains upstream content.
+- Every Santodan-Fork sub-tab shows its content on first open, both when chosen
+  inside the fork tab and when the fork tab opens on an already selected sub-page.
+  `SettingsControl.TabControl_SelectionChanged` must admit `ForkSettingsTabControl`
+  events: upstream 4.3.2's top-strip-only guard left Platforms, Achievement
+  Notification and Theme Migration empty without a conflict or log entry.
 - General > Maintenance ends with Open logs, Copy Logs, and Delete Logs.
 - Each action lets the user select playnite.log, extensions.log, and/or
   playniteachievements.log. Copy then asks for a destination folder and confirms

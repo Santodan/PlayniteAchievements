@@ -17,7 +17,10 @@ namespace PlayniteAchievements
 
         public static event EventHandler SettingsSaved;
 
-        public static void NotifySettingsSaved() => SettingsSaved?.Invoke(null, EventArgs.Empty);
+        public static void NotifySettingsSaved(bool settingsWindow = false) =>
+            SettingsSaved?.Invoke(null, settingsWindow ? SettingsWindowSave : EventArgs.Empty);
+
+        public static readonly EventArgs SettingsWindowSave = new EventArgs();
 
         public PlayniteAchievementsSettings Settings { get; set; }
 
@@ -461,6 +464,8 @@ namespace PlayniteAchievements.ViewModels
 
         public bool FriendIsFavorite { get; set; }
 
+        public bool IsPlaceholder { get; set; }
+
         public string FriendExternalUserId { get; set; }
 
         public string FriendAvatarPath { get; set; }
@@ -627,6 +632,13 @@ namespace PlayniteAchievements.ViewModels
             HasComparison = true;
         }
 
+        public virtual void RefreshFrom(AchievementDisplayItem fresh)
+        {
+            DisplayName = fresh.DisplayName;
+            Unlocked = fresh.Unlocked;
+            UnlockTimeUtc = fresh.UnlockTimeUtc;
+        }
+
         public void ClearComparison()
         {
             HasComparison = false;
@@ -645,17 +657,6 @@ namespace PlayniteAchievements.ViewModels
             PlayniteAchievements.Models.PlayniteAchievementsSettings settings,
             ISet<string> revealedKeys = null,
             Guid? playniteGameIdOverride = null,
-            AppearanceSettingsSnapshot appearanceSettings = null)
-        {
-            return new AchievementDisplayItem();
-        }
-
-        public static AchievementDisplayItem CreateRecent(
-            PlayniteAchievements.Models.Achievements.GameAchievementData gameData,
-            PlayniteAchievements.Models.Achievements.AchievementDetail achievement,
-            PlayniteAchievements.Models.PlayniteAchievementsSettings settings,
-            string gameIconPath,
-            string gameCoverPath,
             AppearanceSettingsSnapshot appearanceSettings = null)
         {
             return new AchievementDisplayItem();

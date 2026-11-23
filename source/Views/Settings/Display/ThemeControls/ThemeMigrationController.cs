@@ -23,15 +23,18 @@ namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsPlugin _plugin;
         private readonly PlayniteAchievementsSettings _settings;
-        private readonly ThemeDiscoveryService _themeDiscovery;
+        private readonly ThemeDiscoveryCache _discoveredThemes;
         private readonly ThemeMigrationService _themeMigration;
         private bool _themesLoaded;
+        private bool _themesLoading;
         private string _selectedThemePath = string.Empty;
         private string _selectedRevertThemePath = string.Empty;
         private bool _hasThemesToMigrate;
         private bool _hasRevertableThemes;
-        private bool _showNoThemesMessage = true;
-        private bool _showNoRevertableThemesMessage = true;
+
+        // Hidden until discovery finishes, so the "no themes" notes do not flash while loading.
+        private bool _showNoThemesMessage;
+        private bool _showNoRevertableThemesMessage;
         public Models.Settings.PersistedSettings MigrationSettings => _settings.Persisted;
 
         public ThemeMigrationController(
@@ -43,11 +46,12 @@ namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
             _plugin = plugin ?? throw new ArgumentNullException(nameof(plugin));
             _logger = logger;
 
-            _themeDiscovery = new ThemeDiscoveryService(_logger, _plugin.PlayniteApi);
+            _discoveredThemes = _plugin.DiscoveredThemes;
             _themeMigration = new ThemeMigrationService(
                 _logger,
                 _settings,
-                () => _plugin.SavePluginSettings(_settings));
+                () => _plugin.SavePluginSettings(_settings),
+                _discoveredThemes);
 
             InitializeCustomOptions();
         }
@@ -128,58 +132,66 @@ namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
         /// </summary>
         public void EnsureThemesLoaded()
         {
-            if (_themesLoaded)
+            if (_themesLoaded || _themesLoading)
             {
                 return;
             }
 
-            LoadThemes();
+            _ = LoadThemesAsync();
         }
 
-        private void LoadThemes()
+        /// <summary>
+        /// Fills the lists from the session's theme discovery, which the startup scan has
+        /// usually finished; otherwise this waits on that same scan off the UI thread.
+        /// Migrate and Revert refresh the changed theme there before calling this again.
+        /// </summary>
+        private async Task LoadThemesAsync()
         {
+            if (_themesLoading)
+            {
+                return;
+            }
+
+            _themesLoading = true;
             try
             {
-                AvailableThemes.Clear();
-                RevertableThemes.Clear();
-
-                var themesPath = _themeDiscovery.GetDefaultThemesPath();
-                if (string.IsNullOrEmpty(themesPath))
-                {
-                    _logger?.Info("No themes path found for theme migration.");
-                    _themesLoaded = true;
-                    UpdateThemeMigrationState();
-                    return;
-                }
-
-                var cache = _settings?.Persisted?.ThemeMigrationVersionCache;
-                var themes = _themeDiscovery.DiscoverThemes(themesPath, cache);
-
-                // Include themes that still need conversion and already-migrated themes with a
-                // backup. The latter must remain selectable so migration options (such as the
-                // featured achievement row) can be changed without reverting the whole theme.
-                foreach (var theme in themes.Where(t => t.NeedsMigration || t.HasBackup))
-                {
-                    AvailableThemes.Add(theme);
-                }
-
-                // Themes that can be reverted (has backup)
-                foreach (var theme in themes.Where(t => t.HasBackup))
-                {
-                    RevertableThemes.Add(theme);
-                }
-
-                SelectConfiguredDesktopTheme();
-
-                UpdateThemeMigrationState();
-                _themesLoaded = true;
-
+                ApplyThemes(await _discoveredThemes.GetThemesAsync());
                 _logger?.Info($"Loaded {AvailableThemes.Count} themes to migrate, {RevertableThemes.Count} themes to revert.");
             }
             catch (Exception ex)
             {
                 _logger?.Error(ex, "Failed to load themes for migration.");
+                UpdateThemeMigrationState();
             }
+            finally
+            {
+                _themesLoading = false;
+            }
+        }
+
+        private void ApplyThemes(System.Collections.Generic.IEnumerable<ThemeDiscoveryService.ThemeInfo> themes)
+        {
+            AvailableThemes.Clear();
+            RevertableThemes.Clear();
+
+            // Include themes that still need conversion and already-migrated themes with a
+            // backup. The latter must remain selectable so migration options (such as the
+            // featured achievement row) can be changed without reverting the whole theme.
+            foreach (var theme in themes.Where(t => t.NeedsMigration || t.HasBackup))
+            {
+                AvailableThemes.Add(theme);
+            }
+
+            // Themes that can be reverted (has backup)
+            foreach (var theme in themes.Where(t => t.HasBackup))
+            {
+                RevertableThemes.Add(theme);
+            }
+
+            SelectConfiguredDesktopTheme();
+
+            _themesLoaded = true;
+            UpdateThemeMigrationState();
         }
 
         private void UpdateThemeMigrationState()
@@ -248,7 +260,7 @@ namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
                     }
 
                     // Reload themes to update the lists
-                    LoadThemes();
+                    await LoadThemesAsync();
                 }
                 else
                 {
@@ -295,7 +307,7 @@ namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
                         MessageBoxImage.Information);
 
                     // Reload themes to update the lists
-                    LoadThemes();
+                    await LoadThemesAsync();
                 }
                 else
                 {

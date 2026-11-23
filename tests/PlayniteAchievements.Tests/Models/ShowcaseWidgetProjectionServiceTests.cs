@@ -77,11 +77,9 @@ namespace PlayniteAchievements.Tests.Models
                     new GameSummaryItem { PlaytimeSeconds = 7200 },
                     new GameSummaryItem()
                 },
-                Achievements = new List<AchievementDisplayItem>
-                {
+                Unlocks = Facts(
                     new AchievementDisplayItem { Unlocked = true, GlobalPercentUnlocked = 10 },
-                    new AchievementDisplayItem { Unlocked = true, GlobalPercentUnlocked = 30 }
-                }
+                    new AchievementDisplayItem { Unlocked = true, GlobalPercentUnlocked = 30 })
             };
 
             var statistics = ShowcaseWidgetProjectionService.BuildStatistics(snapshot, today);
@@ -213,18 +211,13 @@ namespace PlayniteAchievements.Tests.Models
             };
             var snapshot = new OverviewDataSnapshot
             {
-                Achievements = new List<AchievementDisplayItem>
+                PinnedRows = new List<AchievementDisplayItem>
                 {
                     firstAchievement,
                     rareAchievement,
                     tierOnlyUltraRare,
                     timestampLessRare,
                     lockedRare
-                },
-                RecentAchievements = new List<AchievementDisplayItem>
-                {
-                    firstAchievement,
-                    rareAchievement
                 },
                 GameSummaries = new List<GameSummaryItem>
                 {
@@ -431,11 +424,10 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
-        public void UnlockNext_FiltersWindowHiddenAndAchievementsUnlockedSinceThePoolWasBuilt()
+        public void UnlockNext_FiltersWindowAndHidden()
         {
             var recent = Guid.NewGuid();
             var stale = Guid.NewGuid();
-            var claimed = LockedCandidate(recent, "claimed", order: 0, percent: 50);
             var hidden = LockedCandidate(recent, "hidden", order: 1, percent: 50);
             hidden.Hidden = true;
             var snapshot = new OverviewDataSnapshot
@@ -460,21 +452,9 @@ namespace PlayniteAchievements.Tests.Models
                 UnlockNextPoolBuilt = true,
                 UnlockNextCandidates = new List<AchievementDisplayItem>
                 {
-                    claimed,
                     hidden,
                     LockedCandidate(recent, "open", order: 2, percent: 50),
                     LockedCandidate(stale, "stale", order: 0, percent: 99)
-                },
-                // A delta tick carries the pool forward, so an achievement unlocked since must be
-                // dropped on the strength of the snapshot's own unlocked rows.
-                Achievements = new List<AchievementDisplayItem>
-                {
-                    new AchievementDisplayItem
-                    {
-                        PlayniteGameId = recent,
-                        ApiName = "claimed",
-                        Unlocked = true
-                    }
                 }
             };
             var settings = new ShowcaseSettings();
@@ -634,6 +614,21 @@ namespace PlayniteAchievements.Tests.Models
                 new[] { almost, forgotten, halfway },
                 ShowcaseWidgetProjectionService.ResolveGameMosaic(snapshot, settings, mosaic).ToArray());
         }
+
+        // The unlocked rows as the summary read groups them, one fact per row, valued as the row
+        // values itself.
+        private static IReadOnlyList<UnlockFact> Facts(params AchievementDisplayItem[] rows) =>
+            rows.Where(row => row.Unlocked).Select(row => new UnlockFact
+            {
+                GameId = row.PlayniteGameId ?? Guid.Empty,
+                Day = row.UnlockTimeUtc.HasValue ? UnlockDayCounts.DayOf(row.UnlockTimeUtc.Value) : (DateTime?)null,
+                Tally = new AchievementTally(row.Tags, row.Rarity, AchievementTally.NormalizeTrophy(row.TrophyType), row.IsCapstone, 1, 1),
+                CollectionScore = row.CollectionScore,
+                PrestigeScore = row.PrestigeScore,
+                PlatformScorePoints = row.Points > 0 && !PlayniteAchievements.Services.Achievements.AchievementTagHelper.IsSoftcore(row.Tags) ? row.Points : 0,
+                PercentSum = row.GlobalPercentUnlocked ?? 0,
+                PercentCount = row.GlobalPercentUnlocked.HasValue ? 1 : 0
+            }).ToList();
 
         private static AchievementDisplayItem LockedCandidate(
             Guid gameId,
@@ -855,65 +850,6 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
-        public void ActivityCalendar_DaysCarryTheirUnlocksInChronologicalOrder()
-        {
-            var today = new DateTime(2026, 7, 31);
-            var dayOneUtc = new DateTime(2026, 7, 29, 12, 0, 0, DateTimeKind.Utc);
-            var dayTwoUtc = new DateTime(2026, 7, 30, 12, 0, 0, DateTimeKind.Utc);
-            var dayOne = UnlockDayCounts.DayOf(dayOneUtc);
-            var dayTwo = UnlockDayCounts.DayOf(dayTwoUtc);
-            var early = new AchievementDisplayItem { Unlocked = true, UnlockTimeUtc = dayOneUtc };
-            var late = new AchievementDisplayItem { Unlocked = true, UnlockTimeUtc = dayOneUtc.AddHours(2) };
-            var next = new AchievementDisplayItem { Unlocked = true, UnlockTimeUtc = dayTwoUtc };
-            var locked = new AchievementDisplayItem { Unlocked = false, UnlockTimeUtc = dayOneUtc.AddHours(1) };
-            var undated = new AchievementDisplayItem { Unlocked = true };
-            var snapshot = new OverviewDataSnapshot
-            {
-                GlobalUnlockCountsByDate = new Dictionary<DateTime, int> { [dayOne] = 2, [dayTwo] = 1 },
-                Achievements = new List<AchievementDisplayItem> { late, next, locked, undated, early }
-            };
-            var instance = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.ActivityCalendar };
-
-            var calendar = ShowcaseWidgetProjectionService.BuildActivityCalendar(snapshot, instance, today);
-
-            var first = calendar.Days.Single(day => day.Date == dayOne);
-            CollectionAssert.AreEqual(new[] { early, late }, first.Unlocks.ToList(), "unlock order within the day");
-            var second = calendar.Days.Single(day => day.Date == dayTwo);
-            CollectionAssert.AreEqual(new[] { next }, second.Unlocks.ToList());
-            Assert.IsTrue(
-                calendar.Days.Where(day => day.Count == 0).All(day => day.Unlocks == null),
-                "days without unlocks carry no list");
-        }
-
-        [TestMethod]
-        public void ActivityCalendar_DifferentWindows_ShareTheDayIndex()
-        {
-            var today = new DateTime(2026, 7, 31);
-            var unlockUtc = new DateTime(2026, 7, 28, 12, 0, 0, DateTimeKind.Utc);
-            var day = UnlockDayCounts.DayOf(unlockUtc);
-            var snapshot = new OverviewDataSnapshot
-            {
-                GlobalUnlockCountsByDate = new Dictionary<DateTime, int> { [day] = 1 },
-                Achievements = new List<AchievementDisplayItem>
-                {
-                    new AchievementDisplayItem { Unlocked = true, UnlockTimeUtc = unlockUtc }
-                }
-            };
-            var week = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.ActivityCalendar };
-            ShowcaseTimelineOptions.SetWindow(week, TimeWindow.Custom(new DateTime(2026, 7, 25), today));
-            var month = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.ActivityCalendar };
-            ShowcaseTimelineOptions.SetWindow(month, TimeWindow.Custom(new DateTime(2026, 7, 1), today));
-
-            var first = ShowcaseWidgetProjectionService.BuildActivityCalendar(snapshot, week, today);
-            var second = ShowcaseWidgetProjectionService.BuildActivityCalendar(snapshot, month, today);
-
-            Assert.AreSame(
-                first.Days.Single(item => item.Date == day).Unlocks,
-                second.Days.Single(item => item.Date == day).Unlocks,
-                "the per-day index is folded once per snapshot and shared by every window");
-        }
-
-        [TestMethod]
         public void Build_Timeline_HandsOverUnwindowedDayCounts()
         {
             var today = new DateTime(2026, 7, 31);
@@ -1001,7 +937,7 @@ namespace PlayniteAchievements.Tests.Models
             };
             var snapshot = new OverviewDataSnapshot
             {
-                Achievements = new List<AchievementDisplayItem> { dated, datedSameDay, undated, locked }
+                Unlocks = Facts(dated, datedSameDay, undated, locked)
             };
             var instance = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.Scores };
 
@@ -1050,17 +986,15 @@ namespace PlayniteAchievements.Tests.Models
                     // Set to count toward no card: its unlocks stay out of every points line.
                     new GameSummaryItem { PlayniteGameId = optedOutGame, ProviderKey = "Xbox", PointsFamily = null }
                 },
-                Achievements = new List<AchievementDisplayItem>
-                {
+                Unlocks = Facts(
                     // Raw provider key Exophase; the game's effective key makes it Gamerscore.
                     Unlock(exophaseXboxGame, "Exophase", 100, null, endDate.AddDays(-2)),
-                    Unlock(null, "Xenia", 50, null, null),
-                    Unlock(null, "Epic", 40, null, endDate),
+                    Unlock(exophaseXboxGame, "Exophase", 50, null, null),
                     Unlock(retroGame, "RetroAchievements", 10, "Base|Hardcore", endDate.AddDays(-1)),
                     Unlock(retroGame, "RetroAchievements", 25, "Base|Softcore", endDate.AddDays(-1)),
+                    // An unlock no listed game accounts for counts toward no card.
                     Unlock(null, "Steam", 999, null, endDate),
-                    Unlock(optedOutGame, "Xbox", 700, null, endDate)
-                }
+                    Unlock(optedOutGame, "Xbox", 700, null, endDate))
             };
             var instance = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.Scores };
 
@@ -1068,11 +1002,11 @@ namespace PlayniteAchievements.Tests.Models
 
             var last = points[points.Count - 1];
             Assert.AreEqual(150, last.Gamerscore);
-            Assert.AreEqual(40, last.EpicXp);
+            Assert.AreEqual(0, last.EpicXp);
             Assert.AreEqual(10, last.RetroPoints);
-            Assert.AreEqual(999, last.GetPoints("Steam"));
+            Assert.AreEqual(0, last.GetPoints("Steam"));
             Assert.AreEqual(150, last.GetScore(PlayniteAchievements.Models.Achievements.Scoring.ScoreCardType.Gamerscore));
-            // The undated Xenia unlock is a baseline from the first point.
+            // The undated unlock is a baseline from the first point.
             Assert.AreEqual(50, points[0].Gamerscore);
         }
 
@@ -1092,7 +1026,7 @@ namespace PlayniteAchievements.Tests.Models
                 });
             }
 
-            var snapshot = new OverviewDataSnapshot { Achievements = achievements };
+            var snapshot = new OverviewDataSnapshot { Unlocks = Facts(achievements.ToArray()) };
             var instance = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.Scores };
             instance.SetOption("TimelineRange", TimelineRange.All);
 
@@ -1124,29 +1058,15 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
-        public void AchievementsGrid_ProjectsAllRowsUncappedAndResolvesPerInstanceGridOptions()
+        public void AchievementsGrid_ReadsTheSnapshotsUnlocksAndResolvesPerInstanceGridOptions()
         {
-            var items = Enumerable.Range(0, 30)
-                .Select(i => new AchievementDisplayItem
-                {
-                    ApiName = $"a{i}",
-                    Unlocked = i % 3 != 2,
-                    UnlockTimeUtc = new DateTime(2026, 7, 1).AddDays(-i)
-                })
-                .ToList();
-            var snapshot = new OverviewDataSnapshot { Achievements = items };
+            var gameId = Guid.NewGuid();
+            var snapshot = new OverviewDataSnapshot
+            {
+                GameSummaries = new List<GameSummaryItem> { new GameSummaryItem { PlayniteGameId = gameId } },
+                Unlocks = Facts(new AchievementDisplayItem { PlayniteGameId = gameId, Unlocked = true })
+            };
             var instance = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.RecentAchievements };
-
-            // The resolver hands back every unlocked achievement uncapped, newest first. Locked rows
-            // (the snapshot's pinned goals) stay out of this source. The widget view model applies
-            // the MaxRows cap after its control-bar search filter. Repeat calls reuse the
-            // per-snapshot cached list.
-            var unlocked = items.Where(item => item.Unlocked)
-                .OrderByDescending(item => item.UnlockTimeUtc)
-                .ToList();
-            var rows = ShowcaseWidgetProjectionService.ResolveAllAchievements(snapshot);
-            CollectionAssert.AreEqual(unlocked, rows.ToList());
-            Assert.AreSame(rows, ShowcaseWidgetProjectionService.ResolveAllAchievements(snapshot));
 
             var catalog = new GridOptionsCatalog();
             var surfaceKey = ShowcaseGridSurfaces.ForInstance(
@@ -1157,8 +1077,12 @@ namespace PlayniteAchievements.Tests.Models
                 new ShowcaseSettings(),
                 instance,
                 gridOptions: catalog);
-            Assert.AreEqual(unlocked.Count, built.AchievementRows.Count);
+            // The widget reads the unlocks of the snapshot's games itself.
+            CollectionAssert.AreEqual(new[] { gameId }, built.RowsQuery.GameIds.ToList());
+            Assert.AreEqual(true, built.RowsQuery.Unlocked);
+            Assert.IsTrue(built.HasRows);
             Assert.AreSame(catalog.GetAchievement(surfaceKey), built.GridWidgetOptions);
+            Assert.IsFalse(ShowcaseWidgetProjectionService.Build(new OverviewDataSnapshot(), new ShowcaseSettings(), instance).HasRows);
         }
 
         [TestMethod]
@@ -1313,7 +1237,7 @@ namespace PlayniteAchievements.Tests.Models
             };
             var snapshot = new OverviewDataSnapshot
             {
-                Achievements = new List<AchievementDisplayItem> { resolved }
+                PinnedRows = new List<AchievementDisplayItem> { resolved }
             };
             var pins = new List<PinnedAchievementReference>
             {
@@ -1350,13 +1274,35 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
+        public void ASnapshot_SaysWhetherItsBuildReadEveryPin_WhateverTheApiNameCase()
+        {
+            var gameId = Guid.NewGuid();
+            var settings = new ShowcaseSettings();
+            settings.AchievementPinCollections[0].Pins = new List<PinnedAchievementReference>
+            {
+                new PinnedAchievementReference { GameId = gameId, ApiName = "First" },
+                new PinnedAchievementReference { GameId = Guid.Empty, ApiName = "no game" }
+            };
+            var snapshot = new OverviewDataSnapshot { PinKeysAtBuild = OverviewDataSnapshot.PinKeys(settings) };
+            CollectionAssert.AreEqual(new[] { "First" }, OverviewDataSnapshot.Pins(settings).Select(pin => pin.ApiName).ToArray(), "the pins the build reads");
+
+            settings.AchievementPinCollections[0].Pins[0].ApiName = "FIRST";
+            Assert.IsTrue(snapshot.HasSeenAchievementPins(settings));
+
+            settings.AchievementPinCollections[0].Pins.Add(new PinnedAchievementReference { GameId = gameId, ApiName = "Second" });
+            Assert.IsFalse(snapshot.HasSeenAchievementPins(settings), "a pin added since the build asks for a rebuild");
+            Assert.IsFalse(new OverviewDataSnapshot().HasSeenAchievementPins(settings));
+            Assert.IsTrue(new OverviewDataSnapshot().HasSeenAchievementPins(new ShowcaseSettings()));
+        }
+
+        [TestMethod]
         public void PinRows_AreReferenceStableAcrossRebuildsOfTheSameSnapshot()
         {
             var gameId = Guid.NewGuid();
             var missingGameId = Guid.NewGuid();
             var snapshot = new OverviewDataSnapshot
             {
-                Achievements = new List<AchievementDisplayItem>
+                PinnedRows = new List<AchievementDisplayItem>
                 {
                     new AchievementDisplayItem
                     {
@@ -1427,7 +1373,7 @@ namespace PlayniteAchievements.Tests.Models
             };
             var snapshot = new OverviewDataSnapshot
             {
-                Achievements = new List<AchievementDisplayItem>
+                PinnedRows = new List<AchievementDisplayItem>
                 {
                     defaultAchievement,
                     selectedAchievement
@@ -1541,7 +1487,7 @@ namespace PlayniteAchievements.Tests.Models
             ShowcaseWidgetOptions.SetCollectionType(gameScopedAchievements, ShowcaseCollectionType.Games);
             ShowcaseWidgetOptions.SetPinCollectionId(gameScopedAchievements, gameCollection.CollectionId);
             var gameScoped = ShowcaseWidgetProjectionService.Build(snapshot, settings, gameScopedAchievements);
-            Assert.AreSame(selectedAchievement, gameScoped.AchievementRows.Single());
+            CollectionAssert.AreEqual(new[] { selectedGameId }, gameScoped.RowsQuery.GameIds.ToArray());
             Assert.IsNull(gameScoped.ResolvedPinCollectionId);
             CollectionAssert.AreEqual(new[] { selectedGameId }, gameScoped.Collection.GameIds.ToArray());
         }

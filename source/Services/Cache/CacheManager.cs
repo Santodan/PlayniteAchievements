@@ -6,11 +6,13 @@ using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Friends;
+using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Database;
 using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Services.Logging;
 using PlayniteAchievements.Providers;
+using PlayniteAchievements.ViewModels.Items;
 using Playnite.SDK;
 using System.Windows;
 
@@ -19,21 +21,7 @@ namespace PlayniteAchievements.Services.Cache
     // ICacheReadOptimizations lives in its own file, so the sources that consume it can be
     // linked into the test project without dragging this one in.
 
-    // Write access to the AchievementOverrides mirror table — the summary queries' SQL-side view
-    // of the per-achievement override records that live in the separate custom-data database.
-    // Carries the filter flags plus the user-editable points and trophy type, which aggregates
-    // read directly; fields no query aggregates stay in the blob.
-    internal interface IAchievementOverrideMirror
-    {
-        void ReplaceAchievementOverrides(Guid playniteGameId, IReadOnlyList<AchievementOverrideMirrorEntry> entries);
-
-        void ResyncAllAchievementOverrides(IReadOnlyDictionary<Guid, IReadOnlyList<AchievementOverrideMirrorEntry>> entriesByGameId);
-
-        /// <summary>Reconciles the game-level state mirror: one game when <paramref name="onlyGameId"/> is set, else all.</summary>
-        void ReplaceGameCustomStates(IReadOnlyDictionary<Guid, GameCustomStateEntry> statesByGameId, Guid? onlyGameId = null);
-    }
-
-    public sealed class CacheManager : ICacheManager, ICacheReadOptimizations, IAchievementOverrideMirror, IMetadataStateDatabase, IFriendCacheManager, IInGameProgressCacheWriter, IDisposable
+    public sealed class CacheManager : ICacheManager, ICacheReadOptimizations, IMetadataStateDatabase, IFriendCacheManager, IInGameProgressCacheWriter, IDisposable
     {
         private const int MaxInMemoryGames = 256;
 
@@ -41,40 +29,6 @@ namespace PlayniteAchievements.Services.Cache
         {
             public GameAchievementData Data { get; set; }
             public LinkedListNode<string> Node { get; set; }
-        }
-
-        private sealed class FriendCacheInvalidationBatch : IFriendCacheInvalidationBatch
-        {
-            private CacheManager _owner;
-            private bool _disposed;
-
-            public FriendCacheInvalidationBatch(CacheManager owner)
-            {
-                _owner = owner;
-            }
-
-            public void Flush()
-            {
-                if (_disposed)
-                {
-                    return;
-                }
-
-                _owner?.FlushFriendCacheInvalidationBatch();
-            }
-
-            public void Dispose()
-            {
-                if (_disposed)
-                {
-                    return;
-                }
-
-                _disposed = true;
-                var owner = _owner;
-                _owner = null;
-                owner?.EndFriendCacheInvalidationBatch();
-            }
         }
 
         private readonly IPlayniteAPI _api;
@@ -97,32 +51,11 @@ namespace PlayniteAchievements.Services.Cache
         private bool _scopeInitialized;
         private Exception _initializationFailure;
         private bool _startupFailureDialogShown;
-        private int _friendCacheInvalidationBatchDepth;
-        private bool _friendCacheInvalidationBatchDirty;
-        // Scope accumulated across deferred raises within a batch window (guarded by _sync);
-        // drained on every flush so scope travels with the event, not the batch lifetime.
-        private readonly FriendCacheInvalidationScopeAccumulator _friendCacheInvalidationScope =
-            new FriendCacheInvalidationScopeAccumulator();
-        private readonly object _friendDataGameIdIndexSync = new object();
-        private IReadOnlyCollection<Guid> _friendDataPlayniteGameIds;
-        private int _friendDataGameIdIndexVersion;
-
-        // Bumped under _sync on every in-memory mutation. LoadAllGameDataFast reads the
-        // whole-library snapshot off _sync, so it uses this to detect writes that landed during
-        // that read and skip stale-entry pruning (which could otherwise drop a freshly written
-        // game absent from the snapshot).
-        private long _writeGeneration;
+        private readonly AchievementDataFeed _feed;
 
         public event EventHandler<GameCacheUpdatedEventArgs> GameCacheUpdated;
         public event EventHandler<CacheDeltaEventArgs> CacheDeltaUpdated;
         public event EventHandler<CacheInvalidatedEventArgs> CacheInvalidated;
-        public event EventHandler<FriendCacheInvalidatedEventArgs> FriendCacheInvalidated;
-
-        event EventHandler<FriendCacheInvalidatedEventArgs> IFriendCacheManager.FriendCacheInvalidated
-        {
-            add => FriendCacheInvalidated += value;
-            remove => FriendCacheInvalidated -= value;
-        }
 
         // Raised at the end of ClearCache, after every platform and metadata row has been deleted.
         private event EventHandler MetadataStateCleared;
@@ -133,11 +66,54 @@ namespace PlayniteAchievements.Services.Cache
             remove => MetadataStateCleared -= value;
         }
 
+        /// <summary>One change event per write batch, for read models.</summary>
+        internal AchievementDataFeed Feed => _feed;
+
+        /// <summary>Reads resolved achievement rows, totals and keys on the store's read connection.</summary>
+        internal AchievementReadService Reads => _reads ?? (_reads = new AchievementReadService(read =>
+        {
+            EnsureReadyForRead("AchievementReadService");
+            return _store.ReadOrThrow(read);
+        }, _logger));
+
+        private AchievementReadService _reads;
+
+        /// <summary>Every friend read: the lists, and friend rows as display items.</summary>
+        IFriendsOverviewReads IFriendCacheManager.FriendReads => _friendReads ?? (_friendReads = new FriendsOverviewReads(
+            _feed,
+            gameId =>
+            {
+                EnsureReadyForRead("LoadFriendLists");
+                return _store.LoadFriendLists(gameId);
+            },
+            Reads,
+            (rows, compare) => _store.MapFriendRowRecords(rows, compare)));
+
+        private IFriendsOverviewReads _friendReads;
+
+        private IEnumerable<Guid> LibraryGamesOf(IReadOnlyList<FriendCacheChange> changes)
+        {
+            try
+            {
+                return Reads.LibraryGamesOf(changes);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed to map friend definition changes to library games.");
+                return Array.Empty<Guid>();
+            }
+        }
+
         public CacheManager(IPlayniteAPI api, ILogger logger, PlayniteAchievementsPlugin plugin, DiskImageService diskImageService)
         {
             _api = api;
             _logger = logger;
             _plugin = plugin;
+            _feed = new AchievementDataFeed(
+                InvokeCacheInvalidated,
+                args => _logger?.Debug($"[RefreshPerf] kind=friends phase=invalidation.raise full={args.IsFull} changes={args.Changes.Count}"),
+                ex => _logger?.Error(ex, "Failed to notify cache subscribers."),
+                LibraryGamesOf);
             _storage = new CacheStorage(plugin, logger);
             _store = new SqlNadoCacheStore(plugin, logger, _storage.BaseDir);
             _importer = new LegacyJsonCacheImporter(_storage, _store, logger);
@@ -165,11 +141,6 @@ namespace PlayniteAchievements.Services.Cache
             {
                 _logger?.Error(ex, $"Failed to rewrite custom-data achievement keys for game {playniteGameId}.");
             }
-        }
-
-        List<GameAchievementData> ICacheReadOptimizations.LoadAllGameDataFast()
-        {
-            return LoadAllGameDataFast();
         }
 
         List<GameAchievementData> ICacheReadOptimizations.LoadAllGameHeadersFast()
@@ -202,84 +173,48 @@ namespace PlayniteAchievements.Services.Cache
             return result;
         }
 
-        CachedSummaryData ICacheReadOptimizations.LoadCachedSummaryDataFast(int recentAchievementDetailLimit)
+        AchievementReadService ICacheReadOptimizations.Reads => Reads;
+
+        AchievementDataFeed ICacheReadOptimizations.Feed => _feed;
+
+        List<CachedRecentUnlockData> ICacheReadOptimizations.LoadRows(AchievementQuery query, IReadOnlyList<AchievementQuerySql.RowKey> keys) =>
+            Reads.Read(db => _store.LoadRows(db, query, keys));
+
+        EditorRowsRead ICacheReadOptimizations.LoadEditorRows(AchievementQuery query, IReadOnlyList<AchievementQuerySql.RowKey> keys) =>
+            Reads.Read(db => _store.LoadEditorRows(db, query, keys));
+
+        CachedSummaryData ICacheReadOptimizations.LoadCachedSummaryDataFast(
+            int limit,
+            IEnumerable<Guid> excludedGameIds,
+            Func<Guid, CachedGameSummaryData> authoredGame,
+            bool days)
         {
-            return LoadCachedSummaryDataFast(recentAchievementDetailLimit);
-        }
-
-        CachedSummaryData ICacheReadOptimizations.LoadCachedSummaryDataForGameFast(Guid playniteGameId)
-        {
-            return LoadCachedSummaryDataForGameFast(playniteGameId);
-        }
-
-        Dictionary<Guid, HashSet<string>> ICacheReadOptimizations.LoadUnlockedApiNamesFast(
-            IReadOnlyDictionary<Guid, HashSet<string>> wanted)
-        {
-            try
+            using (PerfScope.Start(_logger, "Cache.LoadCachedSummaryDataFast", thresholdMs: 25))
             {
-                lock (_sync)
+                var scopeChanged = false;
+                try
                 {
-                    EnsureReady_Locked("LoadUnlockedApiNamesFast");
-                }
+                    lock (_sync)
+                    {
+                        EnsureReady_Locked("LoadCachedSummaryDataFast");
+                        scopeChanged = RefreshScopeToken_Locked(clearMemoryOnChange: true);
+                    }
 
-                using (var scope = PerfScope.Start(_logger, "Cache.LoadUnlockedApiNamesFast", thresholdMs: 25))
+                    // On the store's read connection, off _sync.
+                    return _store.LoadCachedSummaryData(limit, excludedGameIds, authoredGame, days) ?? new CachedSummaryData();
+                }
+                catch (Exception ex)
                 {
-                    scope?.SetContext("games=" + (wanted?.Count ?? 0));
-
-                    // Read off _sync, on the store's read connection, like the summary it corrects.
-                    return _store.LoadUnlockedApiNames(wanted) ?? new Dictionary<Guid, HashSet<string>>();
+                    _logger?.Error(ex, "Failed loading cached summary data from cache.");
+                    return null;
                 }
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, "Failed reading unlocked capstone ApiNames.");
-                return null;
-            }
-        }
-
-        Dictionary<Guid, Dictionary<string, Models.Achievements.AchievementTallyState>> ICacheReadOptimizations.LoadAchievementTallyStatesFast(
-            IReadOnlyDictionary<Guid, HashSet<string>> wanted,
-            ISet<Guid> providerCapstoneGames)
-        {
-            try
-            {
-                lock (_sync)
+                finally
                 {
-                    EnsureReady_Locked("LoadAchievementTallyStatesFast");
+                    if (scopeChanged)
+                    {
+                        RaiseCacheDeltaUpdatedEvent(string.Empty, CacheDeltaOperationType.FullReset);
+                    }
                 }
-
-                using (var scope = PerfScope.Start(_logger, "Cache.LoadAchievementTallyStatesFast", thresholdMs: 25))
-                {
-                    scope?.SetContext("games=" + (wanted?.Count ?? 0));
-                    return _store.LoadAchievementTallyStates(wanted, providerCapstoneGames) ??
-                        new Dictionary<Guid, Dictionary<string, Models.Achievements.AchievementTallyState>>();
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, "Failed reading tagged achievement states.");
-                return null;
-            }
-        }
-
-        Models.Achievements.AchievementTally[] ICacheReadOptimizations.LoadTalliesForGameFast(Guid playniteGameId)
-        {
-            try
-            {
-                lock (_sync)
-                {
-                    EnsureReady_Locked("LoadTalliesForGameFast");
-                }
-
-                using (PerfScope.Start(_logger, "Cache.LoadTalliesForGameFast", thresholdMs: 25))
-                {
-                    return _store.LoadTalliesForGame(playniteGameId);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, $"Failed reading tallies for game {playniteGameId}.");
-                return null;
             }
         }
 
@@ -340,52 +275,6 @@ namespace PlayniteAchievements.Services.Cache
             }
 
             return result;
-        }
-
-        // Mirror writes never throw: when the store failed to initialize, summaries are
-        // unavailable anyway and the summary reader fails open (empty table = unfiltered).
-        void IAchievementOverrideMirror.ReplaceAchievementOverrides(
-            Guid playniteGameId,
-            IReadOnlyList<AchievementOverrideMirrorEntry> entries)
-        {
-            try
-            {
-                _store.ReplaceAchievementOverrides(playniteGameId, entries);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Warn(ex, $"Failed to sync achievement filter mirror for game {playniteGameId}.");
-            }
-        }
-
-        void IAchievementOverrideMirror.ReplaceGameCustomStates(
-            IReadOnlyDictionary<Guid, GameCustomStateEntry> statesByGameId,
-            Guid? onlyGameId)
-        {
-            try
-            {
-                _store.ReplaceGameCustomStates(statesByGameId, onlyGameId);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Warn(ex, "Failed to sync the game custom state mirror.");
-            }
-        }
-
-        void IAchievementOverrideMirror.ResyncAllAchievementOverrides(
-            IReadOnlyDictionary<Guid, IReadOnlyList<AchievementOverrideMirrorEntry>> entriesByGameId)
-        {
-            try
-            {
-                var changedGames = _store.ResyncAllAchievementOverrides(entriesByGameId);
-                _logger?.Debug(changedGames > 0
-                    ? $"[Filters] Achievement filter mirror resynced for {changedGames} game(s)."
-                    : "[Filters] Achievement filter mirror unchanged.");
-            }
-            catch (Exception ex)
-            {
-                _logger?.Warn(ex, "Failed to resync achievement filter mirror.");
-            }
         }
 
         // Metadata state access delegates straight to the store; exceptions propagate so the
@@ -516,106 +405,36 @@ namespace PlayniteAchievements.Services.Cache
             }
         }
 
+        // Both cache events are raised through _feed, so one raise of either or both raises one
+        // AchievementDataChanged.
         private void RaiseCacheInvalidatedEvent(CacheInvalidatedEventArgs args = null)
         {
             using var pollingStage = PlayniteAchievements.Services.Logging.PollingDebugLog.Stage("cache.invalidation-callbacks");
             PlayniteAchievements.Services.Logging.PollingDebugLog.Write("invalidation full=" + (args?.IsFull != false));
-            try { CacheInvalidated?.Invoke(this, args ?? CacheInvalidatedEventArgs.FullInvalidation); }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, "Failed to notify cache subscribers.");
-            }
-        }
-
-        private void RaiseFriendCacheInvalidatedEvent(FriendCacheInvalidatedEventArgs args)
-        {
-            args = args ?? FriendCacheInvalidatedEventArgs.FullInvalidation;
-            lock (_sync)
-            {
-                _friendDataPlayniteGameIds = null;
-                _friendDataGameIdIndexVersion++;
-            }
-
-            _logger?.Debug(
-                $"[RefreshPerf] kind=friends phase=invalidation.raise full={args.IsFull} changes={args.Changes.Count}");
-            try { FriendCacheInvalidated?.Invoke(this, args); }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, "Failed to notify cache subscribers.");
-            }
+            _feed.Raise(args ?? CacheInvalidatedEventArgs.FullInvalidation, null);
         }
 
         private void RaiseOrDeferFriendCacheInvalidatedEvent(FriendCacheChange change)
         {
-            if (_friendCacheInvalidationBatchDepth > 0)
-            {
-                _friendCacheInvalidationBatchDirty = true;
-                _friendCacheInvalidationScope.Add(change);
-                return;
-            }
-
-            RaiseFriendCacheInvalidatedEvent(
-                change == null
-                    ? FriendCacheInvalidatedEventArgs.FullInvalidation
-                    : FriendCacheInvalidatedEventArgs.Scoped(new[] { change }));
+            _feed.RaiseFriendChange(change);
         }
 
-        private void FlushFriendCacheInvalidationBatch()
+        private void InvokeCacheInvalidated(CacheInvalidatedEventArgs args)
         {
-            FriendCacheInvalidatedEventArgs args = null;
-            lock (_sync)
+            try { CacheInvalidated?.Invoke(this, args); }
+            catch (Exception ex)
             {
-                if (_friendCacheInvalidationBatchDirty)
-                {
-                    _friendCacheInvalidationBatchDirty = false;
-                    args = _friendCacheInvalidationScope.Drain();
-                }
-            }
-
-            if (args != null)
-            {
-                RaiseFriendCacheInvalidatedEvent(args);
+                _logger?.Error(ex, "Failed to notify cache subscribers.");
             }
         }
 
-        private void EndFriendCacheInvalidationBatch()
-        {
-            FriendCacheInvalidatedEventArgs args = null;
-            lock (_sync)
-            {
-                if (_friendCacheInvalidationBatchDepth > 0)
-                {
-                    _friendCacheInvalidationBatchDepth--;
-                }
-
-                if (_friendCacheInvalidationBatchDepth == 0 && _friendCacheInvalidationBatchDirty)
-                {
-                    _friendCacheInvalidationBatchDirty = false;
-                    args = _friendCacheInvalidationScope.Drain();
-                }
-            }
-
-            if (args != null)
-            {
-                RaiseFriendCacheInvalidatedEvent(args);
-            }
-        }
-
-        IFriendCacheInvalidationBatch IFriendCacheManager.BeginFriendCacheInvalidationBatch()
-        {
-            lock (_sync)
-            {
-                _friendCacheInvalidationBatchDepth++;
-            }
-
-            return new FriendCacheInvalidationBatch(this);
-        }
+        IFriendCacheInvalidationBatch IFriendCacheManager.BeginFriendCacheInvalidationBatch() =>
+            _feed.BeginFriendBatch();
 
         private void ClearMemoryState_Locked()
         {
             _userAchievements = new Dictionary<string, CacheEntry>(StringComparer.OrdinalIgnoreCase);
             _lruOrder = new LinkedList<string>();
-            _writeGeneration++;
         }
 
         private bool TryGetMemoryGameData_Locked(string key, out GameAchievementData data)
@@ -642,6 +461,8 @@ namespace PlayniteAchievements.Services.Cache
             return true;
         }
 
+        // Takes ownership of data: every caller passes a copy no one else holds, and every read
+        // from memory is cloned.
         private void SetMemoryGameData_Locked(string key, GameAchievementData data)
         {
             if (string.IsNullOrWhiteSpace(key) || data == null)
@@ -650,11 +471,9 @@ namespace PlayniteAchievements.Services.Cache
             }
 
             var normalized = UserKey(key);
-            var copy = CloneGameData(data);
-            _writeGeneration++;
             if (_userAchievements.TryGetValue(normalized, out var existing) && existing != null)
             {
-                existing.Data = copy;
+                existing.Data = data;
                 if (existing.Node != null)
                 {
                     _lruOrder.Remove(existing.Node);
@@ -667,7 +486,7 @@ namespace PlayniteAchievements.Services.Cache
             _lruOrder.AddFirst(node);
             _userAchievements[normalized] = new CacheEntry
             {
-                Data = copy,
+                Data = data,
                 Node = node
             };
 
@@ -718,29 +537,6 @@ namespace PlayniteAchievements.Services.Cache
                 }
 
                 _userAchievements.Remove(normalized);
-                _writeGeneration++;
-            }
-        }
-
-        private void RemoveStaleMemoryEntries_Locked(HashSet<string> validKeys)
-        {
-            if (validKeys == null)
-            {
-                return;
-            }
-
-            var stale = new List<string>();
-            foreach (var key in _userAchievements.Keys)
-            {
-                if (!validKeys.Contains(key))
-                {
-                    stale.Add(key);
-                }
-            }
-
-            for (var i = 0; i < stale.Count; i++)
-            {
-                RemoveMemoryGameData_Locked(stale[i]);
             }
         }
 
@@ -874,8 +670,7 @@ namespace PlayniteAchievements.Services.Cache
             }
 
             RaiseCacheDeltaUpdatedEvent(string.Empty, CacheDeltaOperationType.FullReset);
-            RaiseCacheInvalidatedEvent();
-            RaiseFriendCacheInvalidatedEvent(FriendCacheInvalidatedEventArgs.FullInvalidation);
+            _feed.Raise(CacheInvalidatedEventArgs.FullInvalidation, FriendCacheInvalidatedEventArgs.FullInvalidation);
         }
 
         public bool CacheFileExists() => CoreArtifactsPresent();
@@ -958,168 +753,6 @@ namespace PlayniteAchievements.Services.Cache
         // ---------------------------
 
         private string UserKey(string key) => key?.Trim() ?? string.Empty;
-
-        internal List<GameAchievementData> LoadAllGameDataFast()
-        {
-            using (PerfScope.Start(_logger, "Cache.LoadAllGameDataFast", thresholdMs: 25))
-            {
-                var scopeChanged = false;
-
-                try
-                {
-                    long startGeneration;
-                    lock (_sync)
-                    {
-                        EnsureReady_Locked("LoadAllGameDataFast");
-                        scopeChanged = RefreshScopeToken_Locked(clearMemoryOnChange: true);
-                        startGeneration = _writeGeneration;
-                    }
-
-                    // Read the whole-library snapshot off _sync (on the store's read connection)
-                    // so this multi-second scan does not stall short per-game grid reads.
-                    var records = _store.LoadAllCurrentUserGameDataByCacheKey() ??
-                                  new List<KeyValuePair<string, GameAchievementData>>();
-
-                    lock (_sync)
-                    {
-                        // A write that landed while the snapshot was read may have added a game
-                        // absent from it; skip pruning in that case so the freshly written game
-                        // is kept. The per-entry timestamp check below still prevents clobbering
-                        // newer in-memory data with the older snapshot.
-                        var pruneStaleEntries = _writeGeneration == startGeneration;
-
-                        var result = new List<GameAchievementData>(records.Count);
-                        var validKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-                        for (var i = 0; i < records.Count; i++)
-                        {
-                            var record = records[i];
-                            var cacheKey = UserKey(record.Key);
-                            if (string.IsNullOrWhiteSpace(cacheKey))
-                            {
-                                continue;
-                            }
-
-                            validKeys.Add(cacheKey);
-
-                            var dbData = record.Value;
-                            if (dbData == null)
-                            {
-                                RemoveMemoryGameData_Locked(cacheKey);
-                                continue;
-                            }
-
-                            NormalizeLoadedData(cacheKey, dbData);
-
-                            if (TryGetMemoryGameData_Locked(cacheKey, out var memoryData) && memoryData != null)
-                            {
-                                var memoryUpdated = DateTimeUtilities.AsUtcKind(memoryData.LastUpdatedUtc);
-                                var dbUpdated = DateTimeUtilities.AsUtcKind(dbData.LastUpdatedUtc);
-                                if (memoryUpdated >= dbUpdated)
-                                {
-                                    result.Add(CloneGameData(memoryData));
-                                    continue;
-                                }
-                            }
-
-                            // The memory cache keeps its own copy; the freshly read record is
-                            // otherwise unshared, so it goes to the caller as is.
-                            SetMemoryGameData_Locked(cacheKey, dbData);
-                            result.Add(dbData);
-                        }
-
-                        if (pruneStaleEntries)
-                        {
-                            RemoveStaleMemoryEntries_Locked(validKeys);
-                        }
-
-                        return result;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Error(ex, "Failed loading all game data from cache.");
-                    return new List<GameAchievementData>();
-                }
-                finally
-                {
-                    if (scopeChanged)
-                    {
-                        RaiseCacheDeltaUpdatedEvent(string.Empty, CacheDeltaOperationType.FullReset);
-                    }
-                }
-            }
-        }
-
-        internal CachedSummaryData LoadCachedSummaryDataFast(int recentAchievementDetailLimit = 0)
-        {
-            using (PerfScope.Start(_logger, "Cache.LoadCachedSummaryDataFast", thresholdMs: 25))
-            {
-                var scopeChanged = false;
-
-                try
-                {
-                    lock (_sync)
-                    {
-                        EnsureReady_Locked("LoadCachedSummaryDataFast");
-                        scopeChanged = RefreshScopeToken_Locked(clearMemoryOnChange: true);
-                    }
-
-                    // Read off _sync (on the store's read connection) so a concurrent grid read
-                    // is not blocked while this summary query runs.
-                    return _store.LoadCachedSummaryData(recentAchievementDetailLimit) ?? new CachedSummaryData();
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Error(ex, "Failed loading cached summary data from cache.");
-                    return null;
-                }
-                finally
-                {
-                    if (scopeChanged)
-                    {
-                        RaiseCacheDeltaUpdatedEvent(string.Empty, CacheDeltaOperationType.FullReset);
-                    }
-                }
-            }
-        }
-
-        internal CachedSummaryData LoadCachedSummaryDataForGameFast(Guid playniteGameId)
-        {
-            using (var scope = PerfScope.Start(_logger, "Cache.LoadCachedSummaryDataForGameFast", thresholdMs: 25))
-            {
-                scope?.SetContext(playniteGameId.ToString());
-                var scopeChanged = false;
-
-                try
-                {
-                    lock (_sync)
-                    {
-                        EnsureReady_Locked("LoadCachedSummaryDataForGameFast");
-                        scopeChanged = RefreshScopeToken_Locked(clearMemoryOnChange: true);
-                    }
-
-                    // Read off _sync, on the store's read connection, exactly as the
-                    // whole-library read does.
-                    return _store.LoadCachedSummaryDataForGame(playniteGameId);
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Error(ex, $"Failed loading cached summary data for game {playniteGameId}.");
-
-                    // null, not an empty result: the caller must fall back to a full rebuild
-                    // rather than conclude the game now contributes nothing.
-                    return null;
-                }
-                finally
-                {
-                    if (scopeChanged)
-                    {
-                        RaiseCacheDeltaUpdatedEvent(string.Empty, CacheDeltaOperationType.FullReset);
-                    }
-                }
-            }
-        }
 
         public GameAchievementData LoadGameData(string key)
         {
@@ -1219,6 +852,7 @@ namespace PlayniteAchievements.Services.Cache
                 var writeTime = DateTime.UtcNow;
                 var providerKey = data?.ProviderKey;
                 var scopeChanged = false;
+                var changed = false;
                 Dictionary<string, string> renamedApiNames = null;
                 Guid? renamedPlayniteGameId = null;
 
@@ -1250,10 +884,13 @@ namespace PlayniteAchievements.Services.Cache
                         }
 
                         using (PlayniteAchievements.Services.Logging.PollingDebugLog.Stage("cache.sql-write"))
-                            renamedApiNames = _store.SaveCurrentUserGameData(normalizedKey, toWrite, allowLocalRelock);
+                            renamedApiNames = _store.SaveCurrentUserGameData(normalizedKey, toWrite, out changed, allowLocalRelock);
                         renamedPlayniteGameId = toWrite.PlayniteGameId;
 
                         scopeChanged = RefreshScopeToken_Locked(clearMemoryOnChange: true);
+                        // The payload arrives in the provider's order; the store reads in the
+                        // metadata order, and so must the copy served from memory.
+                        AchievementLayers.SortByMetadataOrder(toWrite.Achievements);
                         SetMemoryGameData_Locked(normalizedKey, toWrite);
                     }
                 }
@@ -1282,6 +919,13 @@ namespace PlayniteAchievements.Services.Cache
 
                 RaiseGameCacheUpdatedEvent(normalizedKey);
                 RaiseCacheDeltaUpdatedEvent(normalizedKey, CacheDeltaOperationType.Upsert);
+                // A save that only moved the stamps (an in-game poll of a game with no schema) wakes no reader.
+                if (scopeChanged || changed)
+                {
+                    _feed.Publish(scopeChanged || !renamedPlayniteGameId.HasValue
+                        ? AchievementDataChange.Full
+                        : AchievementDataChange.ForGames(new[] { renamedPlayniteGameId.Value }));
+                }
 
                 return CacheWriteResult.CreateSuccess(normalizedKey, writeTime);
             }
@@ -1374,10 +1018,8 @@ namespace PlayniteAchievements.Services.Cache
                 RaiseGameCacheUpdatedEvent(cacheKey);
                 RaiseCacheDeltaUpdatedEvent(cacheKey, CacheDeltaOperationType.Remove);
 
-                // Scoped, like the in-game write path above. A full invalidation makes
-                // LibraryProjectionService treat this as unscoped, which skips its idle delay
-                // and schedules an eager whole-library projection rebuild -- for one game
-                // leaving the cache. The id is already in hand.
+                // Scoped, like the in-game write path above: the id is in hand, and a full
+                // invalidation would rebuild every read model for one game leaving the cache.
                 RaiseCacheInvalidatedEvent(CacheInvalidatedEventArgs.Scoped(new[] { playniteGameId }));
             }
             catch (Exception ex)
@@ -1406,15 +1048,12 @@ namespace PlayniteAchievements.Services.Cache
                 }
             }
 
-            if (cleared.Count > 0)
-            {
-                RaiseCacheInvalidatedEvent(CacheInvalidatedEventArgs.Scoped(cleared));
-            }
-
             // Provider-only friend games have no Playnite id to scope; the friend views reload.
-            if (clearedUnmapped)
+            if (cleared.Count > 0 || clearedUnmapped)
             {
-                RaiseFriendCacheInvalidatedEvent(FriendCacheInvalidatedEventArgs.FullInvalidation);
+                _feed.Raise(
+                    cleared.Count > 0 ? CacheInvalidatedEventArgs.Scoped(cleared) : null,
+                    clearedUnmapped ? FriendCacheInvalidatedEventArgs.FullInvalidation : null);
             }
 
             return cleared;
@@ -1430,19 +1069,34 @@ namespace PlayniteAchievements.Services.Cache
             catch (Exception ex)
             {
                 _logger?.Warn(ex, $"Failed to update the capture index for game {playniteGameId}.");
+                return;
+            }
+
+            // The resolved rows carry the capture paths.
+            if (playniteGameId != Guid.Empty)
+            {
+                _feed.Publish(AchievementDataChange.ForGames(new[] { playniteGameId }));
             }
         }
 
         /// <summary>Drops the capture index rows of every game not in <paramref name="keep"/>. Never throws.</summary>
         internal void RemoveAchievementCapturesExcept(ISet<Guid> keep)
         {
+            List<Guid> removed;
             try
             {
-                _store.RemoveAchievementCapturesExcept(keep);
+                removed = _store.RemoveAchievementCapturesExcept(keep);
             }
             catch (Exception ex)
             {
                 _logger?.Warn(ex, "Failed to prune the capture index.");
+                return;
+            }
+
+            // The resolved rows carry the capture paths.
+            if (removed.Count > 0)
+            {
+                _feed.Publish(AchievementDataChange.ForGames(removed));
             }
         }
 
@@ -1493,22 +1147,27 @@ namespace PlayniteAchievements.Services.Cache
             }
         }
 
+        // The change is raised outside the cache lock: a definition change reads which library
+        // games it names on the read connection, and handlers may call back into the cache.
         private FriendCacheWriteResult FriendWrite(
             string operation,
             Func<FriendCacheWriteResult> write,
-            Func<FriendCacheChange> change)
+            Func<FriendCacheChange> change,
+            Func<FriendCacheWriteResult, bool> changed = null)
         {
+            FriendCacheWriteResult result;
             lock (_sync)
             {
                 EnsureReady_Locked(operation);
-                var result = write();
-                if (result?.Success == true)
-                {
-                    RaiseOrDeferFriendCacheInvalidatedEvent(change());
-                }
-
-                return result;
+                result = write();
             }
+
+            if (result?.Success == true && changed?.Invoke(result) != false)
+            {
+                RaiseOrDeferFriendCacheInvalidatedEvent(change());
+            }
+
+            return result;
         }
 
         FriendCacheWriteResult IFriendCacheManager.SaveFriendList(
@@ -1533,18 +1192,10 @@ namespace PlayniteAchievements.Services.Cache
             string providerKey,
             FriendGameDefinition definition)
         {
-            FriendCacheWriteResult result;
-            lock (_sync)
-            {
-                EnsureReady_Locked("SaveFriendGameDefinition");
-                result = _store.SaveFriendGameDefinition(providerKey, definition);
-                if (result?.Success == true)
-                {
-                    RaiseOrDeferFriendCacheInvalidatedEvent(
-                        FriendCacheChange.ForGameDefinition(providerKey, definition?.AppId ?? 0, definition?.ProviderGameKey));
-                }
-            }
-
+            var result = FriendWrite(
+                "SaveFriendGameDefinition",
+                () => _store.SaveFriendGameDefinition(providerKey, definition),
+                () => FriendCacheChange.ForGameDefinition(providerKey, definition?.AppId ?? 0, definition?.ProviderGameKey));
             if (result?.Success == true)
             {
                 // Outside the cache lock: CustomDataChanged handlers are synchronous and may call
@@ -1588,18 +1239,20 @@ namespace PlayniteAchievements.Services.Cache
 
         FriendUnownedCacheClearResult IFriendCacheManager.ClearUnownedFriendGameData()
         {
+            FriendUnownedCacheClearResult result;
             lock (_sync)
             {
                 EnsureReady_Locked("ClearUnownedFriendGameData");
-                var result = _store.ClearUnownedFriendGameData();
-                if (result?.Success == true)
-                {
-                    // Bulk clear has no per-game scope; forces a full invalidation.
-                    RaiseOrDeferFriendCacheInvalidatedEvent(null);
-                }
-
-                return result;
+                result = _store.ClearUnownedFriendGameData();
             }
+
+            if (result?.Success == true)
+            {
+                // Bulk clear has no per-game scope; forces a full invalidation.
+                RaiseOrDeferFriendCacheInvalidatedEvent(null);
+            }
+
+            return result;
         }
 
         FriendCacheWriteResult IFriendCacheManager.ClearUnownedFriendGame(
@@ -1625,21 +1278,12 @@ namespace PlayniteAchievements.Services.Cache
             string providerKey,
             int appId,
             string providerGameKey,
-            Guid playniteGameId)
-        {
-            lock (_sync)
-            {
-                EnsureReady_Locked("PromoteProviderOnlyGameToPlayniteBacked");
-                var result = _store.PromoteProviderOnlyGameToPlayniteBacked(providerKey, appId, providerGameKey, playniteGameId);
-                if (result?.Success == true && result.WrittenCount > 0)
-                {
-                    RaiseOrDeferFriendCacheInvalidatedEvent(
-                        FriendCacheChange.ForGameDefinition(providerKey, appId, providerGameKey));
-                }
-
-                return result;
-            }
-        }
+            Guid playniteGameId) =>
+            FriendWrite(
+                "PromoteProviderOnlyGameToPlayniteBacked",
+                () => _store.PromoteProviderOnlyGameToPlayniteBacked(providerKey, appId, providerGameKey, playniteGameId),
+                () => FriendCacheChange.ForGameDefinition(providerKey, appId, providerGameKey),
+                result => result.WrittenCount > 0);
 
         FriendCacheWriteResult IFriendCacheManager.SaveFriendGameAchievements(
             string providerKey,
@@ -1713,79 +1357,6 @@ namespace PlayniteAchievements.Services.Cache
                 "LoadFriendOwnershipRecency",
                 () => _store.LoadFriendOwnershipRecency(providerKey, externalUserId) ??
                       new Dictionary<string, FriendOwnershipRecency>(StringComparer.OrdinalIgnoreCase));
-
-        FriendsOverviewData IFriendCacheManager.LoadFriendsOverviewData(int recentLimit)
-        {
-            EnsureReadyForRead("LoadFriendsOverviewData");
-            return _store.LoadFriendsOverviewData(recentLimit) ??
-                   new FriendsOverviewData();
-        }
-
-        FriendsOverviewData IFriendCacheManager.LoadFriendsOverviewPatchData(IReadOnlyList<FriendCacheChange> reloadScopes)
-        {
-            EnsureReadyForRead("LoadFriendsOverviewPatchData");
-            return _store.LoadFriendsOverviewPatchData(reloadScopes) ??
-                   new FriendsOverviewData();
-        }
-
-        FriendsOverviewData IFriendCacheManager.LoadFriendGameAchievementData(Guid playniteGameId)
-        {
-            EnsureReadyForRead("LoadFriendGameAchievementData");
-            return _store.LoadFriendGameAchievementData(playniteGameId) ??
-                   new FriendsOverviewData();
-        }
-
-        IReadOnlyCollection<Guid> IFriendCacheManager.LoadFriendDataPlayniteGameIds()
-        {
-            EnsureReadyForRead("LoadFriendDataPlayniteGameIds");
-            lock (_sync)
-            {
-                if (_friendDataPlayniteGameIds != null)
-                {
-                    return _friendDataPlayniteGameIds;
-                }
-            }
-
-            // Multiple compare surfaces can select a game during the same layout pass. Coalesce
-            // their cold-start reads while keeping the database call off the general cache lock.
-            lock (_friendDataGameIdIndexSync)
-            {
-                while (true)
-                {
-                    int version;
-                    lock (_sync)
-                    {
-                        if (_friendDataPlayniteGameIds != null)
-                        {
-                            return _friendDataPlayniteGameIds;
-                        }
-
-                        version = _friendDataGameIdIndexVersion;
-                    }
-
-                    var loaded = _store.LoadFriendDataPlayniteGameIds() ?? Array.Empty<Guid>();
-                    lock (_sync)
-                    {
-                        // A write landed during the query, so retry rather than publishing or
-                        // returning a stale availability answer to the active compare surface.
-                        if (version != _friendDataGameIdIndexVersion)
-                        {
-                            continue;
-                        }
-
-                        _friendDataPlayniteGameIds = loaded;
-                        return _friendDataPlayniteGameIds;
-                    }
-                }
-            }
-        }
-
-        FriendsOverviewData IFriendCacheManager.LoadFriendGameAchievementData(FriendCacheChange gameScope)
-        {
-            EnsureReadyForRead("LoadFriendGameAchievementData");
-            return _store.LoadFriendGameAchievementData(gameScope) ??
-                   new FriendsOverviewData();
-        }
 
         IReadOnlyList<CurrentUserGameLabel> IFriendCacheManager.LoadCurrentUserGameLabels()
         {

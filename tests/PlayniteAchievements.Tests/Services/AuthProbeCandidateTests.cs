@@ -293,6 +293,127 @@ namespace PlayniteAchievements.Services.Tests
             Assert.IsTrue(capable);
         }
 
+        [TestMethod]
+        public void Resolve_SingleLinkedGameWithNoCapableProvider_HasNoUserMessage()
+        {
+            WithLinkedGame((gameId, games) =>
+            {
+                var planner = CreatePlanner(games);
+                var steam = new FakeProvider("Steam", _ => false);
+
+                var resolved = planner.Resolve(SingleGameRequest(gameId), new IDataProvider[] { steam });
+
+                Assert.IsFalse(resolved.ShouldExecute);
+                Assert.IsNull(resolved.UserMessage);
+            });
+        }
+
+        [TestMethod]
+        public void Resolve_SingleLinkedGameWithNoProviders_HasNoUserMessage()
+        {
+            WithLinkedGame((gameId, games) =>
+            {
+                var planner = CreatePlanner(games);
+
+                var resolved = planner.Resolve(SingleGameRequest(gameId), Array.Empty<IDataProvider>());
+
+                Assert.IsFalse(resolved.ShouldExecute);
+                Assert.IsNull(resolved.UserMessage);
+            });
+        }
+
+        [TestMethod]
+        public void NamesOnlyLinkedGames_FalseForLibraryWideAndUnlinkedRequests()
+        {
+            WithLinkedGame((gameId, games) =>
+            {
+                var otherId = Guid.NewGuid();
+                var planner = CreatePlanner(games.Concat(new[] { new Game { Id = otherId, Name = "Other" } }));
+
+                Assert.IsTrue(planner.NamesOnlyLinkedGames(SingleGameRequest(gameId)));
+                Assert.IsFalse(planner.NamesOnlyLinkedGames(new RefreshRequest { Mode = RefreshModeType.Full }));
+                Assert.IsFalse(planner.NamesOnlyLinkedGames(new RefreshRequest { GameIds = new List<Guid> { gameId, otherId } }));
+            });
+        }
+
+        [TestMethod]
+        public void AuthPreflight_NoProvidersForLinkedGame_ProceedsWithoutDialog()
+        {
+            WithLinkedGame((gameId, games) =>
+            {
+                var runtime = CreateRuntime(games);
+
+                var context = runtime
+                    .GetRefreshAuthContextOrShowDialogAsync(SingleGameRequest(gameId))
+                    .GetAwaiter()
+                    .GetResult();
+
+                Assert.IsFalse(context.HasAuthenticatedProviders);
+                Assert.IsTrue(context.CoveredByLinkedFiles);
+                Assert.IsTrue(context.CanProceed);
+            });
+        }
+
+        private static RefreshRequest SingleGameRequest(Guid gameId)
+        {
+            return new RefreshRequest
+            {
+                Mode = RefreshModeType.Single,
+                SingleGameId = gameId,
+                SurfaceUserNotices = true,
+                Options = new RefreshOptions
+                {
+                    Subjects = RefreshSubjects.CurrentUser,
+                    Scope = RefreshGameScope.SelectedGame,
+                    PlayniteGameIds = new[] { gameId },
+                    RespectUserExclusions = false,
+                    ForceBypassExclusionsForExplicitIncludes = true
+                }
+            };
+        }
+
+        private static void WithLinkedGame(Action<Guid, Game[]> body)
+        {
+            var tempDir = CreateTempDirectory();
+            var gameId = Guid.NewGuid();
+            var previousPlugin = PlayniteAchievementsPlugin.Instance;
+
+            try
+            {
+                var store = new GameCustomDataStore(tempDir);
+                store.Save(gameId, new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    LinkedFile = new LinkedFileLink
+                    {
+                        FilePath = Path.Combine(tempDir, "progress.csv"),
+                        Schema = new LinkedFileSchema
+                        {
+                            Name = "Progress",
+                            Format = LinkedFileFormat.Delimited,
+                            Columns = new List<LinkedFileColumnMapping>
+                            {
+                                new LinkedFileColumnMapping { Column = "id", Field = LinkedFileField.ApiName },
+                                new LinkedFileColumnMapping { Column = "done", Field = LinkedFileField.Unlocked }
+                            }
+                        }
+                    }
+                });
+
+                PlayniteAchievementsPlugin.Instance = new PlayniteAchievementsPlugin
+                {
+                    GameCustomDataStore = store
+                };
+
+                body(gameId, new[] { new Game { Id = gameId, Name = "Linked Game" } });
+            }
+            finally
+            {
+                PlayniteAchievementsPlugin.Instance = previousPlugin;
+                DeleteDirectory(tempDir);
+            }
+        }
+
         private static RefreshRequestPlanner CreatePlanner(
             IEnumerable<Game> games,
             PlayniteAchievementsSettings settings = null)

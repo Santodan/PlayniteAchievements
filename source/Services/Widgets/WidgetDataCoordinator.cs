@@ -5,16 +5,15 @@ using System.Threading.Tasks;
 using Playnite.SDK;
 #if !TEST
 using PlayniteAchievements.Models;
-using PlayniteAchievements.Providers;
 using PlayniteAchievements.Services.Achievements;
-using PlayniteAchievements.Services.Library;
 #endif
 using PlayniteAchievements.Services.Overview;
 
 namespace PlayniteAchievements.Services.Widgets
 {
     /// <summary>
-    /// Owns the cached aggregate achievement snapshot shared by widget hosts.
+    /// Owns the cached aggregate achievement snapshot shared by widget hosts and the Overview.
+    /// It is kept for the session, across Overview closes, until a data change marks it stale.
     /// Layout, profile, and pin changes do not invalidate this cache.
     /// </summary>
     public class WidgetDataCoordinator : IDisposable
@@ -26,6 +25,8 @@ namespace PlayniteAchievements.Services.Widgets
         private Task<OverviewDataSnapshot> _buildTask;
         private int _generation;
         private int _buildGeneration;
+        private int _changes;
+        private int _buildChanges;
         private int _publisherCount;
         private bool _invalidated = true;
         private bool _disposed;
@@ -33,30 +34,13 @@ namespace PlayniteAchievements.Services.Widgets
 #if !TEST
         internal WidgetDataCoordinator(
             AchievementDataService achievementDataService,
-            LibraryProjectionService libraryProjectionService,
-            IReadOnlyList<IDataProvider> providers,
             IPlayniteAPI playniteApi,
             ILogger logger,
             PlayniteAchievementsSettings settings,
             Func<List<PlayniteAchievements.Models.Friends.FriendIdentity>> currentUserIdentityLoader = null)
             : this(
-                () =>
-                {
-                    if (libraryProjectionService != null)
-                    {
-                        return libraryProjectionService.GetOverviewSnapshot(
-                            settings,
-                            CancellationToken.None);
-                    }
-
-                    var builder = new OverviewDataBuilder(
-                        achievementDataService,
-                        providers,
-                        playniteApi,
-                        logger,
-                        currentUserIdentityLoader);
-                    return builder.Build(settings, CancellationToken.None);
-                },
+                () => new OverviewDataBuilder(achievementDataService, null, playniteApi, logger, currentUserIdentityLoader)
+                    .Build(settings, CancellationToken.None),
                 logger)
         {
         }
@@ -69,33 +53,6 @@ namespace PlayniteAchievements.Services.Widgets
         }
 
         public event EventHandler SnapshotInvalidated;
-
-        /// <summary>
-        /// True while at least one snapshot publisher (an active overview view model) is
-        /// attached. While a publisher is attached the coordinator does not self-build;
-        /// it serves whatever the publisher last pushed via <see cref="Publish"/>.
-        /// </summary>
-        public bool HasActivePublisher
-        {
-            get
-            {
-                lock (_syncRoot)
-                {
-                    return _publisherCount > 0;
-                }
-            }
-        }
-
-        /// <summary>Retained snapshot shape, for memory diagnostics.</summary>
-        public void GetRetentionStats(out bool hasSnapshot, out int achievementRows, out int gameRows)
-        {
-            lock (_syncRoot)
-            {
-                hasSnapshot = _snapshot != null;
-                achievementRows = _snapshot?.Achievements?.Count ?? 0;
-                gameRows = _snapshot?.GameSummaries?.Count ?? 0;
-            }
-        }
 
         public void AttachPublisher()
         {
@@ -114,17 +71,40 @@ namespace PlayniteAchievements.Services.Widgets
                 {
                     _publisherCount--;
                 }
+            }
+        }
 
-                // The retained snapshot exists to serve widget hosts. With the last publisher
-                // gone (the overview closing) and nothing subscribed, holding a full-library
-                // snapshot keeps the overview's whole row set alive for no consumer, so the
-                // close would not return memory. Drop it; the stale flag makes the next pull
-                // rebuild on demand.
-                if (_publisherCount == 0 && SnapshotInvalidated == null)
-                {
-                    _snapshot = null;
-                    _invalidated = true;
-                }
+        /// <summary>The retained snapshot while no data change has marked it stale; otherwise null.</summary>
+        public OverviewDataSnapshot CurrentSnapshot()
+        {
+            lock (_syncRoot)
+            {
+                return _disposed || _invalidated ? null : _snapshot;
+            }
+        }
+
+        /// <summary>
+        /// Marks the snapshot stale at once for a change whose <see cref="Invalidate"/> is
+        /// coalesced to later, so nothing adopts it in between. Builds already running still land
+        /// for their waiting callers, but leave the snapshot stale.
+        /// </summary>
+        public void MarkStale(string reason = null)
+        {
+            lock (_syncRoot)
+            {
+                LogStale(reason);
+                _invalidated = true;
+                _changes++;
+            }
+        }
+
+        // Only the change that turns a kept snapshot stale is logged, so a run shows why the next
+        // Overview open read the library again; later changes before the rebuild add nothing.
+        private void LogStale(string reason)
+        {
+            if (!_invalidated && _snapshot != null)
+            {
+                _logger?.Debug("[Snapshot] stale reason=" + (reason ?? "unspecified"));
             }
         }
 
@@ -155,11 +135,13 @@ namespace PlayniteAchievements.Services.Widgets
             SnapshotInvalidated?.Invoke(this, EventArgs.Empty);
         }
 
-        public void Invalidate()
+        public void Invalidate(string reason = null)
         {
             lock (_syncRoot)
             {
+                LogStale(reason);
                 _invalidated = true;
+                _changes++;
                 _generation++;
             }
 
@@ -179,6 +161,7 @@ namespace PlayniteAchievements.Services.Widgets
 
                 Task<OverviewDataSnapshot> task;
                 int taskGeneration;
+                int taskChanges;
                 lock (_syncRoot)
                 {
                     ThrowIfDisposed();
@@ -189,9 +172,9 @@ namespace PlayniteAchievements.Services.Widgets
                     }
 
                     // Publisher-fed: an active overview pushes snapshots via Publish, so a
-                    // self-build here would just retain a redundant full-library copy. The
-                    // stale flag from Invalidate survives, making the first pull after the
-                    // publisher detaches rebuild once. Covers forceRefresh too.
+                    // self-build here would be a second copy. The stale flag from Invalidate
+                    // survives, making the first pull after the publisher detaches rebuild once.
+                    // Covers forceRefresh too.
                     if (_publisherCount > 0 && _snapshot != null)
                     {
                         return _snapshot;
@@ -201,13 +184,16 @@ namespace PlayniteAchievements.Services.Widgets
                     {
                         task = _buildTask;
                         taskGeneration = _buildGeneration;
+                        taskChanges = _buildChanges;
                     }
                     else
                     {
                         taskGeneration = _generation;
+                        taskChanges = _changes;
                         task = Task.Run(BuildSnapshot);
                         _buildTask = task;
                         _buildGeneration = taskGeneration;
+                        _buildChanges = taskChanges;
                     }
                 }
 
@@ -224,7 +210,7 @@ namespace PlayniteAchievements.Services.Widgets
                         if (isCurrentGeneration)
                         {
                             _snapshot = snapshot ?? new OverviewDataSnapshot();
-                            _invalidated = false;
+                            _invalidated = taskChanges != _changes;
                         }
                     }
 

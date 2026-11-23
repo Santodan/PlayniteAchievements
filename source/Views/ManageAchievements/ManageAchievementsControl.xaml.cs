@@ -902,7 +902,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             var services = new LinkedFileMappingServices
             {
                 LoadRecord = () => store.LoadOrDefault(gameId),
-                UpdateRecord = change => store.Update(gameId, change, affectsSummaryData: false, affectsOverrideMirror: false),
+                UpdateRecord = change => store.Update(gameId, change, affectsSummaryData: false),
                 LoadAchievements = () => _achievementDataService?.GetGameAchievementData(gameId)?.Achievements,
                 Spoilers = SpoilerSettings.From(_settings?.Persisted),
                 SchemaStore = plugin.LinkedFileSchemaStore,
@@ -920,7 +920,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
                         Filter = L("LOCPlayAch_LinkedFile_Format_SupportedFiles") +
                                  " (*.csv;*.tsv;*.txt;*.json;*.toml;*.xlsx;*.xml;*.ini;*.bin;*.dat;*.sav)|*.csv;*.tsv;*.txt;*.json;*.toml;*.xlsx;*.xml;*.ini;*.bin;*.dat;*.sav|" +
                                  L("LOCPlayAch_Showcase_AllFiles") + " (*.*)|*.*",
-                        CheckFileExists = true,
+                        // A file some programs write only at the first unlock can be named before it exists.
+                        CheckFileExists = false,
+                        CheckPathExists = true,
                         Multiselect = false
                     };
                     try

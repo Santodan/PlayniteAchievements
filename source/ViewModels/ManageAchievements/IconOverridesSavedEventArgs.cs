@@ -9,11 +9,21 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
     /// </summary>
     public sealed class IconOverridesSavedEventArgs : EventArgs
     {
-        public IconOverridesSavedEventArgs(IReadOnlyCollection<string> changedApiNames, bool editorRowsStale = false)
+        public IconOverridesSavedEventArgs(
+            IReadOnlyCollection<string> changedApiNames,
+            bool editorRowsStale = false,
+            Guid gameId = default)
         {
             ChangedApiNames = changedApiNames ?? Array.Empty<string>();
             EditorRowsStale = editorRowsStale;
+            GameId = gameId;
         }
+
+        /// <summary>
+        /// The game of the achievements, named by the library editor, whose rows span games;
+        /// empty when the editor lists one game, which is then the one meant.
+        /// </summary>
+        public Guid GameId { get; }
 
         public IReadOnlyCollection<string> ChangedApiNames { get; }
 

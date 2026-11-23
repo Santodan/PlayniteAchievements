@@ -19,9 +19,15 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
             return LinkedFileTableReaders.Parse((encoding ?? new UTF8Encoding(false)).GetBytes(text), schema);
         }
 
+        /// <summary>The row's own cells, without the position column every table ends with.</summary>
         private static string[] Row(LinkedFileTable table, int index)
         {
-            return table.Rows[index].ToArray();
+            var cells = table.Rows[index];
+            Assert.AreEqual(
+                (index + 1).ToString(System.Globalization.CultureInfo.InvariantCulture),
+                cells[cells.Count - 1],
+                "The position column holds the row's 1-based number.");
+            return cells.Take(cells.Count - 1).ToArray();
         }
 
         // ---------------------------------------------------------------- delimited
@@ -34,7 +40,7 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
             var result = ParseText(text, new LinkedFileSchema { Format = LinkedFileFormat.Delimited });
 
             Assert.IsTrue(result.Success, result.Message);
-            CollectionAssert.AreEqual(new[] { "id", "name", "done" }, result.Table.Columns.ToArray());
+            CollectionAssert.AreEqual(new[] { "id", "name", "done", "$row" }, result.Table.Columns.ToArray());
             Assert.AreEqual(2, result.Table.Rows.Count);
             CollectionAssert.AreEqual(new[] { "a,1", "He said \"hi\"", "true" }, Row(result.Table, 0));
             CollectionAssert.AreEqual(new[] { "b", "Second", "false" }, Row(result.Table, 1));
@@ -44,7 +50,7 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
         public void Delimited_HonoursSeparatorLineExplicitPipeAndDetectedSemicolon()
         {
             var declared = ParseText("sep=;\nid;done\nx;1\n", new LinkedFileSchema { Format = LinkedFileFormat.Delimited });
-            CollectionAssert.AreEqual(new[] { "id", "done" }, declared.Table.Columns.ToArray());
+            CollectionAssert.AreEqual(new[] { "id", "done", "$row" }, declared.Table.Columns.ToArray());
             CollectionAssert.AreEqual(new[] { "x", "1" }, Row(declared.Table, 0));
 
             var pipe = ParseText("id|done\na|1\n", new LinkedFileSchema { Format = LinkedFileFormat.Delimited, Delimiter = "|" });
@@ -62,11 +68,12 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
         {
             var result = ParseText("a,1\nb,2\n", new LinkedFileSchema { Format = LinkedFileFormat.Delimited, HasHeader = false });
 
-            CollectionAssert.AreEqual(new[] { "1", "2" }, result.Table.Columns.ToArray());
+            CollectionAssert.AreEqual(new[] { "1", "2", "$row" }, result.Table.Columns.ToArray());
             Assert.AreEqual(2, result.Table.Rows.Count);
             Assert.AreEqual(0, result.Table.IndexOfColumn("1"));
             Assert.AreEqual(1, result.Table.IndexOfColumn("2"));
-            Assert.AreEqual(-1, result.Table.IndexOfColumn("3"));
+            Assert.AreEqual(2, result.Table.IndexOfColumn("3"), "The position column is the third.");
+            Assert.AreEqual(-1, result.Table.IndexOfColumn("4"));
         }
 
         [TestMethod]
@@ -74,7 +81,7 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
         {
             var result = ParseText("45 1792954109\r\n1   1792954482\r\n  7 1793462635  \r\n\r\n", new LinkedFileSchema { Format = LinkedFileFormat.Delimited, Delimiter = " ", HasHeader = false });
 
-            CollectionAssert.AreEqual(new[] { "1", "2" }, result.Table.Columns.ToArray());
+            CollectionAssert.AreEqual(new[] { "1", "2", "$row" }, result.Table.Columns.ToArray());
             Assert.AreEqual(3, result.Table.Rows.Count);
             CollectionAssert.AreEqual(new[] { "45", "1792954109" }, Row(result.Table, 0));
             CollectionAssert.AreEqual(new[] { "1", "1792954482" }, Row(result.Table, 1));
@@ -86,7 +93,7 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
         {
             var result = ParseText("id,done\na\nb,1,extra\n", new LinkedFileSchema { Format = LinkedFileFormat.Delimited });
 
-            CollectionAssert.AreEqual(new[] { "id", "done", "3" }, result.Table.Columns.ToArray());
+            CollectionAssert.AreEqual(new[] { "id", "done", "3", "$row" }, result.Table.Columns.ToArray());
             CollectionAssert.AreEqual(new[] { "a", "", "" }, Row(result.Table, 0));
             CollectionAssert.AreEqual(new[] { "b", "1", "extra" }, Row(result.Table, 1));
         }
@@ -106,7 +113,7 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
         {
             var result = ParseText("id,,id\n1,2,3\n", new LinkedFileSchema { Format = LinkedFileFormat.Delimited });
 
-            CollectionAssert.AreEqual(new[] { "id", "2", "id (2)" }, result.Table.Columns.ToArray());
+            CollectionAssert.AreEqual(new[] { "id", "2", "id (2)", "$row" }, result.Table.Columns.ToArray());
             Assert.AreEqual(2, result.Table.IndexOfColumn("ID (2)"));
         }
 
@@ -120,7 +127,7 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
             var result = ParseText(text, new LinkedFileSchema { Format = LinkedFileFormat.Json });
 
             Assert.IsTrue(result.Success, result.Message);
-            CollectionAssert.AreEqual(new[] { "id", "stats.earned", "stats.time", "tags" }, result.Table.Columns.ToArray());
+            CollectionAssert.AreEqual(new[] { "id", "stats.earned", "stats.time", "tags", "$row" }, result.Table.Columns.ToArray());
             CollectionAssert.AreEqual(new[] { "a", "true", "2026-01-02T03:04:05Z", "[\"x\"]" }, Row(result.Table, 0));
             CollectionAssert.AreEqual(new[] { "b", "false", "", "" }, Row(result.Table, 1));
         }
@@ -130,7 +137,7 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
         {
             var result = ParseText("{\"a\":{\"done\":true},\"b\":{\"done\":false,\"t\":1}}", new LinkedFileSchema { Format = LinkedFileFormat.Json });
 
-            CollectionAssert.AreEqual(new[] { "$key", "done", "t" }, result.Table.Columns.ToArray());
+            CollectionAssert.AreEqual(new[] { "$key", "done", "t", "$row" }, result.Table.Columns.ToArray());
             CollectionAssert.AreEqual(new[] { "a", "true", "" }, Row(result.Table, 0));
             CollectionAssert.AreEqual(new[] { "b", "false", "1" }, Row(result.Table, 1));
         }
@@ -139,12 +146,12 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
         public void Json_ObjectOfScalarsAndScalarArrays_UseValueColumns()
         {
             var scalars = ParseText("{\"NEON\":\"true\",\"X\":null}", new LinkedFileSchema { Format = LinkedFileFormat.Json });
-            CollectionAssert.AreEqual(new[] { "$key", "$value" }, scalars.Table.Columns.ToArray());
+            CollectionAssert.AreEqual(new[] { "$key", "$value", "$row" }, scalars.Table.Columns.ToArray());
             CollectionAssert.AreEqual(new[] { "NEON", "true" }, Row(scalars.Table, 0));
             CollectionAssert.AreEqual(new[] { "X", "" }, Row(scalars.Table, 1));
 
             var list = ParseText("[7, \"eight\", 9.5]", new LinkedFileSchema { Format = LinkedFileFormat.Json });
-            CollectionAssert.AreEqual(new[] { "$value" }, list.Table.Columns.ToArray());
+            CollectionAssert.AreEqual(new[] { "$value", "$row" }, list.Table.Columns.ToArray());
             CollectionAssert.AreEqual(new[] { "7" }, Row(list.Table, 0));
             CollectionAssert.AreEqual(new[] { "eight" }, Row(list.Table, 1));
             CollectionAssert.AreEqual(new[] { "9.5" }, Row(list.Table, 2));
@@ -190,7 +197,7 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
             var result = ParseText("{\"achievements\": []}", new LinkedFileSchema { Format = LinkedFileFormat.Json, RootPath = "achievements" });
 
             Assert.IsTrue(result.Success, result.Message);
-            CollectionAssert.AreEqual(new[] { "$value" }, result.Table.Columns.ToArray());
+            CollectionAssert.AreEqual(new[] { "$value", "$row" }, result.Table.Columns.ToArray());
             Assert.AreEqual(0, result.Table.Rows.Count);
         }
 
@@ -225,9 +232,38 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
             var result = ParseText(text, new LinkedFileSchema { Format = LinkedFileFormat.Toml, RootPath = "unlocked" });
 
             Assert.IsTrue(result.Success, result.Message);
-            CollectionAssert.AreEqual(new[] { "$key", "filetime", "name", "big" }, result.Table.Columns.ToArray());
+            CollectionAssert.AreEqual(new[] { "$key", "filetime", "name", "big", "$row" }, result.Table.Columns.ToArray());
             CollectionAssert.AreEqual(new[] { "101", "133000000000000000", "", "" }, Row(result.Table, 0));
             CollectionAssert.AreEqual(new[] { "102", "133000000000000001", "Second \"one\"", "123456789012345678901234567890" }, Row(result.Table, 1));
+        }
+
+        [TestMethod]
+        public void Toml_SingleTopLevelTable_IsOfferedAsTheAchievementList()
+        {
+            var text = string.Join("\r\n", new[]
+            {
+                "# Achievement unlock state - managed by the runtime",
+                "[unlocked.1]",
+                "filetime = 134394237123357469",
+                "",
+                "[unlocked.45]",
+                "filetime = 134394238634904551",
+            });
+
+            var whole = ParseText(text, new LinkedFileSchema { Format = LinkedFileFormat.Toml });
+            CollectionAssert.AreEqual(new[] { "unlocked" }, whole.RowPaths.ToArray());
+
+            var listed = ParseText(text, new LinkedFileSchema { Format = LinkedFileFormat.Toml, RootPath = "unlocked" });
+            Assert.IsTrue(listed.Success, listed.Message);
+            CollectionAssert.AreEqual(new[] { "$key", "filetime", "$row" }, listed.Table.Columns.ToArray());
+            CollectionAssert.AreEqual(new[] { "1", "134394237123357469" }, Row(listed.Table, 0));
+            CollectionAssert.AreEqual(new[] { "45", "134394238634904551" }, Row(listed.Table, 1));
+
+            var json = ParseText("{\"achievements\": {\"a\": {\"done\": 1}, \"b\": {\"done\": 0}}}", new LinkedFileSchema { Format = LinkedFileFormat.Json });
+            CollectionAssert.AreEqual(new[] { "achievements" }, json.RowPaths.ToArray());
+
+            var table = ParseText("{\"a\": {\"done\": 1}, \"b\": {\"done\": 0}}", new LinkedFileSchema { Format = LinkedFileFormat.Json });
+            Assert.AreEqual(0, table.RowPaths.Count, "A root that is itself a table offers no list.");
         }
 
         [TestMethod]
@@ -251,7 +287,7 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
             var result = ParseText(text, new LinkedFileSchema { Format = LinkedFileFormat.Toml, RootPath = "runs" });
 
             Assert.IsTrue(result.Success, result.Message);
-            CollectionAssert.AreEqual(new[] { "id", "tags", "done", "point.x", "point.y", "when", "day", "escaped" }, result.Table.Columns.ToArray());
+            CollectionAssert.AreEqual(new[] { "id", "tags", "done", "point.x", "point.y", "when", "day", "escaped", "$row" }, result.Table.Columns.ToArray());
             CollectionAssert.AreEqual(new[] { "1", "[\"a\",\"b\"]", "true", "", "", "", "", "" }, Row(result.Table, 0));
             CollectionAssert.AreEqual(new[] { "2", "", "", "1", "2.5", "2026-01-02T03:04:05Z", "2026-01-02 03:04:05", "tab\there \u00e9" }, Row(result.Table, 1));
         }
@@ -319,7 +355,7 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
 
             Assert.IsTrue(result.Success, result.Message);
             CollectionAssert.AreEqual(new[] { "Data", "Other" }, result.SheetNames.ToArray());
-            CollectionAssert.AreEqual(new[] { "id", "done", "when" }, result.Table.Columns.ToArray());
+            CollectionAssert.AreEqual(new[] { "id", "done", "when", "$row" }, result.Table.Columns.ToArray());
             CollectionAssert.AreEqual(new[] { "ach_1", "true", "2025-01-01T12:00:00" }, Row(result.Table, 0));
             CollectionAssert.AreEqual(new[] { "ach_2", "", "12" }, Row(result.Table, 1));
             Assert.AreEqual(2, result.Table.Rows.Count);
@@ -361,7 +397,7 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
             var result = ParseText(text, new LinkedFileSchema { Format = LinkedFileFormat.Xml, RowElementPath = "achievements.achievement" });
 
             Assert.IsTrue(result.Success, result.Message);
-            CollectionAssert.AreEqual(new[] { "@id", "@achieved", "$text", "name", "name (2)" }, result.Table.Columns.ToArray());
+            CollectionAssert.AreEqual(new[] { "@id", "@achieved", "$text", "name", "name (2)", "$row" }, result.Table.Columns.ToArray());
             CollectionAssert.AreEqual(new[] { "3", "1", "", "", "" }, Row(result.Table, 0));
             CollectionAssert.AreEqual(new[] { "4", "0", "note", "", "" }, Row(result.Table, 1));
             CollectionAssert.AreEqual(new[] { "5", "", "", "Five", "Alt" }, Row(result.Table, 2));
@@ -374,13 +410,13 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
 
             var relative = ParseText(text, new LinkedFileSchema { Format = LinkedFileFormat.Xml, RowElementPath = "player/achievements/int" });
             Assert.IsTrue(relative.Success, relative.Message);
-            CollectionAssert.AreEqual(new[] { "$value" }, relative.Table.Columns.ToArray());
+            CollectionAssert.AreEqual(new[] { "$value", "$row" }, relative.Table.Columns.ToArray());
             CollectionAssert.AreEqual(new[] { "3" }, Row(relative.Table, 0));
             CollectionAssert.AreEqual(new[] { "12" }, Row(relative.Table, 1));
 
             var blank = ParseText(text, new LinkedFileSchema { Format = LinkedFileFormat.Xml });
             Assert.AreEqual(1, blank.Table.Rows.Count, "A blank path takes the root's children.");
-            CollectionAssert.AreEqual(new[] { "achievements" }, blank.Table.Columns.ToArray());
+            CollectionAssert.AreEqual(new[] { "achievements", "$row" }, blank.Table.Columns.ToArray());
 
             var none = ParseText(text, new LinkedFileSchema { Format = LinkedFileFormat.Xml, RowElementPath = "nothing.here" });
             Assert.IsTrue(none.Success);
@@ -417,7 +453,7 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
             var result = ParseText(text, new LinkedFileSchema { Format = LinkedFileFormat.Ini });
 
             Assert.IsTrue(result.Success, result.Message);
-            CollectionAssert.AreEqual(new[] { "$section", "Achieved", "UnlockTime" }, result.Table.Columns.ToArray());
+            CollectionAssert.AreEqual(new[] { "$section", "Achieved", "UnlockTime", "$row" }, result.Table.Columns.ToArray());
             CollectionAssert.AreEqual(new[] { "ach_1", "1", "1700000000" }, Row(result.Table, 0));
             CollectionAssert.AreEqual(new[] { "ach_2", "0", "" }, Row(result.Table, 1));
         }
@@ -429,12 +465,12 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
 
             var result = ParseText(text, new LinkedFileSchema { Format = LinkedFileFormat.Ini });
             Assert.IsTrue(result.Success, result.Message);
-            CollectionAssert.AreEqual(new[] { "$key", "notice", "unlocked", "progress" }, result.Table.Columns.ToArray());
+            CollectionAssert.AreEqual(new[] { "$key", "notice", "unlocked", "progress", "$row" }, result.Table.Columns.ToArray());
             Assert.AreEqual(4, result.Table.Rows.Count);
             CollectionAssert.AreEqual(new[] { "ach_one", "", "2026-11-06 21:57:15", "5" }, Row(result.Table, 1), "A key in two sections is one row.");
             CollectionAssert.AreEqual(new[] { "ach_three", "", "", "21" }, Row(result.Table, 3));
 
-            var schema = new LinkedFileSchema
+            var schema = LinkedFileSchema.Normalize(new LinkedFileSchema
             {
                 Format = LinkedFileFormat.Ini,
                 Columns = new List<LinkedFileColumnMapping>
@@ -443,7 +479,7 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
                     new LinkedFileColumnMapping { Column = "unlocked", Field = LinkedFileField.UnlockTime },
                     new LinkedFileColumnMapping { Column = "progress", Field = LinkedFileField.ProgressNum }
                 }
-            };
+            });
             var plan = LinkedFileApplier.Build(
                 result.Table, schema, null,
                 new List<AchievementDetail> { new AchievementDetail { ApiName = "ach_one" }, new AchievementDetail { ApiName = "ach_two" }, new AchievementDetail { ApiName = "ach_three" } },
@@ -459,7 +495,7 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
             Assert.AreEqual(21, plan.ManualProgress.Single(update => update.ApiName == "ach_three").ProgressNum);
 
             var single = ParseText("[unlocked]\na=1\nb=2\n", new LinkedFileSchema { Format = LinkedFileFormat.Ini });
-            CollectionAssert.AreEqual(new[] { "$key", "unlocked" }, single.Table.Columns.ToArray());
+            CollectionAssert.AreEqual(new[] { "$key", "unlocked", "$row" }, single.Table.Columns.ToArray());
             Assert.AreEqual(2, single.Table.Rows.Count, "One section lists its keys as rows.");
         }
 
@@ -470,15 +506,15 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
                 ParseText(text, new LinkedFileSchema { Format = LinkedFileFormat.Ini }).Table.Columns.ToArray();
 
             CollectionAssert.AreEqual(
-                new[] { "$key", "unlocked", "progress" },
+                new[] { "$key", "unlocked", "progress", "$row" },
                 columns("[unlocked]\na=1\nb=0\nc=0\nd=1\ne=0\n[progress]\na=10\nb=3\nc=0\nd=10\ne=7\n"),
                 "Every achievement in both sections is still one row per achievement.");
             CollectionAssert.AreEqual(
-                new[] { "$section", "Achieved", "UnlockTime", "Progress", "Max" },
+                new[] { "$section", "Achieved", "UnlockTime", "Progress", "Max", "$row" },
                 columns("[a]\nAchieved=1\nUnlockTime=1\nProgress=1\nMax=1\n[b]\nAchieved=0\nUnlockTime=0\nProgress=0\nMax=1\n[c]\nAchieved=0\nUnlockTime=0\nProgress=0\nMax=1\n"),
                 "A few achievements with several fields each are still one row per section.");
             CollectionAssert.AreEqual(
-                new[] { "$section", "version", "Achieved" },
+                new[] { "$section", "version", "Achieved", "$row" },
                 columns("version=2\n[a]\nAchieved=1\n[b]\nAchieved=0\n[c]\nAchieved=1\n"),
                 "Loose keys before the sections do not change the shape.");
         }
@@ -489,14 +525,14 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
             const string text = "[ach_one]\nAchieved=1\nUnlockTime=1700000000\n";
 
             var guessed = ParseText(text, new LinkedFileSchema { Format = LinkedFileFormat.Ini });
-            CollectionAssert.AreEqual(new[] { "$key", "ach_one" }, guessed.Table.Columns.ToArray(), "One section alone reads as a list of keys.");
+            CollectionAssert.AreEqual(new[] { "$key", "ach_one", "$row" }, guessed.Table.Columns.ToArray(), "One section alone reads as a list of keys.");
 
             var mapped = ParseText(text, new LinkedFileSchema
             {
                 Format = LinkedFileFormat.Ini,
                 Columns = new List<LinkedFileColumnMapping> { new LinkedFileColumnMapping { Column = "$section", Field = LinkedFileField.ApiName } }
             });
-            CollectionAssert.AreEqual(new[] { "$section", "Achieved", "UnlockTime" }, mapped.Table.Columns.ToArray());
+            CollectionAssert.AreEqual(new[] { "$section", "Achieved", "UnlockTime", "$row" }, mapped.Table.Columns.ToArray());
             CollectionAssert.AreEqual(new[] { "ach_one", "1", "1700000000" }, Row(mapped.Table, 0));
         }
 
@@ -504,7 +540,7 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
         public void Ini_WithoutSections_KeysAreRows()
         {
             var flat = ParseText("# earned: id=time\n101 = 1700000000\n102=1700000500\n", new LinkedFileSchema { Format = LinkedFileFormat.Ini });
-            CollectionAssert.AreEqual(new[] { "$key", "$value" }, flat.Table.Columns.ToArray());
+            CollectionAssert.AreEqual(new[] { "$key", "$value", "$row" }, flat.Table.Columns.ToArray());
             CollectionAssert.AreEqual(new[] { "101", "1700000000" }, Row(flat.Table, 0));
             CollectionAssert.AreEqual(new[] { "102", "1700000500" }, Row(flat.Table, 1));
         }

@@ -25,21 +25,20 @@
         <StackPanel Margin="20">
 
             <!-- Provider Header -->
-            <StackPanel Style="{StaticResource ProviderHeaderPanelStyle}">
-                <Viewbox Style="{StaticResource ProviderHeaderIconStyle}">
-                    <Path Data="{StaticResource GeoSteam}" Fill="{StaticResource PlayAch.Brush.ProviderSteam}"/>
-                </Viewbox>
-                <TextBlock Text="{DynamicResource LOCPlayAch_Provider_Steam}" Style="{StaticResource ProviderTitleTextStyle}"/>
-            </StackPanel>
-
-            <!-- Provider Enable Toggle -->
-            <Border Style="{StaticResource ProviderEnableToggleBorderStyle}" Grid.IsSharedSizeScope="True">
-                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"
-                                     FontWeight="SemiBold"
-                                     Margin="0">
-                    <CheckBox IsChecked="{Binding Settings.IsEnabled, Mode=TwoWay}"/>
-                </controls:SettingRow>
-            </Border>
+            <DockPanel Style="{StaticResource ProviderHeaderRowStyle}">
+                <StackPanel Style="{StaticResource ProviderEnableTogglePanelStyle}">
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}" Style="{StaticResource ProviderEnableLabelStyle}"/>
+                    <CheckBox IsChecked="{Binding Settings.IsEnabled, Mode=TwoWay}"
+                              VerticalAlignment="Center"
+                              AutomationProperties.Name="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"/>
+                </StackPanel>
+                <StackPanel Style="{StaticResource ProviderHeaderPanelStyle}">
+                    <Viewbox Style="{StaticResource ProviderHeaderIconStyle}">
+                        <Path Data="{StaticResource GeoSteam}" Fill="{StaticResource PlayAch.Brush.ProviderSteam}"/>
+                    </Viewbox>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Provider_Steam}" Style="{StaticResource ProviderTitleTextStyle}"/>
+                </StackPanel>
+            </DockPanel>
 
             <!-- Provider Disabled Message -->
             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ProviderDisabledMessage}" Style="{StaticResource ProviderDisabledMessageStyle}"/>
@@ -48,55 +47,44 @@
             <Border Style="{StaticResource SectionBorderStyle}"
                     IsEnabled="{Binding Settings.IsEnabled}">
                 <StackPanel>
+                    <TextBlock x:Name="ConnectionLabel"
+                               Style="{StaticResource SectionHeaderStyle}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
                     <!-- Steam Authentication -->
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="180"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
+                    <Border
+                            Style="{StaticResource AuthStatusBorderStyle}">
 
-                        <TextBlock Grid.Column="0"
-                                   x:Name="AuthLabel"
-                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                   VerticalAlignment="Top"
-                                   Margin="{StaticResource PlayAch.Thickness.Top.Sm}"/>
+                        <StackPanel>
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
 
-                        <!-- Auth Card -->
-                        <Border Grid.Column="1"
-                                Style="{StaticResource AuthStatusBorderStyle}">
+                                <TextBlock Grid.Column="0"
+                                           Style="{StaticResource AuthStatusIconStyle}"/>
 
-                            <StackPanel>
-                                <Grid Margin="0,0,0,10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding WebAuthStatus, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                           VerticalAlignment="Center"
+                                           TextWrapping="Wrap"/>
+                            </Grid>
 
-                                    <TextBlock Grid.Column="0"
-                                               Style="{StaticResource AuthStatusIconStyle}"/>
-
-                                    <TextBlock Grid.Column="1"
-                                               Text="{Binding WebAuthStatus, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                               VerticalAlignment="Center"
-                                               TextWrapping="Wrap"/>
-                                </Grid>
-
-                                <StackPanel Orientation="Horizontal">
-                                    <Button Content="{DynamicResource LOCPlayAch_Button_Login}"
-                                            Click="LoginWeb_Click"
-                                            Style="{StaticResource AuthActionButtonStyle}"
-                                            Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
-                                    <Button Content="{DynamicResource LOCPlayAch_Common_Check}"
-                                            Click="SteamAuth_Check_Click"
-                                            Style="{StaticResource AuthActionButtonStyle}"
-                                            Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
-                                    <Button Content="{DynamicResource LOCPlayAch_Button_SignOut}"
-                                            Click="Logout_Click"
-                                            Style="{StaticResource AuthActionButtonStyle}"/>
-                                </StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="{DynamicResource LOCPlayAch_Button_Login}"
+                                        Click="LoginWeb_Click"
+                                        Style="{StaticResource AuthActionButtonStyle}"
+                                        Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
+                                <Button Content="{DynamicResource LOCPlayAch_Common_Check}"
+                                        Click="SteamAuth_Check_Click"
+                                        Style="{StaticResource AuthActionButtonStyle}"
+                                        Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
+                                <Button Content="{DynamicResource LOCPlayAch_Button_SignOut}"
+                                        Click="Logout_Click"
+                                        Style="{StaticResource AuthActionButtonStyle}"/>
                             </StackPanel>
-                        </Border>
-                    </Grid>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </Border>
 

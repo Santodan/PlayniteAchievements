@@ -21,7 +21,10 @@
 
              TextSearch.TextPath rather than DisplayMemberPath: the latter cannot coexist with an
              ItemTemplate. On a closed box it costs one prefix scan per keypress, which is what
-             makes jumping to a category by its first letters still work. -->
+             makes jumping to a category by its first letters still work.
+
+             Virtualized: across games the list holds every game's categories, thousands of them,
+             and a theme's ComboBox style need not virtualize its drop-down. -->
         <ComboBox x:Name="PickerComboBox"
                   IsTextSearchEnabled="True"
                   TextSearch.TextPath="LeafDisplay"
@@ -29,7 +32,16 @@
                   ItemTemplate="{StaticResource PlayAch.CategoryTreeComboBoxItemTemplate}"
                   MinHeight="{StaticResource PlayAch.Size.Control.Height}"
                   VerticalContentAlignment="Center"
-                  PreviewKeyDown="PickerComboBox_PreviewKeyDown"/>
+                  VirtualizingPanel.IsVirtualizing="True"
+                  VirtualizingPanel.VirtualizationMode="Recycling"
+                  ScrollViewer.CanContentScroll="True"
+                  PreviewKeyDown="PickerComboBox_PreviewKeyDown">
+            <ComboBox.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <VirtualizingStackPanel/>
+                </ItemsPanelTemplate>
+            </ComboBox.ItemsPanel>
+        </ComboBox>
 
         <TextBlock x:Name="PlaceholderText"
                    Text="{Binding Placeholder, RelativeSource={RelativeSource AncestorType=UserControl}}"

@@ -5,6 +5,7 @@ using System.Linq;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Models.ThemeIntegration;
+using PlayniteAchievements.Services.Database;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Items;
 
@@ -345,36 +346,6 @@ namespace PlayniteAchievements.Services.Achievements
             }
         }
 
-        internal static List<AchievementDetail> ResolveLibraryAchievements(
-            LibraryRuntimeState state,
-            string sortKey,
-            string sortDirectionKey)
-        {
-            if (state == null || !state.HasData)
-            {
-                return new List<AchievementDetail>();
-            }
-
-            var direction = string.Equals(sortDirectionKey, DynamicThemeViewKeys.Ascending, StringComparison.Ordinal)
-                ? ListSortDirection.Ascending
-                : ListSortDirection.Descending;
-            var source = GetDefaultLibraryAchievements(state);
-            if (source.Count == 0)
-            {
-                return source;
-            }
-
-            var effectiveSortKey = string.IsNullOrWhiteSpace(sortKey)
-                ? DynamicThemeViewKeys.UnlockTime
-                : sortKey;
-            return CreateGoalsFirstDetailList(
-                CreateSortedDetailList(
-                    source,
-                    GetDynamicAchievementSortMemberPath(effectiveSortKey),
-                    direction,
-                    includeGameNameTieBreak: true));
-        }
-
         public static bool IsSelectedGameAchievementsPropertyName(string propertyName)
         {
             return propertyName == nameof(ModernThemeBindings.AchievementDefaultOrder) ||
@@ -633,7 +604,52 @@ namespace PlayniteAchievements.Services.Achievements
             return new AchievementSortSpec(mode, direction);
         }
 
-        private static string GetDynamicAchievementSortMemberPath(string sortKey)
+        /// <summary>
+        /// A header click on a grid of a theme list its query sorts: the list's next sort key and
+        /// direction, cycling as the other achievement grids do back to the list's default,
+        /// newest unlock first. Null when the query cannot sort by the column.
+        /// </summary>
+        internal static (string Key, string Direction)? ResolveDynamicAchievementHeaderSort(
+            string clickedSortMemberPath,
+            string sortKey,
+            string sortDirectionKey,
+            ListSortDirection? visibleSortDirection = null,
+            System.Windows.Controls.DataGridSortingEventArgs sortEvent = null)
+        {
+            var current = string.Equals(GetDynamicAchievementSortKey(clickedSortMemberPath), sortKey, StringComparison.Ordinal)
+                ? clickedSortMemberPath
+                : GetDynamicAchievementSortMemberPath(sortKey);
+            var action = ResolveGridSortAction(
+                clickedSortMemberPath,
+                current,
+                string.Equals(sortDirectionKey, DynamicThemeViewKeys.Ascending, StringComparison.Ordinal) ? ListSortDirection.Ascending : ListSortDirection.Descending,
+                null,
+                AchievementSortSurface.FriendsOverviewRecentAchievements,
+                visibleSortDirection,
+                sortEvent);
+            if (action.Kind == AchievementGridSortActionKind.ResetToDefault)
+            {
+                return (DynamicThemeViewKeys.UnlockTime, DynamicThemeViewKeys.Descending);
+            }
+
+            var key = GetDynamicAchievementSortKey(action.SortMemberPath);
+            return key == null || !action.Direction.HasValue
+                ? ((string, string)?)null
+                : (key, action.Direction == ListSortDirection.Ascending ? DynamicThemeViewKeys.Ascending : DynamicThemeViewKeys.Descending);
+        }
+
+        /// <summary>
+        /// The theme sort key that orders a list as the column does; for a column no theme sort key
+        /// names, the column itself, a key only the list's query reads. Null when the query cannot
+        /// sort by the column.
+        /// </summary>
+        internal static string GetDynamicAchievementSortKey(string sortMemberPath) =>
+            AchievementQuery.SortOfColumn(sortMemberPath) is AchievementSort sort
+                ? DynamicThemeOptionGroups.LibraryAchievementSortKeys.FirstOrDefault(key =>
+                    AchievementQuery.SortOfColumn(GetDynamicAchievementSortMemberPath(key)) == sort) ?? sortMemberPath
+                : null;
+
+        internal static string GetDynamicAchievementSortMemberPath(string sortKey)
         {
             switch (sortKey)
             {
@@ -671,7 +687,8 @@ namespace PlayniteAchievements.Services.Achievements
                 case DynamicThemeViewKeys.Capstone:
                     return nameof(AchievementDisplayItem.IsCapstone);
                 default:
-                    return null;
+                    // A column as a sort key, as a header click on a column no key names sets it.
+                    return AchievementQuery.SortOfColumn(sortKey) != null ? sortKey : null;
             }
         }
 
@@ -741,11 +758,6 @@ namespace PlayniteAchievements.Services.Achievements
         private static List<AchievementDetail> GetDefaultSelectedGameAchievements(SelectedGameRuntimeState state)
         {
             return GetAvailableAchievements(state?.AchievementDefaultOrder, state?.AllAchievements);
-        }
-
-        private static List<AchievementDetail> GetDefaultLibraryAchievements(LibraryRuntimeState state)
-        {
-            return state?.AllAchievements ?? new List<AchievementDetail>();
         }
 
         private static List<AchievementDetail> GetAvailableAchievements(
@@ -988,22 +1000,6 @@ namespace PlayniteAchievements.Services.Achievements
 
                 return 0;
             };
-        }
-
-        public static List<AchievementDisplayItem> CreateDefaultSortedList(
-            IEnumerable<AchievementDisplayItem> items,
-            AchievementSortScope scope)
-        {
-            var list = items?.ToList() ?? new List<AchievementDisplayItem>();
-            if (list.Count == 0)
-            {
-                return list;
-            }
-
-            list.Sort(scope == AchievementSortScope.RecentAchievements
-                ? GetComparison(nameof(AchievementDisplayItem.UnlockTime), ListSortDirection.Descending, scope)
-                : CompareByDefaultGameOrder);
-            return list;
         }
 
         public static List<AchievementDetail> CreateDefaultSortedDetailList(

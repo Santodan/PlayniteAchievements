@@ -277,7 +277,7 @@ namespace PlayniteAchievements.Views.Helpers
                         continue;
                     }
 
-                    _scrollBars.Add(new TrackedScrollBar(scrollBar, ApplyScrollBarState));
+                    _scrollBars.Add(new TrackedScrollBar(scrollBar, _host as ItemsControl, ApplyScrollBarState));
                 }
 
                 ApplyScrollBarState();
@@ -441,15 +441,19 @@ namespace PlayniteAchievements.Views.Helpers
                 private readonly object _originalHitTestVisible;
                 private readonly Thumb _thumb;
                 private readonly Action _applyState;
+                private readonly ItemsControl _items;
+                private object _originalCacheLength;
+                private bool _cacheDropped;
                 private bool _isDetached;
                 private bool _isMouseWithin;
                 private bool _isDragging;
 
                 public bool IsInteractionActive => _isMouseWithin || _isDragging;
 
-                public TrackedScrollBar(ScrollBar scrollBar, Action applyState)
+                public TrackedScrollBar(ScrollBar scrollBar, ItemsControl items, Action applyState)
                 {
                     _scrollBar = scrollBar;
+                    _items = scrollBar.Orientation == Orientation.Vertical ? items : null;
                     _applyState = applyState;
                     _originalOpacity = scrollBar.ReadLocalValue(UIElement.OpacityProperty);
                     _originalHitTestVisible = scrollBar.ReadLocalValue(UIElement.IsHitTestVisibleProperty);
@@ -467,11 +471,13 @@ namespace PlayniteAchievements.Views.Helpers
                     _thumbDragStartedHandler = (_, __) =>
                     {
                         _isDragging = true;
+                        DropCacheWhileDragging();
                         _applyState?.Invoke();
                     };
                     _thumbDragCompletedHandler = (_, __) =>
                     {
                         _isDragging = false;
+                        RestoreCache();
                         _applyState?.Invoke();
                     };
 
@@ -533,9 +539,45 @@ namespace PlayniteAchievements.Views.Helpers
                         _thumb.DragCompleted -= _thumbDragCompletedHandler;
                     }
 
+                    RestoreCache();
                     RestoreOriginalValue(_scrollBar, UIElement.OpacityProperty, _originalOpacity);
                     RestoreOriginalValue(_scrollBar, UIElement.IsHitTestVisibleProperty, _originalHitTestVisible);
                     _isDetached = true;
+                }
+
+                // A thumb drag jumps a whole viewport or more per step, so the rows the panel
+                // realizes above and below the viewport are thrown away by the next step unseen;
+                // building them roughly doubled the cost of each step. The cache comes back when
+                // the drag ends, so the rows around the resting viewport are built as before.
+                private void DropCacheWhileDragging()
+                {
+                    if (_items == null || _cacheDropped)
+                    {
+                        return;
+                    }
+
+                    // A bound cache length belongs to its binding; overwriting it would end the binding.
+                    var original = _items.ReadLocalValue(VirtualizingPanel.CacheLengthProperty);
+                    if (original is Expression)
+                    {
+                        return;
+                    }
+
+                    _originalCacheLength = original;
+                    _cacheDropped = true;
+                    _items.SetValue(VirtualizingPanel.CacheLengthProperty, new VirtualizationCacheLength(0));
+                }
+
+                private void RestoreCache()
+                {
+                    if (!_cacheDropped)
+                    {
+                        return;
+                    }
+
+                    _cacheDropped = false;
+                    RestoreOriginalValue(_items, VirtualizingPanel.CacheLengthProperty, _originalCacheLength);
+                    _originalCacheLength = null;
                 }
 
                 private double ResolveIdleOpacity()

@@ -431,6 +431,7 @@ namespace PlayniteAchievements.Providers.Exophase
                     return $"{PsnSearchUrl}?q={escapedQuery}&sort=added&platforms=8";
                 case "psn":
                 case "ps5":
+                case "ps-vita":
                 case "psvita":
                 case "vita":
                     return $"{PsnSearchUrl}?q={escapedQuery}&sort=added";

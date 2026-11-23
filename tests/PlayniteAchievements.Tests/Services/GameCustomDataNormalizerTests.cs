@@ -878,7 +878,6 @@ namespace PlayniteAchievements.Services.Tests
         [TestMethod]
         public void AchievementDetailHydrator_AppliesNotesWithoutChangingCountsOrFilters()
         {
-            var gameId = Guid.NewGuid();
             var details = new List<AchievementDetail>
             {
                 new AchievementDetail { ApiName = "ach_one", Unlocked = true },
@@ -892,8 +891,7 @@ namespace PlayniteAchievements.Services.Tests
                 }
             };
 
-            var hydrator = new AchievementDetailHydrator(new PlayniteAchievementsSettings());
-            hydrator.HydrateAllWithCapstoneOverride(details, gameId, "Steam", customData);
+            AchievementDetailHydrator.ApplyOverlays(details, "Steam", customData);
 
             Assert.AreEqual("route note", details[0].AchievementNote);
             Assert.IsNull(details[1].AchievementNote);
@@ -906,7 +904,6 @@ namespace PlayniteAchievements.Services.Tests
         [TestMethod]
         public void AchievementDetailHydrator_KeepsProviderCategoryStableAcrossRenames()
         {
-            var gameId = Guid.NewGuid();
             var details = new List<AchievementDetail>
             {
                 new AchievementDetail { ApiName = "dlc_ach", Category = "Phantom Liberty", CategoryKind = "DLC" }
@@ -919,15 +916,14 @@ namespace PlayniteAchievements.Services.Tests
                 }
             };
 
-            var hydrator = new AchievementDetailHydrator(new PlayniteAchievementsSettings());
-            hydrator.HydrateAllWithCapstoneOverride(details, gameId, "Steam", renamed);
+            AchievementDetailHydrator.ApplyOverlays(details, "Steam", renamed);
 
             Assert.AreEqual("My Renamed DLC", details[0].Category);
             Assert.AreEqual("Phantom Liberty", details[0].ProviderCategory);
 
             // Re-hydrating the same mutated instance without the rename override must
             // restore the provider label rather than treat the rename as provider data.
-            hydrator.HydrateAllWithCapstoneOverride(details, gameId, "Steam", new ResolvedGameCustomData());
+            AchievementDetailHydrator.ApplyOverlays(details, "Steam", new ResolvedGameCustomData());
 
             Assert.AreEqual("Phantom Liberty", details[0].Category);
             Assert.AreEqual("Phantom Liberty", details[0].ProviderCategory);
@@ -1504,7 +1500,7 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void NormalizeInternal_LinkedFile_WithoutAFileCustomTrackingOrCustomAchievements_IsDropped()
+        public void NormalizeInternal_LinkedFile_MappingAloneIsKeptOnAnyGame()
         {
             var gameId = Guid.NewGuid();
 
@@ -1519,8 +1515,17 @@ namespace PlayniteAchievements.Services.Tests
                 },
                 gameId);
 
-            Assert.IsNull(normalized.LinkedFile);
-            Assert.IsFalse(GameCustomDataNormalizer.HasInternalData(normalized));
+            Assert.AreEqual("Progress", normalized.LinkedFile?.Schema?.Name);
+            Assert.IsTrue(GameCustomDataNormalizer.HasInternalData(normalized));
+
+            var withoutMapping = GameCustomDataNormalizer.NormalizeInternal(
+                new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    LinkedFile = new LinkedFileLink { FilePath = @"C:\p.csv" }
+                },
+                gameId);
+            Assert.IsNull(withoutMapping.LinkedFile, "A link with no mapping reads nothing.");
         }
 
         [TestMethod]
@@ -1557,9 +1562,9 @@ namespace PlayniteAchievements.Services.Tests
                 LinkedFileSchema = new LinkedFileSchema { Name = " Progress " }
             };
 
-            var orphaned = GameCustomDataNormalizer.NormalizePortable(portable, Guid.NewGuid());
-            Assert.IsNull(orphaned.LinkedFileSchema);
-            Assert.IsFalse(GameCustomDataNormalizer.HasPortableData(orphaned));
+            var alone = GameCustomDataNormalizer.NormalizePortable(portable, Guid.NewGuid());
+            Assert.AreEqual("Progress", alone.LinkedFileSchema?.Name);
+            Assert.IsTrue(GameCustomDataNormalizer.HasPortableData(alone));
 
             portable.ManualLink = new ManualAchievementLink { SourceKey = "Steam", SourceGameId = "480" };
             var kept = GameCustomDataNormalizer.NormalizePortable(portable, Guid.NewGuid());

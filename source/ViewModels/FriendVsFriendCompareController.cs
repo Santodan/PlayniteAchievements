@@ -29,9 +29,9 @@ namespace PlayniteAchievements.ViewModels
 
         private readonly Func<FriendSummaryItem> _getSelectedFriend;
         private readonly Func<IReadOnlyList<FriendSummaryItem>> _getCandidates;
-        private readonly Func<FriendAchievementDisplayItem, bool> _isRowInScope;
         private readonly Func<IReadOnlyList<FriendIdentity>> _loadCurrentUserIdentities;
-        private readonly Func<FriendSummaryItem, FriendAchievementDisplayItem, bool> _hasGameData;
+        private readonly Func<FriendSummaryItem, bool> _hasPairData;
+        private readonly Func<string> _scopeProviderKey;
         private readonly ILogger _logger;
 
         private FriendSummaryItem _compareFriend;
@@ -53,31 +53,31 @@ namespace PlayniteAchievements.ViewModels
         /// The friends offered as comparison targets: every friend but the selected one, whether
         /// or not they have data for the game in scope.
         /// </param>
-        /// <param name="isRowInScope">
-        /// Optional filter for callers whose row pool spans more than the game being compared.
-        /// Omit when the pool is already scoped to one game.
-        /// </param>
         /// <param name="loadCurrentUserIdentities">
         /// The signed-in account per provider, used to label the current user's side of a self
         /// comparison. Omit to leave the self option out of the dropdown.
         /// </param>
-        /// <param name="hasGameData">
-        /// Whether a friend has anything for a row's game, for callers that know of games a friend
-        /// owns without a row in the pool. A friend with a pool row for the game always counts.
+        /// <param name="hasPairData">
+        /// Whether a candidate has anything for the game being viewed; one without is listed
+        /// dimmed. Omit to list every candidate alike.
+        /// </param>
+        /// <param name="scopeProviderKey">
+        /// The provider whose account names the self entry while no rows are handed over, for a
+        /// caller that draws the comparison itself.
         /// </param>
         public FriendVsFriendCompareController(
             Func<FriendSummaryItem> getSelectedFriend,
             Func<IReadOnlyList<FriendSummaryItem>> getCandidates,
-            Func<FriendAchievementDisplayItem, bool> isRowInScope = null,
             Func<IReadOnlyList<FriendIdentity>> loadCurrentUserIdentities = null,
             ILogger logger = null,
-            Func<FriendSummaryItem, FriendAchievementDisplayItem, bool> hasGameData = null)
+            Func<FriendSummaryItem, bool> hasPairData = null,
+            Func<string> scopeProviderKey = null)
         {
             _getSelectedFriend = getSelectedFriend ?? throw new ArgumentNullException(nameof(getSelectedFriend));
             _getCandidates = getCandidates ?? throw new ArgumentNullException(nameof(getCandidates));
-            _isRowInScope = isRowInScope;
             _loadCurrentUserIdentities = loadCurrentUserIdentities;
-            _hasGameData = hasGameData;
+            _hasPairData = hasPairData;
+            _scopeProviderKey = scopeProviderKey;
             _logger = logger;
             _selfOptionAvailable = loadCurrentUserIdentities != null;
             BeginIdentityLoad();
@@ -146,6 +146,17 @@ namespace PlayniteAchievements.ViewModels
         public bool IsKeyFavorite(string key)
         {
             return FindCandidate(key)?.IsFavorite == true;
+        }
+
+        public bool IsKeyMuted(string key)
+        {
+            if (_hasPairData == null || IsSelfKey(key))
+            {
+                return false;
+            }
+
+            var candidate = FindCandidate(key);
+            return candidate != null && !_hasPairData(candidate);
         }
 
         // Single-select semantics over checkable menu items: checking a friend or the self entry
@@ -222,6 +233,11 @@ namespace PlayniteAchievements.ViewModels
             Select(null);
         }
 
+        private protected override void DropSelection()
+        {
+            Select(null);
+        }
+
         /// <summary>
         /// (Re)applies the comparison to <paramref name="targetRows"/>, reading the compare
         /// friend's unlock state from <paramref name="rowPool"/>. Achievements the compare friend
@@ -271,7 +287,7 @@ namespace PlayniteAchievements.ViewModels
             var compareFriend = _compareFriend;
             var compareRows = BuildBestRowsByApiName(
                 rowPool ?? Array.Empty<FriendAchievementDisplayItem>(),
-                row => FriendOverviewProjection.IsSameFriend(row, compareFriend) && IsInScope(row),
+                row => FriendOverviewProjection.IsSameFriend(row, compareFriend),
                 GetGameAchievementKey);
             // A game counts as theirs with an unlock in it or known ownership; rows scraped for a
             // game they may not own list every achievement locked.
@@ -298,8 +314,7 @@ namespace PlayniteAchievements.ViewModels
                 }
 
                 // A game the compare friend has nothing for reads N/A, not Locked.
-                var applicable = compareGames.Contains(GetGameKey(item)) ||
-                                 _hasGameData?.Invoke(compareFriend, item) == true;
+                var applicable = compareGames.Contains(GetGameKey(item));
 
                 // The row's own friend owns the comparison's own side rather than the current user.
                 item.ApplyComparison(
@@ -343,12 +358,11 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        // A row the comparison is drawn on: in scope, and the selected friend's when there is one.
-        private bool IsTargetRow(FriendAchievementDisplayItem row, FriendSummaryItem selectedFriend)
+        // A row the comparison is drawn on: the selected friend's when there is one.
+        private static bool IsTargetRow(FriendAchievementDisplayItem row, FriendSummaryItem selectedFriend)
         {
             return row != null &&
-                   (selectedFriend == null || FriendOverviewProjection.IsSameFriend(row, selectedFriend)) &&
-                   IsInScope(row);
+                   (selectedFriend == null || FriendOverviewProjection.IsSameFriend(row, selectedFriend));
         }
 
         private static string GetGameKey(FriendAchievementDisplayItem row)
@@ -360,11 +374,6 @@ namespace PlayniteAchievements.ViewModels
         private static string GetGameAchievementKey(FriendAchievementDisplayItem row)
         {
             return GetGameKey(row) + "|ach:" + row.ApiName;
-        }
-
-        private bool IsInScope(FriendAchievementDisplayItem row)
-        {
-            return _isRowInScope == null || _isRowInScope(row);
         }
 
         /// <summary>
@@ -440,6 +449,7 @@ namespace PlayniteAchievements.ViewModels
                     }
 
                     _currentUsersByProvider = map;
+                    IdentityVersion++;
                     NotifyCompareStateChanged();
                     if (_selfSelected)
                     {
@@ -465,13 +475,7 @@ namespace PlayniteAchievements.ViewModels
         // "Me" fallback covers providers with no stored account name.
         private string GetSelfLabel(string providerKey = null)
         {
-            var identity = ResolveSelfIdentity(providerKey ?? FirstInScopeProviderKey());
-            if (identity != null && IsRealIdentityName(identity))
-            {
-                return identity.DisplayName.Trim();
-            }
-
-            return ResourceProvider.GetString("LOCPlayAch_Filter_CompareSelfOption");
+            return GetSelfName(ResolveSelfIdentity(providerKey ?? FirstInScopeProviderKey()));
         }
 
         private FriendIdentity ResolveSelfIdentity(string providerKey)
@@ -485,37 +489,33 @@ namespace PlayniteAchievements.ViewModels
             return identity;
         }
 
+        /// <summary>The friend selected to compare with; null when none is or the self entry is.</summary>
+        internal FriendSummaryItem CompareFriend => _compareFriend;
+
+        /// <summary>Whether the current user's own state is selected to compare with.</summary>
+        internal bool IsSelfSelected => _selfSelected;
+
+        /// <summary>Raised by one each time the signed-in accounts finish loading.</summary>
+        internal int IdentityVersion { get; private set; }
+
+        /// <summary>The name the current user's side shows under for a row of <paramref name="providerKey"/>.</summary>
+        internal string SelfLabel(string providerKey) => GetSelfLabel(providerKey);
+
+        /// <summary>The avatar of the current user's account for <paramref name="providerKey"/>.</summary>
+        internal string SelfAvatarPath(string providerKey) => ResolveSelfIdentity(providerKey)?.AvatarPath;
+
         private string FirstInScopeProviderKey()
         {
             var targetRows = _targetRows;
             var selectedFriend = _getSelectedFriend();
             if (targetRows == null)
             {
-                return null;
+                return _scopeProviderKey?.Invoke();
             }
 
             return targetRows.FirstOrDefault(row => row != null &&
                 !string.IsNullOrWhiteSpace(row.ProviderKey) &&
                 IsTargetRow(row, selectedFriend))?.ProviderKey;
-        }
-
-        // "unmapped" is the store's placeholder for providers with no stored account, and a
-        // display name equal to the external id is a raw account id (e.g. a SteamID64 before the
-        // persona is fetched); neither reads as a username.
-        private static bool IsRealIdentityName(FriendIdentity identity)
-        {
-            var name = identity.DisplayName?.Trim();
-            if (string.IsNullOrEmpty(name))
-            {
-                return false;
-            }
-
-            if (string.Equals(name, "unmapped", StringComparison.OrdinalIgnoreCase))
-            {
-                return false;
-            }
-
-            return !string.Equals(name, identity.ExternalUserId?.Trim(), StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool IsSelfKey(string key)

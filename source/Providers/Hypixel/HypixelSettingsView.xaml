@@ -22,21 +22,20 @@
         <StackPanel Margin="20">
 
             <!-- Provider Header -->
-            <StackPanel Style="{StaticResource ProviderHeaderPanelStyle}">
-                <Viewbox Style="{StaticResource ProviderHeaderIconStyle}">
-                    <Path Data="{StaticResource GeoHypixel}" Fill="{StaticResource PlayAch.Brush.ProviderHypixel}"/>
-                </Viewbox>
-                <TextBlock Text="{DynamicResource LOCPlayAch_Provider_Hypixel}" Style="{StaticResource ProviderTitleTextStyle}"/>
-            </StackPanel>
-
-            <!-- Provider Enable Toggle -->
-            <Border Style="{StaticResource ProviderEnableToggleBorderStyle}" Grid.IsSharedSizeScope="True">
-                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"
-                                     FontWeight="SemiBold"
-                                     Margin="0">
-                    <CheckBox IsChecked="{Binding Settings.IsEnabled, Mode=TwoWay}"/>
-                </controls:SettingRow>
-            </Border>
+            <DockPanel Style="{StaticResource ProviderHeaderRowStyle}">
+                <StackPanel Style="{StaticResource ProviderEnableTogglePanelStyle}">
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}" Style="{StaticResource ProviderEnableLabelStyle}"/>
+                    <CheckBox IsChecked="{Binding Settings.IsEnabled, Mode=TwoWay}"
+                              VerticalAlignment="Center"
+                              AutomationProperties.Name="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"/>
+                </StackPanel>
+                <StackPanel Style="{StaticResource ProviderHeaderPanelStyle}">
+                    <Viewbox Style="{StaticResource ProviderHeaderIconStyle}">
+                        <Path Data="{StaticResource GeoHypixel}" Fill="{StaticResource PlayAch.Brush.ProviderHypixel}"/>
+                    </Viewbox>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Provider_Hypixel}" Style="{StaticResource ProviderTitleTextStyle}"/>
+                </StackPanel>
+            </DockPanel>
 
             <!-- Provider Disabled Message -->
             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ProviderDisabledMessage}" Style="{StaticResource ProviderDisabledMessageStyle}"/>
@@ -45,61 +44,49 @@
             <Border Style="{StaticResource SectionBorderStyle}"
                     IsEnabled="{Binding Settings.IsEnabled}">
                 <StackPanel>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="180"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="ConnectionLabel"
+                               Style="{StaticResource SectionHeaderStyle}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+                    <Border Style="{StaticResource AuthStatusBorderStyle}">
+                        <StackPanel>
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
 
-                        <TextBlock Grid.Column="0"
-                                   x:Name="AuthLabel"
-                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                   TextWrapping="Wrap"
-                                   VerticalAlignment="Top"
-                                   Margin="{StaticResource PlayAch.Thickness.Top.Sm}"/>
+                                <TextBlock Grid.Column="0"
+                                           Style="{StaticResource AuthStatusIconStyle}"/>
 
-                        <!-- Auth Card -->
-                        <Border Grid.Column="1" Style="{StaticResource AuthStatusBorderStyle}">
-                            <StackPanel>
-                                <Grid Margin="0,0,0,10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding AuthStatus, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                           VerticalAlignment="Center"
+                                           TextWrapping="Wrap"/>
+                            </Grid>
 
-                                    <TextBlock Grid.Column="0"
-                                               Style="{StaticResource AuthStatusIconStyle}"/>
+                            <Border BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                                    BorderThickness="0,1,0,0"
+                                    Padding="0,12,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RaUsername}"
+                                               Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+                                    <TextBox Text="{Binding Settings.Username, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             Padding="4"/>
 
-                                    <TextBlock Grid.Column="1"
-                                               Text="{Binding AuthStatus, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                               VerticalAlignment="Center"
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Hypixel_NoDatesNote}"
+                                               Style="{StaticResource MutedTextStyle}"
+                                               Margin="{StaticResource PlayAch.Thickness.Top.Md}"
                                                TextWrapping="Wrap"/>
-                                </Grid>
 
-                                <Border BorderBrush="{DynamicResource PopupBorderBrush}"
-                                        BorderThickness="0,1,0,0"
-                                        Padding="0,12,0,0">
-                                    <StackPanel>
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RaUsername}"
-                                                   Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
-                                        <TextBox Text="{Binding Settings.Username, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                 Padding="4"/>
-
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Hypixel_NoDatesNote}"
-                                                   Style="{StaticResource MutedTextStyle}"
-                                                   Margin="{StaticResource PlayAch.Thickness.Top.Md}"
-                                                   TextWrapping="Wrap"/>
-
-                                        <Button Content="{DynamicResource LOCPlayAch_Common_Check}"
-                                                Click="CheckPlayer_Click"
-                                                Style="{StaticResource AuthActionButtonStyle}"
-                                                HorizontalAlignment="Left"
-                                                Margin="{StaticResource PlayAch.Thickness.Top.Lg}"/>
-                                    </StackPanel>
-                                </Border>
-                            </StackPanel>
-                        </Border>
-                    </Grid>
+                                    <Button Content="{DynamicResource LOCPlayAch_Common_Check}"
+                                            Click="CheckPlayer_Click"
+                                            Style="{StaticResource AuthActionButtonStyle}"
+                                            HorizontalAlignment="Left"
+                                            Margin="{StaticResource PlayAch.Thickness.Top.Lg}"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </Border>
         </StackPanel>

@@ -153,7 +153,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             if (_rarityIndex == null || !ReferenceEquals(snapshot, _rarityIndexSnapshot))
             {
                 _rarityIndexSnapshot = snapshot;
-                _rarityIndex = GameCapstoneRarityResolver.Index(snapshot?.Achievements);
+                _rarityIndex = GameCapstoneRarityResolver.Index(snapshot?.Unlocks);
             }
 
             return _rarityIndex.TryGetValue(game.PlayniteGameId.Value, out var candidates)

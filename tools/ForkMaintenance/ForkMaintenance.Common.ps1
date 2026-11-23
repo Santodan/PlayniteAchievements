@@ -251,6 +251,65 @@ function Get-FmKeyedXmlElements
     return $elements
 }
 
+function Test-FmSameXmlValue
+{
+    # Localization values read through Git (LF) and from disk (often CRLF) must compare equal
+    # when only their line endings differ; otherwise untouched multi-line strings look like
+    # fork edits and block keys that upstream later changes or removes.
+    param(
+        [AllowNull()][AllowEmptyString()][string] $Left,
+        [AllowNull()][AllowEmptyString()][string] $Right
+    )
+
+    if ($null -eq $Left -or $null -eq $Right)
+    {
+        return ($null -eq $Left -and $null -eq $Right)
+    }
+
+    return ($Left -replace "`r`n", "`n") -ceq ($Right -replace "`r`n", "`n")
+}
+
+function Get-FmPatchEditsOfMissingFiles
+{
+    # Paths the patch modifies (not creates) that the target checkout does not have, usually
+    # files the new upstream deleted. git apply rejects the whole patch for one of these, so
+    # they are reported up front: port the fork change, then export again.
+    param(
+        [Parameter(Mandatory = $true)][string] $RepositoryRoot,
+        [AllowEmptyString()][string] $PatchText
+    )
+
+    $missing = @()
+    if ([string]::IsNullOrEmpty($PatchText))
+    {
+        return $missing
+    }
+
+    $sections = [Regex]::Split(($PatchText -replace "`r`n", "`n"), "(?m)^(?=diff --git )")
+    foreach ($section in $sections)
+    {
+        $match = [Regex]::Match($section, "^diff --git a/(.+?) b/")
+        if (-not $match.Success)
+        {
+            continue
+        }
+
+        if ($section -match "(?m)^new file mode ")
+        {
+            continue
+        }
+
+        $relativePath = ConvertTo-FmGitPath $match.Groups[1].Value
+        $fullPath = Join-Path $RepositoryRoot ($relativePath.Replace('/', '\'))
+        if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf))
+        {
+            $missing += $relativePath
+        }
+    }
+
+    return $missing
+}
+
 function Get-FmXmlKey
 {
     param([Parameter(Mandatory = $true)][Xml.XmlNode] $Node)
