@@ -84,6 +84,55 @@ namespace PlayniteAchievements.Views.YearReview
 
         public static void SetDrawLength(DependencyObject element, double value) => element.SetValue(DrawLengthProperty, value);
 
+        /// <summary>When true, the element lifts slightly and comes to the front under the mouse.</summary>
+        public static readonly DependencyProperty HoverProperty = DependencyProperty.RegisterAttached(
+            "Hover", typeof(bool), typeof(YearReviewMotion), new PropertyMetadata(false, OnHoverChanged));
+
+        public static bool GetHover(DependencyObject element) => (bool)element.GetValue(HoverProperty);
+
+        public static void SetHover(DependencyObject element, bool value) => element.SetValue(HoverProperty, value);
+
+        private const double HoverScale = 1.07;
+
+        private static void OnHoverChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (!(d is UIElement element))
+            {
+                return;
+            }
+
+            element.MouseEnter -= OnHoverEnter;
+            element.MouseLeave -= OnHoverLeave;
+            if ((bool)e.NewValue)
+            {
+                EnsureTransforms(element);
+                element.MouseEnter += OnHoverEnter;
+                element.MouseLeave += OnHoverLeave;
+            }
+        }
+
+        private static void OnHoverEnter(object sender, System.Windows.Input.MouseEventArgs e) => Lift((UIElement)sender, true);
+
+        private static void OnHoverLeave(object sender, System.Windows.Input.MouseEventArgs e) => Lift((UIElement)sender, false);
+
+        private static void Lift(UIElement element, bool lifted)
+        {
+            var parts = EnsureTransforms(element);
+            System.Windows.Controls.Panel.SetZIndex(element, lifted ? 1 : 0);
+            var to = lifted ? HoverScale : 1;
+            if (!Enabled)
+            {
+                parts.Hover.ScaleX = to;
+                parts.Hover.ScaleY = to;
+                return;
+            }
+
+            var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+            var animation = AnimationFrameRate.Apply(new DoubleAnimation(to, TimeSpan.FromMilliseconds(160)) { EasingFunction = ease });
+            parts.Hover.BeginAnimation(ScaleTransform.ScaleXProperty, animation);
+            parts.Hover.BeginAnimation(ScaleTransform.ScaleYProperty, animation);
+        }
+
         /// <summary>True when the system asks for animation; otherwise slides appear at rest.</summary>
         public static bool Enabled => SystemParameters.ClientAreaAnimation;
 
@@ -174,6 +223,7 @@ namespace PlayniteAchievements.Views.YearReview
 
         private sealed class Parts
         {
+            public ScaleTransform Hover;
             public ScaleTransform Scale;
             public RotateTransform Rotate;
             public TranslateTransform Translate;
@@ -191,11 +241,13 @@ namespace PlayniteAchievements.Views.YearReview
 
             var parts = new Parts
             {
+                Hover = new ScaleTransform(),
                 Scale = new ScaleTransform(),
                 Rotate = new RotateTransform(),
                 Translate = new TranslateTransform()
             };
             var group = new TransformGroup();
+            group.Children.Add(parts.Hover);
             group.Children.Add(parts.Scale);
             group.Children.Add(parts.Rotate);
             group.Children.Add(parts.Translate);
