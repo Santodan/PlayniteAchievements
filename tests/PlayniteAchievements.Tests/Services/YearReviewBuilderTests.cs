@@ -171,6 +171,7 @@ namespace PlayniteAchievements.Tests.Services
             Assert.AreEqual(50, review.CollectionGained);
             Assert.AreEqual(70, review.PrestigeGained);
             Assert.IsTrue(review.LevelAtEnd >= review.LevelAtStart);
+            Assert.IsTrue(review.PrestigeLevelAtEnd >= review.PrestigeLevelAtStart);
         }
 
         [TestMethod]
