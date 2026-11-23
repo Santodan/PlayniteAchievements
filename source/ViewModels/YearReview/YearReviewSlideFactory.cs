@@ -15,8 +15,8 @@ namespace PlayniteAchievements.ViewModels.YearReview
     /// <summary>Art the slides show that is read per review rather than per game.</summary>
     public sealed class YearReviewArt
     {
-        /// <summary>Each backdrop game's background art, or its cover when it has none.</summary>
-        public IReadOnlyDictionary<Guid, string> Backdrops { get; set; } = new Dictionary<Guid, string>();
+        /// <summary>A game's background art, or its cover when it has none; null for neither.</summary>
+        public Func<Guid, string> BackdropOf { get; set; } = id => null;
 
         public string TopFriendAvatarPath { get; set; }
     }
@@ -120,9 +120,17 @@ namespace PlayniteAchievements.ViewModels.YearReview
 
                 slide.Title = TitleOf(kind);
                 slide.CurrentView = slide.Views.FirstOrDefault();
-                if (BackdropGame(data, kind) is Guid backdrop && art.Backdrops.TryGetValue(backdrop, out var path))
+                if (BackdropGame(data, kind) is Guid backdrop)
                 {
-                    slide.BackdropPath = path;
+                    slide.BackdropPath = art.BackdropOf(backdrop);
+                }
+
+                foreach (var view in slide.Views)
+                {
+                    if (ViewBackdropGame(view) is Guid game)
+                    {
+                        view.BackdropPath = art.BackdropOf(game);
+                    }
                 }
 
                 slides.Add(slide);
@@ -179,6 +187,24 @@ namespace PlayniteAchievements.ViewModels.YearReview
                     return data.First?.GameId ?? Top(0);
                 case YearReviewSlideKind.Friends:
                     return data.Friends.SharedGameIds.FirstOrDefault() is Guid shared && shared != Guid.Empty ? shared : Top(0);
+                default:
+                    return null;
+            }
+        }
+
+        /// <summary>The game a view is about, whose art goes behind it; null keeps the slide's art.</summary>
+        private static Guid? ViewBackdropGame(YearReviewSlideView view)
+        {
+            switch (view)
+            {
+                case YearReviewTopGamesView top:
+                    return top.Cards.LastOrDefault()?.GameId;
+                case YearReviewFriendsView friend:
+                    return friend.SharedCards.FirstOrDefault()?.GameId;
+                case YearReviewRarestView rarest:
+                    return rarest.Entries.FirstOrDefault()?.GameId ?? rarest.GameId;
+                case YearReviewRarityView rarity:
+                    return rarity.TopGameId;
                 default:
                     return null;
             }
