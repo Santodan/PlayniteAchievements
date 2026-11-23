@@ -38,7 +38,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
             AchievementOverridesService achievementOverridesService,
             AchievementDataService achievementDataService,
             PlayniteAchievementsSettings settings,
-            ILogger logger)
+            ILogger logger,
+            IEnumerable<Guid> lockedGameIds = null)
         {
             _refreshService = refreshService ?? throw new ArgumentNullException(nameof(refreshService));
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
@@ -62,7 +63,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 logger,
                 plugin?.CustomProviderStore,
                 currentValue => plugin?.PickColor(Window.GetWindow(this), currentValue),
-                editor => CustomProviderEditorDialog.Show(Window.GetWindow(this), editor));
+                editor => CustomProviderEditorDialog.Show(Window.GetWindow(this), editor),
+                lockedGameIds);
             _viewModel.AssignmentsChanged += ViewModel_Persisted;
             _viewModel.CustomAchievementsSaved += ViewModel_Persisted;
             _viewModel.CapstoneChanged += ViewModel_CapstoneChanged;
@@ -82,6 +84,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
         }
 
         public string WindowTitle => ResourceProvider.GetString("LOCPlayAch_Menu_AchievementEditor");
+
+        /// <summary>Locks the open editor to these games; see <see cref="ManageAchievementsEditorViewModel.LockToGames"/>.</summary>
+        public void LockToGames(IEnumerable<Guid> gameIds) => _viewModel?.LockToGames(gameIds);
 
         private void Control_Loaded(object sender, RoutedEventArgs e)
         {
