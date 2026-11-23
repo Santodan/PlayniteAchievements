@@ -1,0 +1,681 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:po="http://schemas.microsoft.com/winfx/2006/xaml/presentation/options"
+                    xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
+                    xmlns:settings="clr-namespace:PlayniteAchievements.Models.Settings"
+                    xmlns:local="clr-namespace:PlayniteAchievements.Views.YearReview"
+                    xmlns:vm="clr-namespace:PlayniteAchievements.ViewModels.YearReview">
+
+    <!-- Every slide is a 1280 x 770 canvas the window scales to fit. Elements are placed by hand
+         and tilted, and each enters on its own delay (YearReviewMotion). Text is always added
+         after the art it sits near, so it draws on top. Big numbers are Title-size text scaled
+         by a Viewbox to a fixed height, in the bundled display face. -->
+
+    <ResourceDictionary.MergedDictionaries>
+        <helpers:SharedResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+        <helpers:SharedResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/RarityBadges.xaml"/>
+    </ResourceDictionary.MergedDictionaries>
+
+    <FontFamily x:Key="YearReview.DisplayFont">pack://application:,,,/PlayniteAchievements;component/Resources/Fonts/#Big Shoulders Display Black</FontFamily>
+
+    <DropShadowEffect x:Key="YearReview.CardShadow" po:Freeze="True" BlurRadius="28" ShadowDepth="10" Direction="270" Opacity="0.4" Color="#000000"/>
+
+    <Style x:Key="YearReview.Display" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource YearReview.DisplayFont}"/>
+        <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Title}"/>
+        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+        <Setter Property="TextOptions.TextFormattingMode" Value="Ideal"/>
+    </Style>
+
+    <Style x:Key="YearReview.Title" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{DynamicResource PlayAch.FontFamily.Body}"/>
+        <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Title}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+        <Setter Property="LayoutTransform">
+            <Setter.Value>
+                <ScaleTransform ScaleX="1.25" ScaleY="1.25"/>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="YearReview.Label" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{DynamicResource PlayAch.FontFamily.Body}"/>
+        <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Body}"/>
+        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text.Secondary}"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+        <Setter Property="LayoutTransform">
+            <Setter.Value>
+                <ScaleTransform ScaleX="1.15" ScaleY="1.15"/>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="YearReview.Chip" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Panel}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Border}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="Padding" Value="20,14"/>
+        <Setter Property="Effect" Value="{StaticResource YearReview.CardShadow}"/>
+    </Style>
+
+    <!-- Places each item of a canvas ItemsControl from its X, Y, Angle and Delay. -->
+    <Style x:Key="YearReview.PlacedItem" TargetType="ContentPresenter">
+        <Setter Property="Canvas.Left" Value="{Binding X}"/>
+        <Setter Property="Canvas.Top" Value="{Binding Y}"/>
+        <Setter Property="local:YearReviewMotion.Angle" Value="{Binding Angle}"/>
+        <Setter Property="local:YearReviewMotion.Delay" Value="{Binding Delay}"/>
+    </Style>
+
+    <ItemsPanelTemplate x:Key="YearReview.CanvasPanel">
+        <Canvas/>
+    </ItemsPanelTemplate>
+
+    <!-- A game cover card: the art, a scrim with the name, the rank or completion badge. -->
+    <DataTemplate x:Key="YearReview.CoverCard" DataType="{x:Type vm:YearReviewCoverCard}">
+        <Grid Width="{Binding Width}" Height="{Binding Height}">
+            <Border CornerRadius="6"
+                    Background="{DynamicResource PlayAch.Brush.Panel}"
+                    Effect="{StaticResource YearReview.CardShadow}">
+                <Grid>
+                    <Image Stretch="UniformToFill"
+                           helpers:RoundedClip.Radius="6"
+                           helpers:AsyncImage.Uri="{Binding CoverPath, Converter={StaticResource DefaultGameImage}, ConverterParameter=cover}"
+                           helpers:AsyncImage.DecodePixel="300"/>
+                    <Border VerticalAlignment="Bottom"
+                            CornerRadius="0,0,6,6"
+                            Background="{StaticResource PlayAch.Brush.Overlay.Shade.80}"
+                            Padding="10,8"
+                            Visibility="{Binding ShowCaption, Converter={StaticResource BoolToVis}}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Name}"
+                                       FontWeight="SemiBold"
+                                       FontSize="{DynamicResource PlayAch.FontSize.Body}"
+                                       Foreground="White"
+                                       TextTrimming="CharacterEllipsis"/>
+                            <TextBlock Text="{Binding Unlocks, StringFormat={}{0:N0}}"
+                                       FontSize="{DynamicResource PlayAch.FontSize.Caption}"
+                                       Foreground="White"
+                                       Opacity="{StaticResource PlayAch.Opacity.Hint}"
+                                       Visibility="{Binding HasRank, Converter={StaticResource BoolToVis}}"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <Border HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Margin="-14,-18,0,0"
+                    MinWidth="44"
+                    Height="52"
+                    Padding="10,0"
+                    CornerRadius="6"
+                    Background="{DynamicResource PlayAch.Brush.PopupSurface}"
+                    BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                    BorderThickness="1"
+                    Visibility="{Binding HasRank, Converter={StaticResource BoolToVis}}">
+                <Viewbox Height="40">
+                    <TextBlock Text="{Binding Rank}" Style="{StaticResource YearReview.Display}"/>
+                </Viewbox>
+            </Border>
+
+            <Image Width="46"
+                   Height="52"
+                   HorizontalAlignment="Right"
+                   VerticalAlignment="Top"
+                   Margin="0,-16,-14,0"
+                   Effect="{StaticResource BadgeShadow}"
+                   local:YearReviewMotion.Reveal="Pop"
+                   local:YearReviewMotion.Delay="{Binding BadgeDelay}"
+                   Visibility="{Binding ShowBadge, Converter={StaticResource BoolToVis}}">
+                <Image.Style>
+                    <Style TargetType="Image">
+                        <Setter Property="Source" Value="{DynamicResource BadgeRarityCompleted}"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Badge}" Value="{x:Static settings:CompletionBadgeKind.Platinum}">
+                                <Setter Property="Source" Value="{DynamicResource TrophyPlatinum}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Badge}" Value="{x:Static settings:CompletionBadgeKind.Mythic}">
+                                <Setter Property="Source" Value="{DynamicResource BadgeRarityMythic}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Image.Style>
+            </Image>
+        </Grid>
+    </DataTemplate>
+
+    <!-- Cards that drop in at their spot. -->
+    <Style x:Key="YearReview.DroppedCard" TargetType="ContentPresenter" BasedOn="{StaticResource YearReview.PlacedItem}">
+        <Setter Property="local:YearReviewMotion.Reveal" Value="Drop"/>
+    </Style>
+
+    <!-- 1. Intro: the year, huge, running off the bottom-left corner over the rays. -->
+    <DataTemplate DataType="{x:Type vm:YearReviewIntroSlide}">
+        <Canvas Width="1280" Height="770">
+            <local:YearReviewSunburst Width="1280" Height="770"
+                                      Origin="0.26,0.83"
+                                      IsActive="True"
+                                      Color="{DynamicResource PlayAch.Brush.Accent}"/>
+            <Viewbox Canvas.Left="-18" Canvas.Top="300" Height="560"
+                     local:YearReviewMotion.Reveal="Zoom" local:YearReviewMotion.Delay="100">
+                <TextBlock Text="{Binding YearText}" Style="{StaticResource YearReview.Display}"/>
+            </Viewbox>
+            <StackPanel Canvas.Right="80" Canvas.Top="96"
+                        local:YearReviewMotion.Reveal="Rise" local:YearReviewMotion.Delay="600">
+                <TextBlock Text="{DynamicResource LOCPlayAch_YearReview_Title}" Style="{StaticResource YearReview.Title}" HorizontalAlignment="Right"/>
+                <TextBlock Text="{Binding RangeText}" Style="{StaticResource YearReview.Label}" HorizontalAlignment="Right" Margin="0,4,0,0"/>
+            </StackPanel>
+            <TextBlock Canvas.Right="80" Canvas.Top="180"
+                       Text="{DynamicResource LOCPlayAch_YearReview_ClickToStart}"
+                       Style="{StaticResource YearReview.Label}"
+                       local:YearReviewMotion.Reveal="Rise" local:YearReviewMotion.Delay="1100"/>
+        </Canvas>
+    </DataTemplate>
+
+    <!-- 2. Achievements unlocked: one tilted figure, with three cards dropped beside it. -->
+    <DataTemplate DataType="{x:Type vm:YearReviewNumbersSlide}">
+        <Canvas Width="1280" Height="770">
+            <TextBlock Canvas.Left="84" Canvas.Top="88"
+                       Text="{DynamicResource LOCPlayAch_YearReview_AchievementsUnlocked}"
+                       Style="{StaticResource YearReview.Label}"
+                       local:YearReviewMotion.Reveal="Rise"/>
+            <Viewbox Canvas.Left="56" Canvas.Top="150" Height="300"
+                     local:YearReviewMotion.Reveal="Rise" local:YearReviewMotion.Delay="80" local:YearReviewMotion.Angle="-4">
+                <local:CountUpText Value="{Binding Unlocked}" Style="{StaticResource YearReview.Display}" local:YearReviewMotion.Delay="230"/>
+            </Viewbox>
+
+            <Border Canvas.Right="96" Canvas.Top="96" Style="{StaticResource YearReview.Chip}"
+                    local:YearReviewMotion.Reveal="Drop" local:YearReviewMotion.Delay="850" local:YearReviewMotion.Angle="4">
+                <StackPanel>
+                    <Viewbox Height="60" HorizontalAlignment="Left">
+                        <local:CountUpText Value="{Binding ScoreGained}" Prefix="+" Style="{StaticResource YearReview.Display}" local:YearReviewMotion.Delay="1000"/>
+                    </Viewbox>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_YearReview_ScoreGained}" Style="{StaticResource YearReview.Label}"/>
+                </StackPanel>
+            </Border>
+
+            <Border Canvas.Right="300" Canvas.Top="430" Style="{StaticResource YearReview.Chip}"
+                    Background="{DynamicResource PlayAch.Brush.Accent}" BorderBrush="{DynamicResource PlayAch.Brush.Accent}"
+                    local:YearReviewMotion.Reveal="Drop" local:YearReviewMotion.Delay="1050" local:YearReviewMotion.Angle="-3">
+                <StackPanel>
+                    <Viewbox Height="60" HorizontalAlignment="Left">
+                        <TextBlock Text="{Binding LevelText}" Style="{StaticResource YearReview.Display}" Foreground="{DynamicResource PlayAch.Brush.PopupSurface}"/>
+                    </Viewbox>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Common_Label_Level}" Style="{StaticResource YearReview.Label}" Foreground="{DynamicResource PlayAch.Brush.PopupSurface}"/>
+                </StackPanel>
+            </Border>
+
+            <Border Canvas.Right="70" Canvas.Top="520" Style="{StaticResource YearReview.Chip}"
+                    local:YearReviewMotion.Reveal="Drop" local:YearReviewMotion.Delay="1250" local:YearReviewMotion.Angle="7">
+                <StackPanel>
+                    <Viewbox Height="60" HorizontalAlignment="Left">
+                        <local:CountUpText Value="{Binding Games}" Style="{StaticResource YearReview.Display}" local:YearReviewMotion.Delay="1400"/>
+                    </Viewbox>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_YearReview_GamesWithUnlocks}" Style="{StaticResource YearReview.Label}"/>
+                </StackPanel>
+            </Border>
+        </Canvas>
+    </DataTemplate>
+
+    <!-- 3. Unlocks by month: bars along the bottom edge, the year as a tilted strip, the streak as a stamp. -->
+    <DataTemplate DataType="{x:Type vm:YearReviewMonthsSlide}">
+        <Canvas Width="1280" Height="770">
+            <ItemsControl Canvas.Left="0" Canvas.Bottom="0" Width="1280" Height="530" ItemsSource="{Binding Months}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Rows="1"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type vm:YearReviewMonthBar}">
+                        <StackPanel VerticalAlignment="Bottom" Margin="2,0">
+                            <Viewbox Height="70" Margin="0,0,0,8"
+                                     local:YearReviewMotion.Reveal="Pop" local:YearReviewMotion.Delay="1000"
+                                     Visibility="{Binding IsPeak, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="{Binding Unlocks, StringFormat={}{0:N0}}" Style="{StaticResource YearReview.Display}"/>
+                            </Viewbox>
+                            <Border Height="{Binding Height}"
+                                    local:YearReviewMotion.Reveal="Grow"
+                                    local:YearReviewMotion.Delay="{Binding Delay}">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Border}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsPeak}" Value="True">
+                                                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock Text="{Binding Label}"
+                                           Style="{StaticResource YearReview.Label}"
+                                           VerticalAlignment="Bottom"
+                                           HorizontalAlignment="Center"
+                                           Margin="0,0,0,8"/>
+                            </Border>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <StackPanel Canvas.Right="80" Canvas.Top="84"
+                        local:YearReviewMotion.Reveal="Rise" local:YearReviewMotion.Delay="1200" local:YearReviewMotion.Angle="-3">
+                <TextBlock Text="{DynamicResource LOCPlayAch_YearReview_EveryDay}" Style="{StaticResource YearReview.Label}" Margin="0,0,0,8"/>
+                <ItemsControl Width="530" Height="70" ItemsSource="{Binding Heat}"
+                              ItemsPanel="{StaticResource YearReview.CanvasPanel}"
+                              ItemContainerStyle="{StaticResource YearReview.PlacedItem}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:YearReviewHeatCell}">
+                            <Border Width="8" Height="8" CornerRadius="2"
+                                    local:YearReviewMotion.Reveal="Fade"
+                                    local:YearReviewMotion.Delay="{Binding Delay}">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Level}" Value="0">
+                                                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Border}"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Level}" Value="1">
+                                                <Setter Property="Opacity" Value="0.3"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Level}" Value="2">
+                                                <Setter Property="Opacity" Value="0.52"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Level}" Value="3">
+                                                <Setter Property="Opacity" Value="0.75"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+
+            <StackPanel Canvas.Left="72" Canvas.Top="72" local:YearReviewMotion.Reveal="Rise">
+                <TextBlock Text="{DynamicResource LOCPlayAch_YearReview_UnlocksByMonth}" Style="{StaticResource YearReview.Title}"/>
+                <TextBlock Text="{Binding BusiestDayText}" Style="{StaticResource YearReview.Label}" Margin="0,4,0,0" MaxWidth="560" HorizontalAlignment="Left"/>
+            </StackPanel>
+
+            <Border Canvas.Left="120" Canvas.Top="170" Width="210" Height="210" CornerRadius="105"
+                    BorderThickness="4"
+                    BorderBrush="{DynamicResource PlayAch.Brush.Accent}"
+                    Background="{DynamicResource PlayAch.Brush.PopupSurface}"
+                    local:YearReviewMotion.Reveal="Slam" local:YearReviewMotion.Delay="1500" local:YearReviewMotion.Angle="-12">
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <Viewbox Height="96" HorizontalAlignment="Center">
+                        <local:CountUpText Value="{Binding StreakDays}" Style="{StaticResource YearReview.Display}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Accent}" local:YearReviewMotion.Delay="1500"/>
+                    </Viewbox>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_YearReview_DayStreak}" FontWeight="SemiBold" HorizontalAlignment="Center"
+                               FontSize="{DynamicResource PlayAch.FontSize.Body}" Foreground="{DynamicResource PlayAch.Brush.Accent}"/>
+                    <TextBlock Text="{Binding StreakRangeText}" HorizontalAlignment="Center" Margin="0,2,0,0"
+                               FontSize="{DynamicResource PlayAch.FontSize.Caption}" Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"/>
+                </StackPanel>
+            </Border>
+        </Canvas>
+    </DataTemplate>
+
+    <!-- 4. Top games: the leader's background art behind a fanned hand of covers. -->
+    <DataTemplate DataType="{x:Type vm:YearReviewTopGamesSlide}">
+        <Canvas Width="1280" Height="770">
+            <Image Width="1280" Height="770" Stretch="UniformToFill" Opacity="0.55"
+                   helpers:AsyncImage.Uri="{Binding BackgroundPath}"
+                   helpers:AsyncImage.DecodePixel="1280">
+                <Image.OpacityMask>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                        <GradientStop Offset="0.25" Color="#00000000"/>
+                        <GradientStop Offset="1" Color="#FF000000"/>
+                    </LinearGradientBrush>
+                </Image.OpacityMask>
+            </Image>
+
+            <ItemsControl Width="1280" Height="770" ItemsSource="{Binding Cards}"
+                          ItemsPanel="{StaticResource YearReview.CanvasPanel}"
+                          ItemContainerStyle="{StaticResource YearReview.DroppedCard}"
+                          ItemTemplate="{StaticResource YearReview.CoverCard}"/>
+
+            <TextBlock Canvas.Left="72" Canvas.Top="72"
+                       Text="{DynamicResource LOCPlayAch_YearReview_TopGames}"
+                       Style="{StaticResource YearReview.Title}"
+                       local:YearReviewMotion.Reveal="Rise"/>
+            <StackPanel Canvas.Left="72" Canvas.Top="150" MaxWidth="250"
+                        local:YearReviewMotion.Reveal="Rise" local:YearReviewMotion.Delay="1300">
+                <Viewbox Height="140" HorizontalAlignment="Left">
+                    <local:CountUpText Value="{Binding LeadUnlocks}" Style="{StaticResource YearReview.Display}" local:YearReviewMotion.Delay="1400"/>
+                </Viewbox>
+                <TextBlock Text="{Binding LeadCaption}" Style="{StaticResource YearReview.Label}" MaxWidth="215" HorizontalAlignment="Left"/>
+            </StackPanel>
+        </Canvas>
+    </DataTemplate>
+
+    <!-- 5. Games completed: a huge count beside a pile of tossed covers wearing their badges. -->
+    <DataTemplate DataType="{x:Type vm:YearReviewCompletionsSlide}">
+        <Canvas Width="1280" Height="770">
+            <ItemsControl Width="1280" Height="770" ItemsSource="{Binding Cards}"
+                          ItemsPanel="{StaticResource YearReview.CanvasPanel}"
+                          ItemContainerStyle="{StaticResource YearReview.DroppedCard}"
+                          ItemTemplate="{StaticResource YearReview.CoverCard}"/>
+
+            <TextBlock Canvas.Left="72" Canvas.Top="72"
+                       Text="{DynamicResource LOCPlayAch_YearReview_GamesCompleted}"
+                       Style="{StaticResource YearReview.Title}"
+                       local:YearReviewMotion.Reveal="Rise"/>
+            <Viewbox Canvas.Left="60" Canvas.Top="130" Height="330"
+                     local:YearReviewMotion.Reveal="Zoom" local:YearReviewMotion.Delay="150">
+                <local:CountUpText Value="{Binding Count}" Style="{StaticResource YearReview.Display}" local:YearReviewMotion.Delay="300"/>
+            </Viewbox>
+            <TextBlock Canvas.Left="76" Canvas.Top="560" LineHeight="26"
+                       Text="{Binding BreakdownText}"
+                       Style="{StaticResource YearReview.Label}"
+                       local:YearReviewMotion.Reveal="Rise" local:YearReviewMotion.Delay="1600"/>
+        </Canvas>
+    </DataTemplate>
+
+    <!-- 6. Rarest unlock: the icon in its tier's rays, the percent counting down to it. -->
+    <DataTemplate DataType="{x:Type vm:YearReviewRarestSlide}">
+        <Canvas Width="1280" Height="770">
+            <local:YearReviewSunburst Width="1280" Height="770"
+                                      Origin="0.258,0.52"
+                                      IsActive="True"
+                                      Color="{Binding TierBrush}"/>
+            <Image Canvas.Left="200" Canvas.Top="270" Width="260" Height="260" Stretch="Uniform"
+                   helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.AchievementIcon}"
+                   helpers:AsyncImage.Uri="{Binding IconPath}"
+                   helpers:AsyncImage.DecodePixel="260"
+                   local:YearReviewMotion.Reveal="Zoom" local:YearReviewMotion.Delay="200" local:YearReviewMotion.Angle="-6"/>
+
+            <TextBlock Canvas.Left="640" Canvas.Top="96"
+                       Text="{DynamicResource LOCPlayAch_YearReview_RarestUnlock}"
+                       Style="{StaticResource YearReview.Title}"
+                       local:YearReviewMotion.Reveal="Rise"/>
+            <Viewbox Canvas.Left="620" Canvas.Top="150" Height="240" HorizontalAlignment="Left"
+                     local:YearReviewMotion.Reveal="Rise" local:YearReviewMotion.Delay="350">
+                <local:CountUpText Value="{Binding Percent}" From="100" Format="Percent" Decimals="1"
+                                   Style="{StaticResource YearReview.Display}" Foreground="{Binding TierBrush}"
+                                   local:YearReviewMotion.Delay="500"/>
+            </Viewbox>
+            <StackPanel Canvas.Left="640" Canvas.Top="440" Width="520"
+                        local:YearReviewMotion.Reveal="Rise" local:YearReviewMotion.Delay="1500">
+                <TextBlock Text="{Binding Name}" Style="{StaticResource YearReview.Title}">
+                    <TextBlock.LayoutTransform>
+                        <ScaleTransform ScaleX="1.5" ScaleY="1.5"/>
+                    </TextBlock.LayoutTransform>
+                </TextBlock>
+                <TextBlock Text="{Binding DetailText}" Style="{StaticResource YearReview.Label}" Margin="0,6,0,0"/>
+            </StackPanel>
+            <Viewbox Canvas.Right="4" Canvas.Top="110" Width="64"
+                     local:YearReviewMotion.Reveal="Rise" local:YearReviewMotion.Delay="1700">
+                <TextBlock Text="{Binding TierText}" Style="{StaticResource YearReview.Display}" Foreground="{Binding TierBrush}">
+                    <TextBlock.LayoutTransform>
+                        <RotateTransform Angle="90"/>
+                    </TextBlock.LayoutTransform>
+                </TextBlock>
+            </Viewbox>
+        </Canvas>
+    </DataTemplate>
+
+    <!-- 7. Unlocks by rarity: one bubble per tier, sized by its count. -->
+    <DataTemplate DataType="{x:Type vm:YearReviewRaritySlide}">
+        <Canvas Width="1280" Height="770">
+            <ItemsControl Width="1280" Height="770" ItemsSource="{Binding Bubbles}"
+                          ItemsPanel="{StaticResource YearReview.CanvasPanel}">
+                <ItemsControl.ItemContainerStyle>
+                    <Style TargetType="ContentPresenter" BasedOn="{StaticResource YearReview.PlacedItem}">
+                        <Setter Property="local:YearReviewMotion.Reveal" Value="Pop"/>
+                    </Style>
+                </ItemsControl.ItemContainerStyle>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type vm:YearReviewBubble}">
+                        <Grid Width="{Binding Diameter}" Height="{Binding Diameter}">
+                            <Ellipse Fill="{Binding Fill}"/>
+                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                <Viewbox Height="{Binding NumberHeight}" HorizontalAlignment="Center">
+                                    <local:CountUpText Value="{Binding Unlocks}" Style="{StaticResource YearReview.Display}"
+                                                       Foreground="{StaticResource PlayAch.Brush.Overlay.Shade.80}"
+                                                       local:YearReviewMotion.Delay="{Binding Delay}"/>
+                                </Viewbox>
+                                <TextBlock Text="{Binding Label}" HorizontalAlignment="Center" FontWeight="SemiBold"
+                                           FontSize="{DynamicResource PlayAch.FontSize.Body}"
+                                           Foreground="{StaticResource PlayAch.Brush.Overlay.Shade.80}"/>
+                            </StackPanel>
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock Canvas.Left="72" Canvas.Top="72"
+                       Text="{DynamicResource LOCPlayAch_YearReview_UnlocksByRarity}"
+                       Style="{StaticResource YearReview.Title}"
+                       local:YearReviewMotion.Reveal="Rise"/>
+            <TextBlock Canvas.Left="72" Canvas.Top="660"
+                       Text="{Binding TotalText}"
+                       Style="{StaticResource YearReview.Label}"
+                       local:YearReviewMotion.Reveal="Rise" local:YearReviewMotion.Delay="1300"/>
+        </Canvas>
+    </DataTemplate>
+
+    <!-- 8. Unlocks by platform: a donut off the corner, each figure sized by its share. -->
+    <DataTemplate DataType="{x:Type vm:YearReviewPlatformsSlide}">
+        <Canvas Width="1280" Height="770">
+            <ItemsControl Canvas.Left="730" Canvas.Top="260" Width="700" Height="700"
+                          ItemsSource="{Binding Segments}"
+                          ItemsPanel="{StaticResource YearReview.CanvasPanel}"
+                          local:YearReviewMotion.Reveal="Spin">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type vm:YearReviewDonutSegment}">
+                        <Path Data="{Binding Geometry}" Fill="{Binding Fill}"/>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <ItemsControl Width="1280" Height="770" ItemsSource="{Binding Entries}"
+                          ItemsPanel="{StaticResource YearReview.CanvasPanel}">
+                <ItemsControl.ItemContainerStyle>
+                    <Style TargetType="ContentPresenter" BasedOn="{StaticResource YearReview.PlacedItem}">
+                        <Setter Property="local:YearReviewMotion.Reveal" Value="Rise"/>
+                    </Style>
+                </ItemsControl.ItemContainerStyle>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type vm:YearReviewPlatformEntry}">
+                        <StackPanel>
+                            <Viewbox Height="{Binding NumberHeight}" HorizontalAlignment="Left">
+                                <local:CountUpText Value="{Binding Unlocks}" Style="{StaticResource YearReview.Display}" local:YearReviewMotion.Delay="{Binding Delay}"/>
+                            </Viewbox>
+                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                <Rectangle Width="11" Height="11" RadiusX="2" RadiusY="2" Fill="{Binding Fill}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock Text="{Binding Name}" Style="{StaticResource YearReview.Label}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock Canvas.Left="72" Canvas.Top="72"
+                       Text="{DynamicResource LOCPlayAch_YearReview_UnlocksByPlatform}"
+                       Style="{StaticResource YearReview.Title}"
+                       local:YearReviewMotion.Reveal="Rise"/>
+        </Canvas>
+    </DataTemplate>
+
+    <!-- 9. First and latest unlock: a trail drawing itself from one to the other. -->
+    <DataTemplate DataType="{x:Type vm:YearReviewFirstAndLatestSlide}">
+        <Canvas Width="1280" Height="770">
+            <Path Data="M260,250 C520,200 520,560 760,470 S1000,420 1040,560"
+                  Stroke="{DynamicResource PlayAch.Brush.Border}" StrokeThickness="2" StrokeDashArray="3 4"/>
+            <Path Data="M260,250 C520,200 520,560 760,470 S1000,420 1040,560"
+                  Stroke="{DynamicResource PlayAch.Brush.Accent}" StrokeThickness="3"
+                  local:YearReviewMotion.Reveal="Draw" local:YearReviewMotion.Delay="400" local:YearReviewMotion.DrawLength="1200"/>
+
+            <Image Canvas.Left="150" Canvas.Top="190" Width="120" Height="120"
+                   helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.AchievementIcon}"
+                   helpers:AsyncImage.Uri="{Binding FirstIconPath}" helpers:AsyncImage.DecodePixel="120"
+                   local:YearReviewMotion.Reveal="Zoom" local:YearReviewMotion.Delay="200" local:YearReviewMotion.Angle="-5"/>
+            <Image Canvas.Left="1000" Canvas.Top="500" Width="120" Height="120"
+                   helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.AchievementIcon}"
+                   helpers:AsyncImage.Uri="{Binding LatestIconPath}" helpers:AsyncImage.DecodePixel="120"
+                   local:YearReviewMotion.Reveal="Zoom" local:YearReviewMotion.Delay="1600" local:YearReviewMotion.Angle="6"/>
+
+            <TextBlock Canvas.Left="72" Canvas.Top="72"
+                       Text="{DynamicResource LOCPlayAch_YearReview_FirstAndLatest}"
+                       Style="{StaticResource YearReview.Title}"
+                       local:YearReviewMotion.Reveal="Rise"/>
+            <StackPanel Canvas.Left="150" Canvas.Top="330" Width="320"
+                        local:YearReviewMotion.Reveal="Rise" local:YearReviewMotion.Delay="350">
+                <TextBlock Text="{Binding FirstLabel}" Style="{StaticResource YearReview.Label}"/>
+                <TextBlock Text="{Binding FirstName}" Style="{StaticResource YearReview.Title}" Margin="0,2,0,0"/>
+                <TextBlock Text="{Binding FirstDetail}" Style="{StaticResource YearReview.Label}"/>
+            </StackPanel>
+            <StackPanel Canvas.Left="660" Canvas.Top="560" Width="320"
+                        local:YearReviewMotion.Reveal="Rise" local:YearReviewMotion.Delay="1750">
+                <TextBlock Text="{DynamicResource LOCPlayAch_YearReview_LatestUnlock}" Style="{StaticResource YearReview.Label}" HorizontalAlignment="Right" TextAlignment="Right"/>
+                <TextBlock Text="{Binding LatestName}" Style="{StaticResource YearReview.Title}" HorizontalAlignment="Right" TextAlignment="Right" Margin="0,2,0,0"/>
+                <TextBlock Text="{Binding LatestDetail}" Style="{StaticResource YearReview.Label}" HorizontalAlignment="Right" TextAlignment="Right"/>
+            </StackPanel>
+            <StackPanel Canvas.Left="560" Canvas.Top="230"
+                        local:YearReviewMotion.Reveal="Rise" local:YearReviewMotion.Delay="1100" local:YearReviewMotion.Angle="-6">
+                <Viewbox Height="110" HorizontalAlignment="Left">
+                    <local:CountUpText Value="{Binding DaysApart}" Style="{StaticResource YearReview.Display}" local:YearReviewMotion.Delay="1200"/>
+                </Viewbox>
+                <TextBlock Text="{DynamicResource LOCPlayAch_YearReview_DaysApart}" Style="{StaticResource YearReview.Label}"/>
+            </StackPanel>
+        </Canvas>
+    </DataTemplate>
+
+    <!-- 10. Friends: how often the user got there first, and the friend with the most games in common. -->
+    <DataTemplate DataType="{x:Type vm:YearReviewFriendsSlide}">
+        <Canvas Width="1280" Height="770">
+            <ItemsControl Width="1280" Height="770" ItemsSource="{Binding SharedCards}"
+                          ItemsPanel="{StaticResource YearReview.CanvasPanel}"
+                          ItemContainerStyle="{StaticResource YearReview.DroppedCard}"
+                          ItemTemplate="{StaticResource YearReview.CoverCard}"/>
+
+            <Grid Canvas.Left="640" Canvas.Top="360" Width="200" Height="200"
+                  Visibility="{Binding HasTopFriend, Converter={StaticResource BoolToVis}}"
+                  local:YearReviewMotion.Reveal="Pop" local:YearReviewMotion.Delay="1200">
+                <Border CornerRadius="100" Background="{DynamicResource PlayAch.Brush.Panel}"
+                        BorderBrush="{DynamicResource PlayAch.Brush.PopupSurface}" BorderThickness="6"
+                        Effect="{StaticResource YearReview.CardShadow}">
+                    <Viewbox Height="96">
+                        <TextBlock Text="{Binding FriendInitial}" Style="{StaticResource YearReview.Display}"/>
+                    </Viewbox>
+                </Border>
+                <Image Margin="6" Stretch="UniformToFill"
+                       helpers:RoundedClip.Radius="94"
+                       helpers:AsyncImage.Uri="{Binding AvatarPath}"
+                       helpers:AsyncImage.DecodePixel="200"/>
+            </Grid>
+
+            <TextBlock Canvas.Left="72" Canvas.Top="72"
+                       Text="{DynamicResource LOCPlayAch_Settings_Friends}"
+                       Style="{StaticResource YearReview.Title}"
+                       local:YearReviewMotion.Reveal="Rise"/>
+            <StackPanel Canvas.Left="60" Canvas.Top="140" Width="520">
+                <StackPanel.Style>
+                    <Style TargetType="StackPanel">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding UnlockedFirst}" Value="0">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </StackPanel.Style>
+                <Viewbox Height="280" HorizontalAlignment="Left"
+                         local:YearReviewMotion.Reveal="Rise" local:YearReviewMotion.Delay="100" local:YearReviewMotion.Angle="-3">
+                    <local:CountUpText Value="{Binding UnlockedFirst}" Style="{StaticResource YearReview.Display}" local:YearReviewMotion.Delay="250"/>
+                </Viewbox>
+                <TextBlock Text="{DynamicResource LOCPlayAch_YearReview_UnlockedFirst}" Style="{StaticResource YearReview.Label}"
+                           MaxWidth="300" HorizontalAlignment="Left" Margin="16,8,0,0"
+                           local:YearReviewMotion.Reveal="Rise" local:YearReviewMotion.Delay="500"/>
+            </StackPanel>
+            <StackPanel Canvas.Left="860" Canvas.Top="500" Width="360"
+                        Visibility="{Binding HasTopFriend, Converter={StaticResource BoolToVis}}"
+                        local:YearReviewMotion.Reveal="Rise" local:YearReviewMotion.Delay="1400">
+                <TextBlock Text="{Binding FriendName}" Style="{StaticResource YearReview.Title}">
+                    <TextBlock.LayoutTransform>
+                        <ScaleTransform ScaleX="1.5" ScaleY="1.5"/>
+                    </TextBlock.LayoutTransform>
+                </TextBlock>
+                <TextBlock Text="{Binding InCommonText}" Style="{StaticResource YearReview.Label}"/>
+            </StackPanel>
+        </Canvas>
+    </DataTemplate>
+
+    <!-- 11. Summary: the year on one tilted card, which can be saved as an image. -->
+    <DataTemplate DataType="{x:Type vm:YearReviewSummarySlide}">
+        <Canvas Width="1280" Height="770">
+            <Border Canvas.Left="110" Canvas.Top="120"
+                    local:YearReviewMotion.Reveal="Zoom" local:YearReviewMotion.Delay="100" local:YearReviewMotion.Angle="-2"
+                    Effect="{StaticResource YearReview.CardShadow}">
+                <Border x:Name="SummaryCard" Width="780" CornerRadius="6" ClipToBounds="True"
+                        Background="{DynamicResource PlayAch.Brush.PopupSurface}"
+                        BorderBrush="{DynamicResource PlayAch.Brush.Border}" BorderThickness="1">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="250"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Image Stretch="UniformToFill"
+                               helpers:RoundedClip.Radius="5"
+                               helpers:AsyncImage.Uri="{Binding TopCoverPath, Converter={StaticResource DefaultGameImage}, ConverterParameter=cover}"
+                               helpers:AsyncImage.DecodePixel="400"/>
+                        <StackPanel Grid.Column="1" Margin="30,26">
+                            <Viewbox Height="84" HorizontalAlignment="Left">
+                                <TextBlock Text="{Binding YearText}" Style="{StaticResource YearReview.Display}"/>
+                            </Viewbox>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_YearReview_Title}" Style="{StaticResource YearReview.Label}" Margin="0,4,0,18"/>
+                            <ItemsControl ItemsSource="{Binding Figures}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <UniformGrid Columns="2"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="0,0,20,14">
+                                            <Viewbox Height="36" MaxWidth="210" HorizontalAlignment="Left">
+                                                <TextBlock Text="{Binding Key}" Style="{StaticResource YearReview.Display}"/>
+                                            </Viewbox>
+                                            <TextBlock Text="{Binding Value}" FontSize="{DynamicResource PlayAch.FontSize.Caption}"
+                                                       Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Border>
+
+            <StackPanel Canvas.Left="960" Canvas.Top="560" Orientation="Horizontal"
+                        local:YearReviewMotion.Reveal="Rise" local:YearReviewMotion.Delay="700">
+                <Button Content="&#xEF08;"
+                        Width="40" Height="40" Padding="0"
+                        Style="{StaticResource PlayAch.Button.ToolbarIconStyle}"
+                        ContentTemplate="{StaticResource PlayAch.ButtonContent.Glyph}"
+                        Command="{x:Static local:YearReviewControl.SaveImageCommand}"
+                        CommandParameter="{Binding ElementName=SummaryCard}"
+                        ToolTip="{DynamicResource LOCPlayAch_YearReview_SaveImage}"
+                        AutomationProperties.Name="{DynamicResource LOCPlayAch_YearReview_SaveImage}"/>
+                <TextBlock Text="{DynamicResource LOCPlayAch_YearReview_SaveImage}" Style="{StaticResource YearReview.Label}"
+                           VerticalAlignment="Center" Margin="12,0,0,0"/>
+            </StackPanel>
+        </Canvas>
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type vm:YearReviewEmptySlide}">
+        <Canvas Width="1280" Height="770">
+            <TextBlock Canvas.Left="72" Canvas.Top="300" Text="{Binding Text}" Style="{StaticResource YearReview.Title}"
+                       local:YearReviewMotion.Reveal="Rise">
+                <TextBlock.LayoutTransform>
+                    <ScaleTransform ScaleX="1.8" ScaleY="1.8"/>
+                </TextBlock.LayoutTransform>
+            </TextBlock>
+        </Canvas>
+    </DataTemplate>
+</ResourceDictionary>
