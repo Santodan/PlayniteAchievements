@@ -176,7 +176,22 @@ namespace PlayniteAchievements
                     PlayniteApi,
                     _logger);
                 view = new Views.YearReview.YearReviewControl(
-                    new ViewModels.YearReview.YearReviewViewModel(reader, _logger),
+                    new ViewModels.YearReview.YearReviewViewModel(
+                        reader,
+                        _logger,
+                        () => (Settings?.Persisted?.YearReviewDisplayName, Settings?.Persisted?.YearReviewAvatarPath),
+                        (name, avatar) =>
+                        {
+                            var persisted = Settings?.Persisted;
+                            if (persisted == null)
+                            {
+                                return;
+                            }
+
+                            persisted.YearReviewDisplayName = name;
+                            persisted.YearReviewAvatarPath = avatar;
+                            SavePluginSettings(_settingsViewModel.Settings);
+                        }),
                     _logger);
             }
             catch (Exception ex)
