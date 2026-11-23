@@ -554,13 +554,41 @@ namespace PlayniteAchievements.ViewModels.YearReview
                 figures.Add(Figure(top.Name, "LOCPlayAch_YearReview_TopGame"));
             }
 
-            return new YearReviewSummarySlide
+            var summary = new YearReviewSummarySlide
             {
                 YearText = data.Year.ToString(FormattingCulture.Current),
                 TopGameName = top?.Name,
                 TopCoverPath = top?.CoverPath,
-                Figures = figures
+                Figures = figures,
+                TopFigures = figures.Take(4).ToList(),
+                Covers = data.TopGames.Select(entry => entry.Game)
+                    .Concat(data.Completed)
+                    .GroupBy(game => game.GameId)
+                    .Select(group => group.First().CoverPath)
+                    .Where(path => !string.IsNullOrWhiteSpace(path))
+                    .Take(6)
+                    .ToList()
             };
+            var fan = summary.Covers.Take(3).ToList();
+            var fanSlots = new[] { (X: 0.0, Y: 34.0, Angle: -4.0), (X: 16.0, Y: 14.0, Angle: 3.0), (X: 30.0, Y: 0.0, Angle: 8.0) };
+            summary.FanCovers = fan
+                .Select((path, index) => new YearReviewFanCover
+                {
+                    Path = path,
+                    X = fanSlots[index].X,
+                    Y = fanSlots[index].Y,
+                    Angle = fanSlots[index].Angle
+                })
+                .Reverse()
+                .ToList();
+            summary.Views = new YearReviewSlideView[]
+            {
+                new YearReviewClassicCard { Label = Text("LOCPlayAch_YearReview_CardClassic"), Card = summary },
+                new YearReviewPosterCard { Label = Text("LOCPlayAch_YearReview_CardPoster"), Card = summary },
+                new YearReviewBannerCard { Label = Text("LOCPlayAch_YearReview_CardBanner"), Card = summary },
+                new YearReviewMosaicCard { Label = Text("LOCPlayAch_Showcase_Widget_IconMosaic"), Card = summary }
+            };
+            return summary;
         }
     }
 }
