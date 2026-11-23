@@ -2186,7 +2186,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         a => a.ApiName,
                         hydrated?.AchievementOrder);
 
-                    ReplaceRows(ordered
+                    var built = ordered
                         .Select(achievement =>
                         {
                             var row = AchievementEditorRow.FromAchievementDetail(achievement);
@@ -2198,12 +2198,21 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
                             return row;
                         })
-                        .Where(row => row != null));
+                        .Where(row => row != null)
+                        .ToList();
+
+                    // Marked before the rows go live: the grid binds them inside ReplaceRows, and
+                    // a binding write-back there saves the definitions from rows still unmarked.
+                    ApplyAutoCapstoneMarker(data, built);
+                    ReplaceRows(built);
                 }
                 else
                 {
-                    ReplaceRows((data?.CustomAchievements ?? new List<CustomAchievementDefinition>())
-                        .Select(AchievementEditorRow.FromDefinition));
+                    var built = (data?.CustomAchievements ?? new List<CustomAchievementDefinition>())
+                        .Select(AchievementEditorRow.FromDefinition)
+                        .ToList();
+                    ApplyAutoCapstoneMarker(data, built);
+                    ReplaceRows(built);
                 }
 
                 // One scope per pass. Every one of these walks the row set, so each scales with
@@ -2249,6 +2258,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </remarks>
         private void ApplyAutoCapstoneMarker(GameCustomDataFile data)
         {
+            ApplyAutoCapstoneMarker(data, AchievementRows);
+        }
+
+        private static void ApplyAutoCapstoneMarker(
+            GameCustomDataFile data,
+            IEnumerable<AchievementEditorRow> rows)
+        {
             var marked = new Dictionary<string, CustomAchievementDefinition>(StringComparer.OrdinalIgnoreCase);
             foreach (var definition in data?.CustomAchievements ?? Enumerable.Empty<CustomAchievementDefinition>())
             {
@@ -2258,7 +2274,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 }
             }
 
-            foreach (var row in AchievementRows)
+            foreach (var row in rows ?? Enumerable.Empty<AchievementEditorRow>())
             {
                 if (row == null)
                 {
