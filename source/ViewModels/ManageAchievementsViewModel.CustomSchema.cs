@@ -400,7 +400,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     ["lockedIcon"] = string.Empty,
                     ["hidden"] = 0,
                     ["globalPercent"] = 0.0,
-                    ["percent"] = 0.0
+                    ["percent"] = 0.0,
+                    ["points"] = 10
                 },
                 new JObject
                 {
@@ -422,7 +423,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     ["lockedIcon"] = string.Empty,
                     ["hidden"] = 1,
                     ["globalPercent"] = 12.34,
-                    ["percent"] = 12.34
+                    ["percent"] = 12.34,
+                    ["points"] = 50
                 }
             };
 

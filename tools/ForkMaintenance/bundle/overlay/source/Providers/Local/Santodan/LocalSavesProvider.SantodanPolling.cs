@@ -158,7 +158,9 @@ namespace PlayniteAchievements.Providers.Local
                 AddExistingPath(paths, steamLocalProgress?.SourcePath);
             }
 
-            if (paths.Count == 0)
+            // LumaPlay writes unlocks to the registry only, so no watched file changes on unlock.
+            var lumaPlayRegistryFingerprint = BuildLumaPlayRegistryFingerprint(game);
+            if (paths.Count == 0 && lumaPlayRegistryFingerprint == null)
             {
                 return false;
             }
@@ -167,12 +169,64 @@ namespace PlayniteAchievements.Providers.Local
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
                 .Select(BuildFileFingerprint));
+            if (lumaPlayRegistryFingerprint != null)
+            {
+                fingerprint += "|lumaplay-registry=" + lumaPlayRegistryFingerprint;
+            }
+
             // Settings can alter correlation, selected users, exclusions and definitions even
             // when the underlying files have not changed. Never skip those transitions.
             fingerprint += "|configuration=" + GetSantodanPollingConfiguration(game);
             return !string.IsNullOrWhiteSpace(fingerprint);
         }
 
+        // The unlock state LumaPlay keeps under HKCU\SOFTWARE\LumaPlay\<user>\<uplay id>\Achievements,
+        // as sorted name=state pairs; null when the game has no LumaPlay id or no such key.
+        private static string BuildLumaPlayRegistryFingerprint(Game game)
+        {
+            if (!IsWindowsPlatform() || !TryGetConfiguredLumaPlayAppId(game, out var lumaAppId, out _))
+            {
+                return null;
+            }
+
+            foreach (var candidateAppId in BuildLumaPlayAppIdCandidates(lumaAppId.ToString(CultureInfo.InvariantCulture)))
+            {
+                try
+                {
+                    if (!TryResolveLumaPlayAchievementsRegistryPath(candidateAppId, out var registryPath, out _))
+                    {
+                        continue;
+                    }
+
+                    using (var key = Registry.CurrentUser.OpenSubKey(registryPath, false))
+                    {
+                        if (key == null)
+                        {
+                            continue;
+                        }
+
+                        var states = key.GetValueNames()
+                            .Where(name => !string.IsNullOrWhiteSpace(name))
+                            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+                            .Select(name =>
+                            {
+                                RegistryValueKind kind;
+                                try { kind = key.GetValueKind(name); }
+                                catch { kind = RegistryValueKind.Unknown; }
+                                TryReadLumaPlayRegistryUnlockedValue(kind, key.GetValue(name, null, RegistryValueOptions.DoNotExpandEnvironmentNames), out var unlocked);
+                                return name.Trim() + "=" + (unlocked ? "1" : "0");
+                            });
+                        return candidateAppId + ":" + string.Join(";", states);
+                    }
+                }
+                catch (Exception ex) when (ex is System.Security.SecurityException || ex is UnauthorizedAccessException || ex is IOException)
+                {
+                    return null;
+                }
+            }
+
+            return null;
+        }
 
         private string GetSantodanPollingConfiguration(Game game) =>
             PlayniteAchievements.Services.InGameMonitoring.SantodanPollingConfiguration.Build(

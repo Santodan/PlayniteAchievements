@@ -490,6 +490,13 @@ namespace PlayniteAchievements.Providers.Local
             var hasAchievementsFile = !string.IsNullOrWhiteSpace(jsonPath) || iniPaths.Count > 0;
             var hasLumaRegistryEntries = lumaRegistryEntries != null && lumaRegistryEntries.Count > 0;
             var isLumaPlayContext = hasValidLumaPlayIniOverride;
+            // A Uplay id taken from the LumaPlay overrides names the registry save, not a Steam
+            // schema, so it must not block the Uplay-to-Steam schema lookup below. Only an explicit
+            // Steam App ID override (or another Steam-id source) forces the schema App ID.
+            var isSchemaAppIdForced = isAppIdOverridden &&
+                !(isLumaPlayContext &&
+                  !TryGetAppIdOverride(game.Id, out _) &&
+                  string.Equals(appId, configuredLumaPlayAppId.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal));
             // A valid explicit schema is authoritative and needs no online enrichment.
             List<SchemaAchievement> explicitCustomRows = null;
             if (hasEnabledCustomSchemaOverride && TryGetCustomSchemaPathOverride(game.Id, out var explicitCustomPath))
@@ -521,7 +528,7 @@ namespace PlayniteAchievements.Providers.Local
             {
                 steamSchemaAppIdInt = appIdInt;
                 // Respect user-forced App ID override: don't allow links/notes to override the schema App ID
-                if (!isAppIdOverridden && TryResolveSteamSchemaAppId(game, appIdInt, out var resolvedSteamSchemaAppId) && resolvedSteamSchemaAppId > 0)
+                if (!isSchemaAppIdForced && TryResolveSteamSchemaAppId(game, appIdInt, out var resolvedSteamSchemaAppId) && resolvedSteamSchemaAppId > 0)
                 {
                     steamSchemaAppIdInt = resolvedSteamSchemaAppId;
                 }
@@ -539,13 +546,18 @@ namespace PlayniteAchievements.Providers.Local
                 // For LumaPlay (Uplay/Ubisoft Connect) games: the registry key uses a Uplay game ID,
                 // which differs from the Steam App ID. If no explicit schema override was set via Links
                 // or Notes, auto-resolve the correct Steam App ID by searching Steam Store by game name.
-                if (!hasUsableCustomSchema && isLumaPlayContext && !isAppIdOverridden && steamSchemaAppIdInt == appIdInt && !string.IsNullOrWhiteSpace(game?.Name))
+                if (!hasUsableCustomSchema && isLumaPlayContext && !isSchemaAppIdForced && steamSchemaAppIdInt == appIdInt)
                 {
-                    var autoSteamAppId = await ResolveLocalSchemaAppIdAsync(game, appIdInt, allowSchemaNetwork).ConfigureAwait(false);
+                    // The shipped Uplay-to-Steam table first (works offline), then the store search by name.
+                    var autoSteamAppId = UplaySteamTable.Value.TryGetValue(appIdInt.ToString(CultureInfo.InvariantCulture), out var tableSteamAppId)
+                        ? tableSteamAppId
+                        : string.IsNullOrWhiteSpace(game?.Name)
+                            ? 0
+                            : await ResolveLocalSchemaAppIdAsync(game, appIdInt, allowSchemaNetwork).ConfigureAwait(false);
                     if (autoSteamAppId > 0 && autoSteamAppId != appIdInt)
                     {
                         steamSchemaAppIdInt = autoSteamAppId;
-                        Log($"LUMA AUTO-RESOLVE: game='{game.Name}' uplayAppId={appIdInt} steamAppId={autoSteamAppId}");
+                        Log($"LUMA AUTO-RESOLVE: game='{game?.Name}' uplayAppId={appIdInt} steamAppId={autoSteamAppId}");
                     }
                 }
 
@@ -1740,10 +1752,11 @@ namespace PlayniteAchievements.Providers.Local
                 return true;
             }
 
-            if (TryGetLumaPlayIniPathOverride(game.Id, out var overriddenLumaPlayIniPath) &&
-                TryExtractUplayGameIdFromLumaPlayIni(overriddenLumaPlayIniPath, out var lumaPlayIniAppId))
+            // A LumaPlay Uplay id identifies the save; GetAchievementsAsync still resolves the
+            // Steam schema for it unless a Steam App ID override is set.
+            if (TryGetConfiguredLumaPlayAppId(game, out var lumaPlayAppId, out _))
             {
-                appId = lumaPlayIniAppId;
+                appId = lumaPlayAppId;
                 isOverridden = true;
                 return true;
             }
@@ -1840,12 +1853,24 @@ namespace PlayniteAchievements.Providers.Local
             return false;
         }
 
+        // The Uplay game id LumaPlay keys its registry unlocks by: the forced LumaPlay Uplay App ID
+        // first, then the UplayGameID of the LumaPlay.ini override.
         private static bool TryGetConfiguredLumaPlayAppId(Game game, out int appId, out string iniPath)
         {
             appId = 0;
             iniPath = null;
-            return game != null &&
-                TryGetLumaPlayIniPathOverride(game.Id, out iniPath) &&
+            if (game == null)
+            {
+                return false;
+            }
+
+            if (TryGetLumaPlayAppIdOverride(game.Id, out appId))
+            {
+                TryGetLumaPlayIniPathOverride(game.Id, out iniPath);
+                return true;
+            }
+
+            return TryGetLumaPlayIniPathOverride(game.Id, out iniPath) &&
                 TryExtractUplayGameIdFromLumaPlayIni(iniPath, out appId);
         }
 
@@ -5988,8 +6013,19 @@ namespace PlayniteAchievements.Providers.Local
                 Icon = icon ?? string.Empty,
                 IconGray = iconGray ?? string.Empty,
                 Hidden = TryParseCustomSchemaHidden(source["hidden"]),
-                GlobalPercent = TryParseCustomSchemaPercent(source["globalPercent"] ?? source["percent"])
+                GlobalPercent = TryParseCustomSchemaPercent(
+                    source["globalPercent"] ?? source["global_percent"] ?? source["percent"] ??
+                    source["percentage"] ?? source["unlockPercent"] ?? source["rarity"]),
+                Points = TryParseCustomSchemaPoints(source["points"] ?? source["score"] ?? source["gamerscore"])
             };
+        }
+
+        private static int? TryParseCustomSchemaPoints(JToken token)
+        {
+            var value = TryParseCustomSchemaNumber(token);
+            return value.HasValue && value.Value >= 0 && value.Value <= int.MaxValue
+                ? (int)Math.Round(value.Value)
+                : (int?)null;
         }
 
         private static string ResolveCustomSchemaText(JToken token)
@@ -6068,6 +6104,18 @@ namespace PlayniteAchievements.Providers.Local
 
         private static double? TryParseCustomSchemaPercent(JToken token)
         {
+            // {"rarity": {"percent": 12.3}} and similar nested shapes.
+            if (token is JObject nested)
+            {
+                token = nested["globalPercent"] ?? nested["percent"] ?? nested["percentage"] ?? nested["value"];
+            }
+
+            return TryParseCustomSchemaNumber(token);
+        }
+
+        // Numbers, or strings such as "12.5", "12,5" and "12.5%". Text tiers ("Rare") are not numbers.
+        private static double? TryParseCustomSchemaNumber(JToken token)
+        {
             if (token == null)
             {
                 return null;
@@ -6078,13 +6126,25 @@ namespace PlayniteAchievements.Providers.Local
                 return token.Value<double>();
             }
 
-            if (token.Type == JTokenType.String &&
-                double.TryParse(token.Value<string>(), NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed))
+            if (token.Type != JTokenType.String)
             {
-                return parsed;
+                return null;
             }
 
-            return null;
+            var text = token.Value<string>()?.Trim().TrimEnd('%').Trim();
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return null;
+            }
+
+            if (text.IndexOf(',') >= 0 && text.IndexOf('.') < 0)
+            {
+                text = text.Replace(',', '.');
+            }
+
+            return double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed)
+                ? parsed
+                : (double?)null;
         }
 
         private static string NormalizeCustomSchemaIconPath(string rawPath, string schemaDirectory)

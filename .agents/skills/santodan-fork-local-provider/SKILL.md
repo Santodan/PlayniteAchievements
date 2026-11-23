@@ -78,6 +78,12 @@ Options and defaults: `source/Views/Settings/General/ForkPerformanceSettingsSect
 
 - Separate save-source identity from Steam schema identity. An explicit App ID override
   beats links/notes for schema selection.
+- LumaPlay: `TryGetConfiguredLumaPlayAppId` (forced Uplay App ID, then `LumaPlay.ini`
+  `UplayGameID`) keys the `HKCU\SOFTWARE\LumaPlay` registry unlocks only. It must not set
+  `isSchemaAppIdForced`; the Steam schema comes from `UplaySteamTable`, then the name
+  search. Polling adds `BuildLumaPlayRegistryFingerprint`, since no file changes on unlock.
+- Custom schema rows read `points`/`score`/`gamerscore` and percent from
+  `globalPercent`/`percent`/`rarity` (numbers, `"12.5%"`, `"12,5"`); no percent means Common.
 - Public SteamHunters definitions need no authentication and must never import another
   user's unlocks.
 - Cached unlock protection: failed or empty payloads stay protected; disabled protection
