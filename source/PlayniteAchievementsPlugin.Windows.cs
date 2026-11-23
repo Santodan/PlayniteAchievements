@@ -177,9 +177,6 @@ namespace PlayniteAchievements
                     _logger);
                 view = new Views.YearReview.YearReviewControl(
                     new ViewModels.YearReview.YearReviewViewModel(reader, _logger),
-                    () => PlayniteApi?.Dialogs?.SaveFile(
-                        ResourceProvider.GetString("LOCPlayAch_YearReview_PngImage") + "|*.png",
-                        true),
                     _logger);
             }
             catch (Exception ex)
