@@ -376,6 +376,29 @@ namespace PlayniteAchievements.ViewModels.YearReview
         public YearReviewFriendsSlide() : base(YearReviewSlideKind.Friends) { }
     }
 
+    /// <summary>A cover in the classic card's fan, offset and tilted within the fan's box.</summary>
+    public sealed class YearReviewFanCover
+    {
+        public string Path { get; set; }
+        public double X { get; set; }
+        public double Y { get; set; }
+        public double Angle { get; set; }
+    }
+
+    /// <summary>A style of the shareable card; its template reads the card's data through <see cref="Card"/>.</summary>
+    public abstract class YearReviewCardView : YearReviewSlideView
+    {
+        public YearReviewSummarySlide Card { get; set; }
+    }
+
+    public sealed class YearReviewClassicCard : YearReviewCardView { }
+
+    public sealed class YearReviewPosterCard : YearReviewCardView { }
+
+    public sealed class YearReviewBannerCard : YearReviewCardView { }
+
+    public sealed class YearReviewMosaicCard : YearReviewCardView { }
+
     public sealed class YearReviewSummarySlide : YearReviewSlide
     {
         private string _cardName;
@@ -407,8 +430,17 @@ namespace PlayniteAchievements.ViewModels.YearReview
         public string TopGameName { get; set; }
         public string TopCoverPath { get; set; }
 
-        /// <summary>The card's figures: value over label, two columns.</summary>
+        /// <summary>The card's figures: value over label.</summary>
         public IReadOnlyList<KeyValuePair<string, string>> Figures { get; set; }
+
+        /// <summary>The first four figures, for the styles with room for one row.</summary>
+        public IReadOnlyList<KeyValuePair<string, string>> TopFigures { get; set; }
+
+        /// <summary>Covers of the year's top games, for the mosaic style.</summary>
+        public IReadOnlyList<string> Covers { get; set; }
+
+        /// <summary>The top three covers, back to front, for the classic style's fan.</summary>
+        public IReadOnlyList<YearReviewFanCover> FanCovers { get; set; }
     }
 
     public sealed class YearReviewEmptySlide : YearReviewSlide
