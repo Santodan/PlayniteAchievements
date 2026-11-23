@@ -34,6 +34,7 @@ namespace PlayniteAchievements.Views.YearReview
         private readonly YearReviewViewModel _viewModel;
         private readonly ILogger _logger;
         private int _shownIndex = -1;
+        private YearReviewSlide _watchedSlide;
         private DateTime _wheelReadyAt = DateTime.MinValue;
 
         internal YearReviewControl(YearReviewViewModel viewModel, ILogger logger)
@@ -55,6 +56,7 @@ namespace PlayniteAchievements.Views.YearReview
         public void Cleanup()
         {
             Loaded -= OnLoaded;
+            Watch(null);
             YearReviewUnlockPopover.Close();
             _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
             CurrentHost.Content = null;
@@ -89,6 +91,7 @@ namespace PlayniteAchievements.Views.YearReview
         {
             YearReviewUnlockPopover.Close();
             var slide = _viewModel.CurrentSlide;
+            Watch(slide);
             var index = slide == null ? -1 : IndexOf(slide);
             var direction = index >= _shownIndex ? 1 : -1;
             var hadSlide = CurrentHost.Content != null;
@@ -114,6 +117,38 @@ namespace PlayniteAchievements.Views.YearReview
             Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
             {
                 if (ReferenceEquals(CurrentHost.Content, slide))
+                {
+                    YearReviewMotion.Play(CurrentHost);
+                }
+            }));
+        }
+
+        /// <summary>Replays the shown slide when another of its views is picked.</summary>
+        private void Watch(YearReviewSlide slide)
+        {
+            if (_watchedSlide != null)
+            {
+                _watchedSlide.PropertyChanged -= OnSlidePropertyChanged;
+            }
+
+            _watchedSlide = slide;
+            if (slide != null)
+            {
+                slide.PropertyChanged += OnSlidePropertyChanged;
+            }
+        }
+
+        private void OnSlidePropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(YearReviewSlide.CurrentView) || !ReferenceEquals(sender, CurrentHost.Content))
+            {
+                return;
+            }
+
+            YearReviewUnlockPopover.Close();
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
+            {
+                if (ReferenceEquals(CurrentHost.Content, sender))
                 {
                     YearReviewMotion.Play(CurrentHost);
                 }
@@ -297,7 +332,8 @@ namespace PlayniteAchievements.Views.YearReview
                 return;
             }
 
-            var path = PickPath(FileName(slide.Title));
+            var title = slide.ViewSuffix == null ? slide.Title : slide.Title + " - " + slide.ViewSuffix;
+            var path = PickPath(FileName(title));
             if (path == null)
             {
                 return;
