@@ -31,6 +31,9 @@ namespace PlayniteAchievements.Views.YearReview
         /// <summary>Saves the element given as the parameter, the summary card, as a PNG.</summary>
         public static readonly RoutedUICommand SaveCardCommand = new RoutedUICommand("SaveCard", "SaveCard", typeof(YearReviewControl));
 
+        /// <summary>Opens the list of the slide's views under the button given as the parameter.</summary>
+        public static readonly RoutedUICommand OpenViewPickerCommand = new RoutedUICommand("OpenViewPicker", "OpenViewPicker", typeof(YearReviewControl));
+
         private readonly YearReviewViewModel _viewModel;
         private readonly ILogger _logger;
         private int _shownIndex = -1;
@@ -45,6 +48,7 @@ namespace PlayniteAchievements.Views.YearReview
             InitializeComponent();
             DataContext = _viewModel;
             CommandBindings.Add(new CommandBinding(SaveCardCommand, OnSaveCard));
+            CommandBindings.Add(new CommandBinding(OpenViewPickerCommand, (s, e) => YearReviewViewPicker.Open(e.Parameter as FrameworkElement)));
             _viewModel.PropertyChanged += OnViewModelPropertyChanged;
             Loaded += OnLoaded;
             PreviewKeyDown += OnPreviewKeyDown;
@@ -58,6 +62,7 @@ namespace PlayniteAchievements.Views.YearReview
             Loaded -= OnLoaded;
             Watch(null);
             YearReviewUnlockPopover.Close();
+            YearReviewViewPicker.Close();
             _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
             CurrentHost.Content = null;
             OutgoingHost.Content = null;
@@ -90,6 +95,7 @@ namespace PlayniteAchievements.Views.YearReview
         private void ShowCurrentSlide()
         {
             YearReviewUnlockPopover.Close();
+            YearReviewViewPicker.Close();
             var slide = _viewModel.CurrentSlide;
             Watch(slide);
             var index = slide == null ? -1 : IndexOf(slide);
@@ -146,6 +152,7 @@ namespace PlayniteAchievements.Views.YearReview
             }
 
             YearReviewUnlockPopover.Close();
+            PlayBackdrop();
             Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
             {
                 if (ReferenceEquals(CurrentHost.Content, sender))
