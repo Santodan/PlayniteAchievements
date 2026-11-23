@@ -116,7 +116,7 @@ namespace PlayniteAchievements.Views.YearReview
             }));
         }
 
-        /// <summary>Fades the new slide's art in and lets it settle from a slight zoom.</summary>
+        /// <summary>Fades the new slide's art in.</summary>
         private void PlayBackdrop()
         {
             if (!YearReviewMotion.Enabled)
@@ -124,18 +124,8 @@ namespace PlayniteAchievements.Views.YearReview
                 return;
             }
 
-            if (!(Backdrop.RenderTransform is ScaleTransform scale) || scale.IsFrozen)
-            {
-                scale = new ScaleTransform();
-                Backdrop.RenderTransform = scale;
-            }
-
-            var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
             var fade = AnimationFrameRate.Apply(new DoubleAnimation(0, BackdropOpacity, TimeSpan.FromMilliseconds(700)) { FillBehavior = FillBehavior.Stop });
-            var settle = AnimationFrameRate.Apply(new DoubleAnimation(1.12, 1, TimeSpan.FromSeconds(6)) { EasingFunction = ease, FillBehavior = FillBehavior.Stop });
             Backdrop.BeginAnimation(OpacityProperty, fade);
-            scale.BeginAnimation(ScaleTransform.ScaleXProperty, settle);
-            scale.BeginAnimation(ScaleTransform.ScaleYProperty, settle);
         }
 
         private int IndexOf(YearReviewSlide slide)
@@ -285,11 +275,6 @@ namespace PlayniteAchievements.Views.YearReview
             (CurrentHost.RenderTransform as TranslateTransform)?.BeginAnimation(TranslateTransform.XProperty, null);
             OutgoingHost.Content = null;
             Backdrop.BeginAnimation(OpacityProperty, null);
-            if (Backdrop.RenderTransform is ScaleTransform zoom)
-            {
-                zoom.BeginAnimation(ScaleTransform.ScaleXProperty, null);
-                zoom.BeginAnimation(ScaleTransform.ScaleYProperty, null);
-            }
 
             stage.UpdateLayout();
             var card = stage;
