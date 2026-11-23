@@ -57,7 +57,7 @@ callers.
 
 - Style: conventional prefixes, for example `docs:`, `fix(l10n):`, `fix(memories):`,
   `refactor:`, `chore(fork-maintenance):`. Subject in the imperative, body explains why.
-  End with the attribution line the session provides.
+  Never add `Co-Authored-By:` or any AI attribution line; commits show only the owner.
 - The owner commits directly on `main`.
 - One commit per logical change when asked. To split one file's hunks without
   interactive staging, write the partial version to a temporary file and stage it:
