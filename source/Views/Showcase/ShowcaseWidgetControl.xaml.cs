@@ -549,6 +549,9 @@ namespace PlayniteAchievements.Views.Showcase
                     }
 
                     break;
+                case ShowcaseWidgetKind.FriendUnlocks:
+                    SetBodyContent(UpdateBodyViewModel<FriendUnlocksWidgetViewModel>());
+                    break;
                 case ShowcaseWidgetKind.GameSummaries:
                     // The collapsed Game Summaries Grid: a collection shown in pin order and the
                     // other sources ride the favorites view model, for pin reorder support and
