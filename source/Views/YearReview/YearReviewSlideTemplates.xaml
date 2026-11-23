@@ -1061,7 +1061,6 @@
                         <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource YearReview.CardAvatar}" Width="72"/>
                         <StackPanel Grid.Column="1" Margin="18,0,16,0" VerticalAlignment="Center">
                             <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource YearReview.CardName}"/>
-                            <TextBlock Text="{DynamicResource LOCPlayAch_YearReview_Title}" Style="{StaticResource YearReview.Label}" Margin="0,2,0,0"/>
                         </StackPanel>
                         <Viewbox Grid.Column="2" Height="76" VerticalAlignment="Center">
                             <TextBlock Text="{Binding YearText}" Style="{StaticResource YearReview.Display}" Foreground="{DynamicResource PlayAch.Brush.Accent}"/>
@@ -1152,7 +1151,6 @@
                             <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource YearReview.CardAvatar}" Width="56"/>
                             <StackPanel Margin="14,0,0,0" VerticalAlignment="Center" Width="320">
                                 <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource YearReview.CardName}"/>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_YearReview_Title}" Style="{StaticResource YearReview.Label}"/>
                             </StackPanel>
                         </StackPanel>
                         <Viewbox VerticalAlignment="Bottom" HorizontalAlignment="Left" Height="180">
@@ -1164,52 +1162,66 @@
         </Grid>
     </DataTemplate>
 
-    <!-- Banner: a wide strip, the year on a solid accent panel, the main figures in one row. -->
+    <!-- Banner: the top game's art across the left with the year set over a dark wash at its
+         foot; on the right the picture and name, the main figures, a row of top covers and the
+         plugin's signature. The year over the art is white on the wash, the one place a card
+         sets text on art. -->
     <DataTemplate DataType="{x:Type vm:YearReviewBannerCard}">
         <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
             <Border Style="{StaticResource YearReview.CardShadowPlate}"/>
-            <Border Style="{StaticResource YearReview.CardSurface}" Width="860" DataContext="{Binding Card}">
+            <Border Style="{StaticResource YearReview.CardSurface}" Width="880" Height="360" DataContext="{Binding Card}">
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="230"/>
+                        <ColumnDefinition Width="330"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <Border Background="{DynamicResource PlayAch.Brush.Accent}" Padding="22">
-                        <Grid>
-                            <Viewbox VerticalAlignment="Center" Height="110">
-                                <TextBlock Text="{Binding YearText}" Style="{StaticResource YearReview.Display}" Foreground="{DynamicResource PlayAch.Brush.PopupSurface}"/>
-                            </Viewbox>
-                        </Grid>
-                    </Border>
-                    <Grid Grid.Column="1" ClipToBounds="True">
-                        <Image Stretch="UniformToFill" HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.22"
+                    <Grid ClipToBounds="True">
+                        <Image Stretch="UniformToFill" HorizontalAlignment="Center" VerticalAlignment="Center"
                                helpers:AsyncImage.Uri="{Binding BackdropPath}"
-                               helpers:AsyncImage.DecodePixel="800">
-                            <Image.OpacityMask>
-                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                               helpers:AsyncImage.DecodePixel="800"/>
+                        <Border VerticalAlignment="Bottom" Height="170">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
                                     <GradientStop Offset="0" Color="#00000000"/>
-                                    <GradientStop Offset="1" Color="#FF000000"/>
+                                    <GradientStop Offset="1" Color="#C0000000"/>
                                 </LinearGradientBrush>
-                            </Image.OpacityMask>
-                        </Image>
+                            </Border.Background>
+                        </Border>
+                        <Viewbox Height="96" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="24,0,0,20">
+                            <TextBlock Text="{Binding YearText}" Style="{StaticResource YearReview.Display}" Foreground="White"/>
+                        </Viewbox>
                     </Grid>
-                    <StackPanel Grid.Column="1" Margin="26,22,26,20">
-                        <StackPanel Orientation="Horizontal">
-                            <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource YearReview.CardAvatar}" Width="56"/>
-                            <StackPanel Margin="14,0,0,0" VerticalAlignment="Center" Width="400">
-                                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource YearReview.CardName}"/>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_YearReview_Title}" Style="{StaticResource YearReview.Label}"/>
-                            </StackPanel>
+                    <DockPanel Grid.Column="1" Margin="26,22,26,20">
+                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal">
+                            <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource YearReview.CardAvatar}" Width="52"/>
+                            <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource YearReview.CardName}"
+                                              Margin="14,0,0,0" Width="400" VerticalAlignment="Center"/>
                         </StackPanel>
-                        <ItemsControl Margin="0,20,0,0" ItemsSource="{Binding TopFigures}" ItemTemplate="{StaticResource YearReview.CardFigure}">
+                        <ContentPresenter DockPanel.Dock="Bottom" ContentTemplate="{StaticResource YearReview.CardSignature}" HorizontalAlignment="Left"/>
+                        <ItemsControl DockPanel.Dock="Bottom" ItemsSource="{Binding Covers}" Margin="0,0,0,14" HorizontalAlignment="Left">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Width="56" Height="84" Margin="0,0,8,0" ClipToBounds="True" helpers:RoundedClip.Radius="5">
+                                        <Image Stretch="UniformToFill" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               helpers:AsyncImage.Uri="{Binding}"
+                                               helpers:AsyncImage.DecodePixel="200"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <ItemsControl Margin="0,16,0,0" ItemsSource="{Binding TopFigures}" ItemTemplate="{StaticResource YearReview.CardFigure}" VerticalAlignment="Center">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <UniformGrid Rows="1"/>
                                 </ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
                         </ItemsControl>
-                        <ContentPresenter Margin="0,8,0,0" ContentTemplate="{StaticResource YearReview.CardSignature}" HorizontalAlignment="Left"/>
-                    </StackPanel>
+                    </DockPanel>
                 </Grid>
             </Border>
         </Grid>
@@ -1246,7 +1258,6 @@
                         <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource YearReview.CardAvatar}" Width="64"/>
                         <StackPanel Grid.Column="1" Margin="16,0" VerticalAlignment="Center">
                             <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource YearReview.CardName}"/>
-                            <TextBlock Text="{DynamicResource LOCPlayAch_YearReview_Title}" Style="{StaticResource YearReview.Label}"/>
                         </StackPanel>
                         <Viewbox Grid.Column="2" Height="70" VerticalAlignment="Center">
                             <TextBlock Text="{Binding YearText}" Style="{StaticResource YearReview.Display}" Foreground="{DynamicResource PlayAch.Brush.Accent}"/>
