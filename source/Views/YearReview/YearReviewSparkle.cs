@@ -6,7 +6,7 @@ using PlayniteAchievements.Views.Helpers;
 namespace PlayniteAchievements.Views.YearReview
 {
     /// <summary>
-    /// The Year in Review entry's icon: a four-point star that breathes and turns over a ring of
+    /// The Year in Review entry's icon: a five-point star that breathes and turns over a ring of
     /// turning rays, with two small stars twinkling beside it. It runs on the shared ray tick, so it
     /// pauses with every other glow while Playnite is in the background or a game runs. While
     /// <see cref="IsHot"/> everything turns faster and the rays reach further.
@@ -134,7 +134,7 @@ namespace PlayniteAchievements.Views.YearReview
             // Main star, breathing.
             var breath = 0.5 + 0.5 * Math.Sin(now / BreathMs * 2 * Math.PI);
             var mainRadius = size * (0.3 + 0.04 * breath + 0.04 * _hot);
-            dc.DrawGeometry(star, null, Star(center, mainRadius, _starTurn));
+            dc.DrawGeometry(star, null, Star(center, mainRadius, _starTurn, 5, 0.42));
 
             // Two twinkles, out of step with each other.
             DrawTwinkle(dc, star, new Point(center.X + size * 0.32, center.Y - size * 0.3), size * 0.13, now / TwinkleMs);
@@ -151,20 +151,24 @@ namespace PlayniteAchievements.Views.YearReview
             }
 
             dc.PushOpacity(scale);
-            dc.DrawGeometry(brush, null, Star(at, radius * scale, 45));
+            dc.DrawGeometry(brush, null, Star(at, radius * scale, 45, 4, 0.28));
             dc.Pop();
         }
 
-        /// <summary>A four-point star whose points reach <paramref name="radius"/>, turned by <paramref name="degrees"/>.</summary>
-        private static Geometry Star(Point center, double radius, double degrees)
+        /// <summary>
+        /// A star of <paramref name="points"/> points reaching <paramref name="radius"/>, its notches at
+        /// <paramref name="innerRatio"/> of that, turned by <paramref name="degrees"/>.
+        /// </summary>
+        private static Geometry Star(Point center, double radius, double degrees, int points, double innerRatio)
         {
-            var inner = radius * 0.28;
+            var inner = radius * innerRatio;
+            var step = 180.0 / points;
             var geometry = new StreamGeometry();
             using (var ctx = geometry.Open())
             {
-                for (var i = 0; i < 8; i++)
+                for (var i = 0; i < points * 2; i++)
                 {
-                    var angle = (degrees - 90 + i * 45) * Math.PI / 180;
+                    var angle = (degrees - 90 + i * step) * Math.PI / 180;
                     var point = Polar(center, i % 2 == 0 ? radius : inner, angle);
                     if (i == 0)
                     {
