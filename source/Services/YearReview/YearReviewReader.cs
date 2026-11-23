@@ -159,6 +159,7 @@ namespace PlayniteAchievements.Services.YearReview
                 .Where(row => row?.PlayniteGameId != null && row.UnlockTimeUtc.HasValue)
                 .Select(row => new YearReviewUnlock
                 {
+                    Key = row.PlayniteGameId.Value.ToString("D") + Separator + row.ApiName,
                     GameId = row.PlayniteGameId.Value,
                     GameName = NameOf(row.PlayniteGameId.Value, row.GameName),
                     AchievementName = row.DisplayName ?? row.ApiName,
