@@ -91,5 +91,15 @@ namespace PlayniteAchievements.Providers.Local
         };
         private static NativeSourceOption Option(string key, string name, string files) => new NativeSourceOption { Key = key, Name = name, Files = files };
         public static NativeSourceOption Find(string key) => Sources.FirstOrDefault(s => s.Key == key);
+
+        // Console emulators/recompilers, listed in their own group before the PC ports.
+        public static bool IsEmulator(string key) => key == "kytyps5" || key == "ps3recomp" || key == "ps4recomp" || key == "x360recomp";
+
+        // Automatic detection, the emulators as declared, then the PC ports and patches A-Z.
+        public static IReadOnlyList<NativeSourceOption> DisplayOrder { get; } =
+            Sources.Where(s => s.Key == "auto")
+                .Concat(Sources.Where(s => IsEmulator(s.Key)))
+                .Concat(Sources.Where(s => s.Key != "auto" && !IsEmulator(s.Key)).OrderBy(s => s.Name, StringComparer.CurrentCultureIgnoreCase))
+                .ToList();
     }
 }

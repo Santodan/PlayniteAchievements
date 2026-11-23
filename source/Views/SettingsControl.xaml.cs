@@ -339,10 +339,9 @@ namespace PlayniteAchievements.Views
                     ForkProviderNavigationItems.Add(new ProviderNavigationItem(
                         "LocalNativeSources", "Native source folders", "Local", iconKey, colorHex,
                         settings, () => new Providers.Local.NativeSourcesSettingsView()));
-                    foreach (var nativeSource in Providers.Local.NativeSourceCatalog.Sources.Where(source => source.Key != "auto"))
+                    foreach (var nativeSource in Providers.Local.NativeSourceCatalog.DisplayOrder.Where(source => source.Key != "auto"))
                     {
-                        var group = nativeSource.Key == "kytyps5" || nativeSource.Key == "ps3recomp" ||
-                            nativeSource.Key == "ps4recomp" || nativeSource.Key == "x360recomp"
+                        var group = Providers.Local.NativeSourceCatalog.IsEmulator(nativeSource.Key)
                             ? "Emulators" : "PC ports & community patches";
                         var nativeSettings = (Providers.Local.LocalSettings)settings;
                         var nativeIconKey = Providers.Local.NativeSourceIconService.IconKey(nativeSource, nativeSettings);
