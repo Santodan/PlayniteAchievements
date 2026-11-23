@@ -162,13 +162,14 @@ namespace PlayniteAchievements.Tests.Services
             {
                 new UnlockFact { GameId = GameA, Day = null, CollectionScore = 100 },
                 new UnlockFact { GameId = GameA, Day = new DateTime(2025, 5, 1), CollectionScore = 200 },
-                new UnlockFact { GameId = GameA, Day = new DateTime(2026, 6, 1), CollectionScore = 50 },
+                new UnlockFact { GameId = GameA, Day = new DateTime(2026, 6, 1), CollectionScore = 50, PrestigeScore = 70 },
                 new UnlockFact { GameId = GameA, Day = new DateTime(2027, 1, 1), CollectionScore = 999 }
             };
 
             var review = YearReviewBuilder.Build(2026, inputs);
 
-            Assert.AreEqual(50, review.ScoreGained);
+            Assert.AreEqual(50, review.CollectionGained);
+            Assert.AreEqual(70, review.PrestigeGained);
             Assert.IsTrue(review.LevelAtEnd >= review.LevelAtStart);
         }
 
