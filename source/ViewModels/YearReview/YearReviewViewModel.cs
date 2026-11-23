@@ -152,27 +152,8 @@ namespace PlayniteAchievements.ViewModels.YearReview
                 var (data, art) = await Task.Run(() =>
                 {
                     var built = YearReviewBuilder.Build(year, reader.ReadYear(library, year, DateTime.Today));
-                    var covers = library.Games
-                        .GroupBy(game => game.GameId)
-                        .ToDictionary(group => group.Key, group => group.First().CoverPath);
-                    var backdrops = new Dictionary<Guid, string>();
-                    foreach (var kind in built.Slides)
-                    {
-                        if (YearReviewSlideFactory.BackdropGame(built, kind) is Guid id && !backdrops.ContainsKey(id))
-                        {
-                            var path = reader.BackgroundPath(id);
-                            if (string.IsNullOrWhiteSpace(path))
-                            {
-                                covers.TryGetValue(id, out path);
-                            }
-
-                            backdrops[id] = path;
-                        }
-                    }
-
                     return (built, new YearReviewArt
                     {
-                        Backdrops = backdrops,
                         TopFriendAvatarPath = built.Friends.TopFriendKey != null ? reader.FriendAvatar(built.Friends.TopFriendKey) : null
                     });
                 }, cancel.Token).ConfigureAwait(true);
@@ -180,6 +161,26 @@ namespace PlayniteAchievements.ViewModels.YearReview
                 {
                     return;
                 }
+
+                var covers = library.Games
+                    .GroupBy(game => game.GameId)
+                    .ToDictionary(group => group.Key, group => group.First().CoverPath);
+                var backdrops = new Dictionary<Guid, string>();
+                art.BackdropOf = id =>
+                {
+                    if (!backdrops.TryGetValue(id, out var path))
+                    {
+                        path = reader.BackgroundPath(id);
+                        if (string.IsNullOrWhiteSpace(path))
+                        {
+                            covers.TryGetValue(id, out path);
+                        }
+
+                        backdrops[id] = path;
+                    }
+
+                    return path;
+                };
 
                 var slides = YearReviewSlideFactory.Create(data, art);
                 foreach (var friends in slides.OfType<YearReviewFriendsSlide>())
