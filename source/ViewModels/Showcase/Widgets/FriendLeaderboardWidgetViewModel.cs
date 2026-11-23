@@ -16,32 +16,20 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
     /// one friend picked it compares that friend with the user.
     /// </summary>
     public sealed class FriendLeaderboardWidgetViewModel
-        : ShowcaseGridWidgetViewModelBase<FriendSummaryItem>, IDisposable
+        : FriendGridWidgetViewModelBase<FriendSummaryItem, FriendLeaderboardControlBarAdapter>
     {
-        // The widget instance's shared adapter, so the filters survive view model swaps.
-        private readonly ShowcaseControlBarSlot<FriendLeaderboardControlBarAdapter> _controlBarSlot;
-        private readonly FriendWidgetLists _lists;
-
         // One row for the user, updated in place, so a new snapshot does not replace the row.
         private readonly FriendSummaryItem _self = new FriendSummaryItem { IsSelf = true };
 
-        public FriendLeaderboardWidgetViewModel()
-        {
-            _controlBarSlot = new ShowcaseControlBarSlot<FriendLeaderboardControlBarAdapter>(RefreshItems);
-            _lists = new FriendWidgetLists(RefreshItems);
-        }
-
         protected override string BaseSurfaceKey => ShowcaseGridSurfaces.FriendSummaries;
 
-        // Each read of the friend data builds new rows.
-        protected override bool ReplacesRowsInPlace => true;
-
-        protected override IEnumerable<FriendSummaryItem> SelectItems(ShowcaseWidgetProjection projection)
+        internal override IEnumerable<FriendSummaryItem> SelectFriendItems(
+            ShowcaseWidgetProjection projection,
+            Services.Friends.FriendsOverviewLists lists,
+            FriendLeaderboardControlBarAdapter bar)
         {
-            var bar = Bar();
-            var lists = _lists.Current;
-            // Loading, or friends features off: no ranking to place the user in.
-            if (lists == null || ReferenceEquals(lists, Services.Friends.FriendsOverviewLists.Empty))
+            // With no friends there is no one to rank the user against.
+            if (lists.Friends.Count == 0)
             {
                 return Array.Empty<FriendSummaryItem>();
             }
@@ -80,15 +68,6 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 propertyName == nameof(FriendSummaryGridOptions.SortDescending);
         }
 
-        private FriendLeaderboardControlBarAdapter Bar()
-        {
-            _controlBarSlot.Bind(Projection?.Instance?.InstanceId);
-            _controlBarSlot.Adapter.EnableSort();
-            _controlBarSlot.UpdateShownBar(Projection?.Instance, LegacyShowControlBar);
-            ControlBar = _controlBarSlot.ShownBar;
-            return _controlBarSlot.Adapter;
-        }
-
         // The user's row: their library's totals, under their account name and avatar.
         private void UpdateSelf(OverviewDataSnapshot snapshot)
         {
@@ -123,7 +102,5 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 .DefaultIfEmpty()
                 .Max();
         }
-
-        public void Dispose() => _lists.Dispose();
     }
 }
