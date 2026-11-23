@@ -145,8 +145,16 @@ namespace PlayniteAchievements.Views.YearReview
             // Main star, breathing.
             var breath = 0.5 + 0.5 * Math.Sin(now / BreathMs * 2 * Math.PI);
             var mainRadius = size * (0.3 + 0.04 * breath + 0.04 * _hot);
-            var outline = Outline == null ? null : new Pen(Outline, Math.Max(1, size * 0.05)) { LineJoin = PenLineJoin.Round };
-            outline?.Freeze();
+            // Theme brushes can be unfreezable, so the pen takes a fresh brush of the same colour.
+            var outlineColor = (Outline as SolidColorBrush)?.Color;
+            Pen outline = null;
+            if (outlineColor.HasValue)
+            {
+                var outlineBrush = new SolidColorBrush(outlineColor.Value);
+                outlineBrush.Freeze();
+                outline = new Pen(outlineBrush, Math.Max(1, size * 0.05)) { LineJoin = PenLineJoin.Round };
+                outline.Freeze();
+            }
             dc.DrawGeometry(star, outline, Star(center, mainRadius, _starTurn, 5, 0.42));
 
             // Two twinkles, out of step with each other.
