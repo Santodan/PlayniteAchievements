@@ -61,6 +61,94 @@
         <Setter Property="Effect" Value="{StaticResource YearReview.CardShadow}"/>
     </Style>
 
+    <!-- The slide's view picker: the current view's name and a chevron, opening the list of views. -->
+    <Style x:Key="YearReview.ViewPickerButton" TargetType="Button" BasedOn="{StaticResource PlayAch.Button.BaseStyle}">
+        <Setter Property="Margin" Value="24,0,0,0"/>
+        <Setter Property="Padding" Value="14,6"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Visibility" Value="{Binding HasViews, Converter={StaticResource BoolToVis}}"/>
+        <Setter Property="Command" Value="{x:Static local:YearReviewControl.OpenViewPickerCommand}"/>
+        <Setter Property="CommandParameter" Value="{Binding RelativeSource={RelativeSource Self}}"/>
+        <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Showcase_Variant}"/>
+        <Setter Property="AutomationProperties.Name" Value="{DynamicResource LOCPlayAch_Showcase_Variant}"/>
+        <Setter Property="ContentTemplate">
+            <Setter.Value>
+                <DataTemplate>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding CurrentView.Label}"
+                                   FontSize="{DynamicResource PlayAch.FontSize.Body}"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                   VerticalAlignment="Center"/>
+                        <TextBlock Text="&#xEAB2;"
+                                   FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                                   Foreground="{DynamicResource PlayAch.Brush.Glyph}"
+                                   VerticalAlignment="Center"
+                                   Margin="10,0,0,0"/>
+                    </StackPanel>
+                </DataTemplate>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Content" Value="{Binding}"/>
+    </Style>
+
+    <!-- The list of a slide's views, in the unlock list's popup chrome. -->
+    <Style x:Key="YearReview.ViewRowStyle" TargetType="ListBoxItem">
+        <Setter Property="Margin" Value="0"/>
+        <Setter Property="Padding" Value="10,6"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                    <Border x:Name="Bd"
+                            Background="Transparent"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
+                            Padding="{TemplateBinding Padding}"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource PlayAch.Brush.Overlay.Tint.08}"/>
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource PlayAch.Brush.Selection}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <DataTemplate x:Key="YearReview.ViewPickerPopupTemplate">
+        <Border Background="{DynamicResource PlayAch.Brush.PopupSurface}"
+                BorderBrush="{DynamicResource PlayAch.Brush.PopupBorder}"
+                BorderThickness="1"
+                CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
+                Padding="6"
+                MinWidth="200"
+                MaxWidth="320">
+            <ListBox ItemsSource="{Binding Views}"
+                     SelectedItem="{Binding CurrentView, Mode=TwoWay}"
+                     ItemContainerStyle="{StaticResource YearReview.ViewRowStyle}"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     Padding="0"
+                     MaxHeight="360"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding Label}"
+                                   TextTrimming="CharacterEllipsis"
+                                   FontSize="{DynamicResource PlayAch.FontSize.Body}"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"/>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Border>
+    </DataTemplate>
+
     <!-- Places each item of a canvas ItemsControl from its X, Y, Angle and Delay. -->
     <Style x:Key="YearReview.PlacedItem" TargetType="ContentPresenter">
         <Setter Property="Canvas.Left" Value="{Binding X}"/>
@@ -446,15 +534,7 @@
             <StackPanel Canvas.Left="72" Canvas.Top="72" local:YearReviewMotion.Reveal="Rise">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="{DynamicResource LOCPlayAch_YearReview_ByMonth}" Style="{StaticResource YearReview.Title}" VerticalAlignment="Center"/>
-                    <ComboBox ItemsSource="{Binding Views}"
-                          SelectedItem="{Binding CurrentView}"
-                          DisplayMemberPath="Label"
-                          MinWidth="170"
-                          Margin="24,0,0,0"
-                          VerticalAlignment="Center"
-                          Visibility="{Binding HasViews, Converter={StaticResource BoolToVis}}"
-                          ToolTip="{DynamicResource LOCPlayAch_Showcase_Variant}"
-                          AutomationProperties.Name="{DynamicResource LOCPlayAch_Showcase_Variant}"/>
+                    <Button Style="{StaticResource YearReview.ViewPickerButton}"/>
                 </StackPanel>
                 <TextBlock Text="{Binding CurrentView.BusiestDayText}" Style="{StaticResource YearReview.Label}" Margin="0,4,0,0" MaxWidth="560" HorizontalAlignment="Left"/>
             </StackPanel>
@@ -490,15 +570,7 @@
             <StackPanel Canvas.Left="72" Canvas.Top="72" local:YearReviewMotion.Reveal="Rise">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="{DynamicResource LOCPlayAch_YearReview_TopGames}" Style="{StaticResource YearReview.Title}" VerticalAlignment="Center"/>
-                    <ComboBox ItemsSource="{Binding Views}"
-                          SelectedItem="{Binding CurrentView}"
-                          DisplayMemberPath="Label"
-                          MinWidth="170"
-                          Margin="24,0,0,0"
-                          VerticalAlignment="Center"
-                          Visibility="{Binding HasViews, Converter={StaticResource BoolToVis}}"
-                          ToolTip="{DynamicResource LOCPlayAch_Showcase_Variant}"
-                          AutomationProperties.Name="{DynamicResource LOCPlayAch_Showcase_Variant}"/>
+                    <Button Style="{StaticResource YearReview.ViewPickerButton}"/>
                 </StackPanel>
             </StackPanel>
             <StackPanel Canvas.Left="72" Canvas.Top="150" MaxWidth="250"
@@ -618,15 +690,7 @@
             <StackPanel Canvas.Left="640" Canvas.Top="72" local:YearReviewMotion.Reveal="Rise">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="{DynamicResource LOCPlayAch_YearReview_RarestUnlock}" Style="{StaticResource YearReview.Title}" VerticalAlignment="Center"/>
-                    <ComboBox ItemsSource="{Binding Views}"
-                          SelectedItem="{Binding CurrentView}"
-                          DisplayMemberPath="Label"
-                          MinWidth="170"
-                          Margin="24,0,0,0"
-                          VerticalAlignment="Center"
-                          Visibility="{Binding HasViews, Converter={StaticResource BoolToVis}}"
-                          ToolTip="{DynamicResource LOCPlayAch_Showcase_Variant}"
-                          AutomationProperties.Name="{DynamicResource LOCPlayAch_Showcase_Variant}"/>
+                    <Button Style="{StaticResource YearReview.ViewPickerButton}"/>
                 </StackPanel>
             </StackPanel>
         </Canvas>
@@ -665,15 +729,7 @@
             <StackPanel Canvas.Left="72" Canvas.Top="72" local:YearReviewMotion.Reveal="Rise">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="{DynamicResource LOCPlayAch_YearReview_UnlocksByRarity}" Style="{StaticResource YearReview.Title}" VerticalAlignment="Center"/>
-                    <ComboBox ItemsSource="{Binding Views}"
-                          SelectedItem="{Binding CurrentView}"
-                          DisplayMemberPath="Label"
-                          MinWidth="170"
-                          Margin="24,0,0,0"
-                          VerticalAlignment="Center"
-                          Visibility="{Binding HasViews, Converter={StaticResource BoolToVis}}"
-                          ToolTip="{DynamicResource LOCPlayAch_Showcase_Variant}"
-                          AutomationProperties.Name="{DynamicResource LOCPlayAch_Showcase_Variant}"/>
+                    <Button Style="{StaticResource YearReview.ViewPickerButton}"/>
                 </StackPanel>
             </StackPanel>
             <TextBlock Canvas.Left="72" Canvas.Top="660"
@@ -807,15 +863,7 @@
             <StackPanel Canvas.Left="72" Canvas.Top="72" local:YearReviewMotion.Reveal="Rise">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Friends}" Style="{StaticResource YearReview.Title}" VerticalAlignment="Center"/>
-                    <ComboBox ItemsSource="{Binding Views}"
-                          SelectedItem="{Binding CurrentView}"
-                          DisplayMemberPath="Label"
-                          MinWidth="170"
-                          Margin="24,0,0,0"
-                          VerticalAlignment="Center"
-                          Visibility="{Binding HasViews, Converter={StaticResource BoolToVis}}"
-                          ToolTip="{DynamicResource LOCPlayAch_Showcase_Variant}"
-                          AutomationProperties.Name="{DynamicResource LOCPlayAch_Showcase_Variant}"/>
+                    <Button Style="{StaticResource YearReview.ViewPickerButton}"/>
                 </StackPanel>
             </StackPanel>
             <StackPanel Canvas.Left="60" Canvas.Top="140" Width="540">
