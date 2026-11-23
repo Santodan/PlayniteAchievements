@@ -427,61 +427,21 @@
                             </Button.Style>
                         </Button>
 
-                        <!-- Opens the Year in Review window: a tilted ticket with the year in the
-                             review's display face, whose rays grow back and turn while hovered. -->
+                        <!-- Opens the Year in Review window: a small sparkle over turning rays. -->
                         <Button x:Name="YearReviewButton"
                                 Click="YearReviewButton_Click"
-                                MouseEnter="YearReviewButton_MouseEnter"
-                                Margin="22,0,0,0"
+                                Margin="18,0,0,0"
+                                Width="30"
                                 Height="30"
+                                Padding="0"
                                 VerticalAlignment="Center"
-                                Cursor="Hand"
-                                Focusable="False"
-                                yearReview:YearReviewMotion.Angle="-4"
-                                yearReview:YearReviewMotion.Hover="True"
+                                Style="{StaticResource PlayAch.Button.ToolbarIconStyle}"
                                 ToolTip="{DynamicResource LOCPlayAch_YearReview_Title}"
                                 AutomationProperties.Name="{DynamicResource LOCPlayAch_YearReview_Title}">
-                            <Button.Template>
-                                <ControlTemplate TargetType="Button">
-                                    <Border x:Name="Chrome"
-                                            Background="{DynamicResource PlayAch.Brush.Button.Background}"
-                                            BorderBrush="{DynamicResource PlayAch.Brush.Accent}"
-                                            BorderThickness="1.5"
-                                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
-                                            SnapsToDevicePixels="True">
-                                        <Grid ClipToBounds="True">
-                                            <yearReview:YearReviewSunburst x:Name="YearReviewRays"
-                                                                           Color="{DynamicResource PlayAch.Brush.Accent}"
-                                                                           Origin="0.22,0.5"
-                                                                           IsActive="{Binding IsMouseOver, RelativeSource={RelativeSource TemplatedParent}}"/>
-                                            <StackPanel Orientation="Horizontal" Margin="9,0,11,0" VerticalAlignment="Center">
-                                                <TextBlock Text="&#xEECD;"
-                                                           FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
-                                                           FontSize="14"
-                                                           Foreground="{DynamicResource PlayAch.Brush.Accent}"
-                                                           VerticalAlignment="Center"
-                                                           Margin="0,0,7,0"/>
-                                                <TextBlock x:Name="YearReviewYearText"
-                                                           Text="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}"
-                                                           FontFamily="pack://application:,,,/PlayniteAchievements;component/Resources/Fonts/#Big Shoulders Display Black"
-                                                           FontSize="21"
-                                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                                           VerticalAlignment="Center"
-                                                           Margin="0,-1,0,0"/>
-                                            </StackPanel>
-                                        </Grid>
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
-                                            <Setter TargetName="YearReviewYearText" Property="Foreground" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                                        </Trigger>
-                                        <Trigger Property="IsPressed" Value="True">
-                                            <Setter TargetName="Chrome" Property="Opacity" Value="0.85"/>
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </Button.Template>
+                            <yearReview:YearReviewSparkle Width="24"
+                                                          Height="24"
+                                                          Fill="{DynamicResource PlayAch.Brush.Accent}"
+                                                          IsHot="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Button}}"/>
                         </Button>
                     </StackPanel>
 
