@@ -308,7 +308,10 @@ namespace PlayniteAchievements.ViewModels.YearReview
 
     public sealed class YearReviewDonutSegment
     {
-        public Geometry Geometry { get; set; }
+        /// <summary>Where the slice begins, in degrees clockwise from the right.</summary>
+        public double StartAngle { get; set; }
+
+        public double Sweep { get; set; }
         public Brush Fill { get; set; }
         public string ToolTip { get; set; }
         public YearReviewUnlockGroup Group { get; set; }
