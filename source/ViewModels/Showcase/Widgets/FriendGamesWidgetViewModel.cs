@@ -154,6 +154,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         private FriendGamesControlBarAdapter Bar()
         {
             _controlBarSlot.Bind(Projection?.Instance?.InstanceId);
+            _controlBarSlot.Adapter.EnableSort();
             _controlBarSlot.UpdateShownBar(Projection?.Instance, LegacyShowControlBar);
             ControlBar = _controlBarSlot.ShownBar;
             return _controlBarSlot.Adapter;
