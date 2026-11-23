@@ -61,8 +61,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private readonly Services.Cache.FeedGate _pagedFeedGate = new Services.Cache.FeedGate();
 
         /// <summary>
-        /// The library editor, opened on every game. The single-game services the Manage window
-        /// hands its editor (manual linking, export, import, the Workshop) are not offered here.
+        /// The library editor, opened on every game, or locked to <paramref name="lockedGameIds"/>
+        /// when given. The single-game services the Manage window hands its editor (manual
+        /// linking, export, import, the Workshop) are not offered here.
         /// </summary>
         internal static ManageAchievementsEditorViewModel ForLibrary(
             EditorLibrarySources sources,
@@ -73,10 +74,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             ILogger logger,
             CustomProviderStore customProviderStore = null,
             Func<string, string> pickColor = null,
-            Func<CustomProviderEditorViewModel, CustomProviderEditorResult> showEditor = null)
+            Func<CustomProviderEditorViewModel, CustomProviderEditorResult> showEditor = null,
+            IEnumerable<Guid> lockedGameIds = null)
         {
+            // The opening scope's games are the lock; InitializeLibraryScope takes them from it.
             return new ManageAchievementsEditorViewModel(
-                EditorScope.Library(),
+                EditorScope.Library(lockedGameIds),
                 sources ?? throw new ArgumentNullException(nameof(sources)),
                 achievementOverridesService,
                 gameCustomDataStore,
@@ -210,10 +213,37 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private void InitializeLibraryScope()
         {
+            _lockedGameIds = Scope.FilterGameIds;
             GameFilter = new ControlBarGameFilter(ApplyLibraryScope);
+            GameFilter.SetScope(_lockedGameIds);
             LoadLibraryGames();
             ApplyLibraryScope();
         }
+
+        // The games the library editor is locked to, opened from a selection of games; null for
+        // every game. The Game filter lists only these, and with nothing ticked the rows are theirs.
+        private IReadOnlyList<Guid> _lockedGameIds;
+
+        /// <summary>
+        /// Locks the library editor to <paramref name="gameIds"/>, or frees it to every game when
+        /// null or empty, and lists them with nothing ticked in the Game filter.
+        /// </summary>
+        internal void LockToGames(IEnumerable<Guid> gameIds)
+        {
+            if (_isDetached || !Scope.IsLibrary)
+            {
+                return;
+            }
+
+            _lockedGameIds = EditorScope.Library(gameIds).FilterGameIds;
+            GameFilter.Restore(null);
+            GameFilter.SetScope(_lockedGameIds);
+            ApplyLibraryScope();
+        }
+
+        /// <summary>The games the editor lists: the ticked ones, else the locked ones, else null for every game.</summary>
+        private IReadOnlyCollection<Guid> ListedGameIds =>
+            GameFilter?.HasSelection == true ? GameFilter.SelectedGameIds : _lockedGameIds;
 
         /// <summary>
         /// Lists the games of the Game filter: every game the current user has rows of, named as
@@ -284,7 +314,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 SetVisible(false);
             }
 
-            Scope = EditorScope.Library(GameFilter?.SelectedGameIds);
+            Scope = EditorScope.Library(ListedGameIds);
             ClearAllMatchingSelection();
             ClearKeptRows();
             SetStatus(null, false);
@@ -425,7 +455,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private AchievementQuery LibraryScopeQuery()
         {
             var query = AchievementQuery.CurrentUser.WithLatestProgressOnly();
-            return GameFilter?.HasSelection == true ? query.ForGames(GameFilter.SelectedGameIds) : query;
+            var games = ListedGameIds;
+            return games != null ? query.ForGames(games) : query;
         }
 
         /// <summary>The filters changed: the kept rows go and the list reads from its top.</summary>
