@@ -143,14 +143,28 @@
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
-            <ComboBox Grid.Column="1"
-                      IsEnabled="{Binding IsLoading, Converter={StaticResource InvertBoolConverter}}"
-                      MinWidth="90"
-                      Margin="16,0,0,0"
-                      ItemsSource="{Binding Years}"
-                      SelectedItem="{Binding SelectedYear}"
-                      ToolTip="{DynamicResource LOCPlayAch_YearReview_Year}"
-                      AutomationProperties.Name="{DynamicResource LOCPlayAch_YearReview_Year}"/>
+            <!-- The year: a button opening the list of years, like the slides' view pickers. -->
+            <Button Grid.Column="1"
+                    x:Name="YearButton"
+                    Style="{StaticResource PlayAch.Button.BaseStyle}"
+                    Padding="14,5"
+                    Margin="16,0,0,0"
+                    Click="YearButton_Click"
+                    IsEnabled="{Binding IsLoading, Converter={StaticResource InvertBoolConverter}}"
+                    ToolTip="{DynamicResource LOCPlayAch_YearReview_Year}"
+                    AutomationProperties.Name="{DynamicResource LOCPlayAch_YearReview_Year}">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{Binding SelectedYear}"
+                               FontSize="{DynamicResource PlayAch.FontSize.Body}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               VerticalAlignment="Center"/>
+                    <TextBlock Text="&#xEAB2;"
+                               FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                               Foreground="{DynamicResource PlayAch.Brush.Glyph}"
+                               VerticalAlignment="Center"
+                               Margin="10,0,0,0"/>
+                </StackPanel>
+            </Button>
         </Grid>
 
         <TextBlock Grid.Row="2"
