@@ -4,6 +4,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -231,6 +232,65 @@ namespace PlayniteAchievements.Views.YearReview
         private void Previous() => _viewModel.Go(_shownIndex - 1);
 
         private void Next_Click(object sender, RoutedEventArgs e) => Next();
+
+        private Popup _yearPopup;
+
+        /// <summary>The list of years under the year button; picking one loads it and closes the list.</summary>
+        private void YearButton_Click(object sender, RoutedEventArgs e)
+        {
+            _yearPopup?.SetCurrentValue(Popup.IsOpenProperty, false);
+            var list = new ListBox
+            {
+                ItemsSource = _viewModel.Years,
+                SelectedItem = _viewModel.SelectedYear,
+                ItemContainerStyle = TryFindResource("YearReview.ViewRowStyle") as Style,
+                Background = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                Padding = new Thickness(0),
+                MaxHeight = 360,
+                FocusVisualStyle = null
+            };
+            ScrollViewer.SetHorizontalScrollBarVisibility(list, ScrollBarVisibility.Disabled);
+            var border = new Border
+            {
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(6),
+                MinWidth = 140,
+                Child = list
+            };
+            border.SetResourceReference(Border.BackgroundProperty, "PlayAch.Brush.PopupSurface");
+            border.SetResourceReference(Border.BorderBrushProperty, "PlayAch.Brush.PopupBorder");
+            border.SetResourceReference(Border.CornerRadiusProperty, "PlayAch.Radius.Layout");
+            list.SetResourceReference(TextElement.ForegroundProperty, "PlayAch.Brush.Text");
+            list.SetResourceReference(TextElement.FontSizeProperty, "PlayAch.FontSize.Body");
+
+            var popup = new Popup
+            {
+                PlacementTarget = YearButton,
+                Placement = PlacementMode.Bottom,
+                StaysOpen = false,
+                AllowsTransparency = true,
+                PopupAnimation = PopupAnimation.Fade,
+                Child = border
+            };
+            list.SelectionChanged += (s, args) =>
+            {
+                if (list.SelectedItem is int year && year != _viewModel.SelectedYear)
+                {
+                    _viewModel.SelectedYear = year;
+                    Dispatcher.BeginInvoke(new Action(() => popup.IsOpen = false));
+                }
+            };
+            popup.Closed += (s, args) =>
+            {
+                if (ReferenceEquals(_yearPopup, popup))
+                {
+                    _yearPopup = null;
+                }
+            };
+            _yearPopup = popup;
+            popup.IsOpen = true;
+        }
 
         private void Segment_Click(object sender, RoutedEventArgs e)
         {
