@@ -42,6 +42,9 @@ namespace PlayniteAchievements.ViewModels.YearReview
     public sealed class YearReviewIcon : YearReviewPlaced
     {
         public string IconPath { get; set; }
+
+        /// <summary>The achievement and its game, shown on hover.</summary>
+        public string ToolTip { get; set; }
         public double Size { get; set; }
     }
 
@@ -68,12 +71,18 @@ namespace PlayniteAchievements.ViewModels.YearReview
 
         public bool IsPeak { get; set; }
         public double Delay { get; set; }
+
+        /// <summary>The month and its count, shown on hover.</summary>
+        public string ToolTip { get; set; }
     }
 
     public sealed class YearReviewHeatCell : YearReviewPlaced
     {
         /// <summary>0 for no unlocks, then 1 to 4 by share of the busiest day.</summary>
         public int Level { get; set; }
+
+        /// <summary>The day and its count, shown on hover.</summary>
+        public string ToolTip { get; set; }
     }
 
     public sealed class YearReviewMonthsSlide : YearReviewSlide
