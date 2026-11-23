@@ -749,5 +749,61 @@ namespace PlayniteAchievements.Tests.Models
                 ShowcaseWidgetOptions.GetVerticalAlignment(instance, ShowcaseVerticalAlignment.Top));
             Assert.AreEqual(ShowcaseVerticalAlignment.Bottom, ShowcaseWidgetOptions.GetVerticalAlignment(instance));
         }
+
+        [TestMethod]
+        public void FriendAccountKeys_EmptyByDefault_RoundTripsWithoutDuplicates()
+        {
+            var instance = ShowcaseWidgetSettingsFactory.CreateDefault(ShowcaseWidgetKind.FriendLeaderboard, "w1");
+            Assert.AreEqual(0, ShowcaseWidgetOptions.GetFriendAccountKeys(instance).Count);
+
+            ShowcaseWidgetOptions.SetFriendAccountKeys(instance, new[] { "steam|1", " xbox|2 ", "STEAM|1", "" });
+            CollectionAssert.AreEqual(new[] { "steam|1", "xbox|2" }, ShowcaseWidgetOptions.GetFriendAccountKeys(instance).ToArray());
+
+            ShowcaseWidgetOptions.SetFriendAccountKeys(instance, null);
+            Assert.AreEqual(0, ShowcaseWidgetOptions.GetFriendAccountKeys(instance).Count);
+        }
+
+        [DataTestMethod]
+        [DataRow(ShowcaseWidgetKind.FriendUnlocks, ShowcaseGridSurfaces.FriendAchievements)]
+        [DataRow(ShowcaseWidgetKind.FriendLeaderboard, ShowcaseGridSurfaces.FriendSummaries)]
+        [DataRow(ShowcaseWidgetKind.FriendGames, ShowcaseGridSurfaces.FriendGames)]
+        public void FriendWidgets_OwnAPerInstanceFriendSurface(ShowcaseWidgetKind kind, string baseKey)
+        {
+            var surface = ShowcaseGridSurfaces.ResolveWidgetSurface(kind, "w1");
+
+            Assert.AreEqual(baseKey + ":w1", surface);
+            Assert.IsTrue(ShowcaseGridSurfaces.IsFriendSurface(surface));
+            Assert.IsNull(ShowcaseGridSurfaces.ResolveCategorySurface(surface));
+            Assert.IsTrue(ShowcaseWidgetCatalog.Get(kind).RequiresFriends);
+            Assert.IsFalse(ShowcaseWidgetCatalog.Get(kind).IsOffered(friendsEnabled: false));
+            Assert.IsTrue(ShowcaseWidgetCatalog.Get(kind).IsOffered(friendsEnabled: true));
+        }
+
+        [TestMethod]
+        public void FriendWidgetSurfaces_CopyAndPruneWithTheirWidget()
+        {
+            var catalog = new GridOptionsCatalog();
+            var source = ShowcaseWidgetSettingsFactory.CreateDefault(ShowcaseWidgetKind.FriendLeaderboard, "a");
+            var copy = ShowcaseWidgetSettingsFactory.CreateDefault(ShowcaseWidgetKind.FriendLeaderboard, "b");
+            var sourceKey = ShowcaseGridSurfaces.ResolveWidgetSurface(source.Kind, source.InstanceId);
+            var copyKey = ShowcaseGridSurfaces.ResolveWidgetSurface(copy.Kind, copy.InstanceId);
+            Assert.AreEqual(FriendSummariesSortMode.CollectionScore, catalog.GetFriendSummaries(sourceKey).SortMode);
+            catalog.GetFriendSummaries(sourceKey).SortMode = FriendSummariesSortMode.UnlockedAchievements;
+
+            ShowcaseGridSurfaces.CopySurface(catalog, source, copy);
+            Assert.AreEqual(FriendSummariesSortMode.UnlockedAchievements, catalog.GetFriendSummaries(copyKey).SortMode);
+
+            var unlocks = ShowcaseWidgetSettingsFactory.CreateDefault(ShowcaseWidgetKind.FriendUnlocks, "c");
+            var unlocksKey = ShowcaseGridSurfaces.ResolveWidgetSurface(unlocks.Kind, unlocks.InstanceId);
+            catalog.GetAchievement(unlocksKey);
+
+            var showcase = new ShowcaseSettings();
+            showcase.WidgetInstances.Add(copy);
+            ShowcaseGridSurfaces.PruneOrphaned(catalog, showcase);
+
+            Assert.IsFalse(catalog.FriendSummaries.ContainsKey(sourceKey));
+            Assert.IsTrue(catalog.FriendSummaries.ContainsKey(copyKey));
+            Assert.IsFalse(catalog.Achievement.ContainsKey(unlocksKey));
+        }
     }
 }
