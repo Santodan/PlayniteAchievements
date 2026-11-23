@@ -255,7 +255,8 @@ namespace PlayniteAchievements.ViewModels.YearReview
                 var sweep = 360.0 * platform.Unlocks.Count / total;
                 segments.Add(new YearReviewDonutSegment
                 {
-                    Geometry = RingSegment(new Point(350, 350), 350, 168, start, sweep),
+                    StartAngle = start,
+                    Sweep = sweep,
                     Fill = platform.Fill,
                     ToolTip = Format("LOCPlayAch_Format_Pair", platform.Name, Number(platform.Unlocks.Count)),
                     Group = group
@@ -313,39 +314,6 @@ namespace PlayniteAchievements.ViewModels.YearReview
                 Height = height,
                 Delay = delay
             };
-
-        /// <summary>A ring sector from <paramref name="start"/> degrees, clockwise by <paramref name="sweep"/>.</summary>
-        public static Geometry RingSegment(Point center, double outer, double inner, double start, double sweep)
-        {
-            if (sweep >= 359.99)
-            {
-                var ring = new CombinedGeometry(
-                    GeometryCombineMode.Exclude,
-                    new EllipseGeometry(center, outer, outer),
-                    new EllipseGeometry(center, inner, inner));
-                ring.Freeze();
-                return ring;
-            }
-
-            Point At(double radius, double degrees)
-            {
-                var radians = degrees * Math.PI / 180;
-                return new Point(center.X + radius * Math.Cos(radians), center.Y + radius * Math.Sin(radians));
-            }
-
-            var large = sweep > 180;
-            var geometry = new StreamGeometry();
-            using (var ctx = geometry.Open())
-            {
-                ctx.BeginFigure(At(outer, start), true, true);
-                ctx.ArcTo(At(outer, start + sweep), new Size(outer, outer), 0, large, SweepDirection.Clockwise, true, false);
-                ctx.LineTo(At(inner, start + sweep), true, false);
-                ctx.ArcTo(At(inner, start), new Size(inner, inner), 0, large, SweepDirection.Counterclockwise, true, false);
-            }
-
-            geometry.Freeze();
-            return geometry;
-        }
 
         private static KeyValuePair<string, string> Figure(string value, string labelKey) =>
             new KeyValuePair<string, string>(value, Text(labelKey));
