@@ -846,6 +846,21 @@
                                                      FixedRowHeight="{Binding GridOptions.RowHeight, FallbackValue={x:Null}}"/>
     </DataTemplate>
 
+    <!-- FriendGames: the shared game-summaries grid over the picked friends' games. -->
+    <DataTemplate DataType="{x:Type widgets:FriendGamesWidgetViewModel}">
+        <showcase:ShowcaseGameGridControl ItemsSource="{Binding Items}"
+                                          ColumnSettingsKey="{Binding ColumnSettingsKey}"
+                                          ControlBar="{Binding ControlBar}"
+                                          ShowControlBar="{Binding ShowControlBar}"
+                                          ShowColumnHeaders="{Binding GridOptions.ShowColumnHeaders, FallbackValue=True}"
+                                          FixedRowHeight="{Binding GridOptions.RowHeight, FallbackValue={x:Null}}"
+                                          UseCoverImages="{Binding GridOptions.UseCoverImages, FallbackValue=False}"
+                                          ShowCompletionGlow="{Binding GridOptions.ShowCompletionGlow, FallbackValue=True}"
+                                          ShowMetadataPlatform="{Binding GridOptions.ShowMetadataPlatform, FallbackValue=True}"
+                                          ShowMetadataPlaytime="{Binding GridOptions.ShowMetadataPlaytime, FallbackValue=True}"
+                                          ShowMetadataRegion="{Binding GridOptions.ShowMetadataRegion, FallbackValue=True}"/>
+    </DataTemplate>
+
     <!-- GameSummaries: the shared game-summaries grid over the whole library. -->
     <DataTemplate DataType="{x:Type widgets:GameSummariesWidgetViewModel}">
         <showcase:ShowcaseGameGridControl ItemsSource="{Binding Items}"
