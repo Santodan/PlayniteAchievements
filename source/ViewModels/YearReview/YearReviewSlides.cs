@@ -95,7 +95,7 @@ namespace PlayniteAchievements.ViewModels.YearReview
     }
 
     /// <summary>An element placed on the slide canvas, entering after <see cref="Delay"/> milliseconds.</summary>
-    public abstract class YearReviewPlaced
+    public abstract class YearReviewPlaced : ObservableObject
     {
         public double X { get; set; }
         public double Y { get; set; }
@@ -302,15 +302,34 @@ namespace PlayniteAchievements.ViewModels.YearReview
 
     public sealed class YearReviewPlatformEntry : YearReviewPlaced
     {
+        private bool _isHighlighted;
+
         public YearReviewUnlockGroup Group { get; set; }
         public string Name { get; set; }
         public int Unlocks { get; set; }
+        public string ShareText { get; set; }
         public double NumberHeight { get; set; }
+        public double RowHeight { get; set; }
+        public double CoverHeight { get; set; }
+        public double CoverWidth { get; set; }
         public Brush Fill { get; set; }
+
+        /// <summary>The platform's top games' covers, most unlocks first.</summary>
+        public IReadOnlyList<string> Covers { get; set; }
+
+        /// <summary>True while the row or its donut slice is hovered; both light up.</summary>
+        public bool IsHighlighted
+        {
+            get => _isHighlighted;
+            set => SetValue(ref _isHighlighted, value);
+        }
     }
 
     public sealed class YearReviewDonutSegment
     {
+        /// <summary>The row this slice pairs with.</summary>
+        public YearReviewPlatformEntry Entry { get; set; }
+
         /// <summary>Where the slice begins, in degrees clockwise from the right.</summary>
         public double StartAngle { get; set; }
 
@@ -326,6 +345,8 @@ namespace PlayniteAchievements.ViewModels.YearReview
 
         public IReadOnlyList<YearReviewPlatformEntry> Entries { get; set; }
         public IReadOnlyList<YearReviewDonutSegment> Segments { get; set; }
+        public int Total { get; set; }
+        public YearReviewUnlockGroup AllGroup { get; set; }
     }
 
     public sealed class YearReviewFirstAndLatestSlide : YearReviewSlide
