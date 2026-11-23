@@ -836,6 +836,16 @@
                                                  AppearanceOptions="{Binding GridOptions, FallbackValue={x:Null}}"/>
     </DataTemplate>
 
+    <!-- FriendLeaderboard: the shared friend summaries grid over the picked friends and the user. -->
+    <DataTemplate DataType="{x:Type widgets:FriendLeaderboardWidgetViewModel}">
+        <showcase:ShowcaseFriendSummariesGridControl ItemsSource="{Binding Items}"
+                                                     ColumnSettingsKey="{Binding ColumnSettingsKey}"
+                                                     ControlBar="{Binding ControlBar}"
+                                                     ShowControlBar="{Binding ShowControlBar}"
+                                                     ShowColumnHeaders="{Binding GridOptions.ShowColumnHeaders, FallbackValue=True}"
+                                                     FixedRowHeight="{Binding GridOptions.RowHeight, FallbackValue={x:Null}}"/>
+    </DataTemplate>
+
     <!-- GameSummaries: the shared game-summaries grid over the whole library. -->
     <DataTemplate DataType="{x:Type widgets:GameSummariesWidgetViewModel}">
         <showcase:ShowcaseGameGridControl ItemsSource="{Binding Items}"
