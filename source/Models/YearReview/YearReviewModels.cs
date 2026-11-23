@@ -92,8 +92,27 @@ namespace PlayniteAchievements.Models.YearReview
         public int Unlocks { get; }
     }
 
+    /// <summary>One friend's year against the user's.</summary>
+    public sealed class YearReviewFriendStats
+    {
+        public string Key { get; set; }
+        public string Name { get; set; }
+
+        /// <summary>Achievements the user unlocked in the year before this friend did.</summary>
+        public int UnlockedFirst { get; set; }
+
+        /// <summary>Achievements the user unlocked in the year that this friend had unlocked earlier.</summary>
+        public int TheyFirst { get; set; }
+
+        /// <summary>Games both unlocked something in this year.</summary>
+        public IReadOnlyList<Guid> SharedGameIds { get; set; } = Array.Empty<Guid>();
+    }
+
     public sealed class YearReviewFriendSummary
     {
+        /// <summary>Every friend with something to compare, most shared games first.</summary>
+        public IReadOnlyList<YearReviewFriendStats> PerFriend { get; set; } = Array.Empty<YearReviewFriendStats>();
+
         /// <summary>Achievements the user unlocked in the year before a friend who also has them.</summary>
         public int UnlockedFirst { get; set; }
 
@@ -135,6 +154,15 @@ namespace PlayniteAchievements.Models.YearReview
         public int GamesWithUnlocks { get; set; }
         public int CollectionGained { get; set; }
         public int PrestigeGained { get; set; }
+
+        /// <summary>Collection and prestige score earned per local day and per game in the year.</summary>
+        public IReadOnlyDictionary<DateTime, int> DayCollection { get; set; } = new Dictionary<DateTime, int>();
+        public IReadOnlyDictionary<DateTime, int> DayPrestige { get; set; } = new Dictionary<DateTime, int>();
+        public IReadOnlyDictionary<Guid, int> GameCollection { get; set; } = new Dictionary<Guid, int>();
+        public IReadOnlyDictionary<Guid, int> GamePrestige { get; set; } = new Dictionary<Guid, int>();
+
+        /// <summary>Every library game the review knows, for art and names.</summary>
+        public IReadOnlyDictionary<Guid, YearReviewGame> Games { get; set; } = new Dictionary<Guid, YearReviewGame>();
         public int LevelAtStart { get; set; }
         public int LevelAtEnd { get; set; }
         public int PrestigeLevelAtStart { get; set; }
