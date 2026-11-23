@@ -216,14 +216,12 @@ namespace PlayniteAchievements.Services.YearReview
                 return new YearReviewFriendSummary();
             }
 
-            var unlockedFirst = rows
+            var unlockedFirst = new HashSet<string>(rows
                 .Where(row => row.SelfUnlockUtc.HasValue
                               && inYear(dayOf(row.SelfUnlockUtc.Value))
                               && row.SelfUnlockUtc.Value < row.FriendUnlockUtc
                               && !string.IsNullOrEmpty(row.AchievementKey))
-                .Select(row => row.AchievementKey)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Count();
+                .Select(row => row.AchievementKey), StringComparer.OrdinalIgnoreCase);
 
             var myGames = new HashSet<Guid>(unlocks.Select(unlock => unlock.GameId));
             var perFriend = rows
@@ -238,10 +236,10 @@ namespace PlayniteAchievements.Services.YearReview
                     {
                         Key = group.Key,
                         Name = group.Select(row => row.FriendName).FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)),
-                        UnlockedFirst = mine.Where(row => row.SelfUnlockUtc.Value < row.FriendUnlockUtc)
-                            .Select(row => row.AchievementKey).Distinct(StringComparer.OrdinalIgnoreCase).Count(),
-                        TheyFirst = mine.Where(row => row.FriendUnlockUtc < row.SelfUnlockUtc.Value)
-                            .Select(row => row.AchievementKey).Distinct(StringComparer.OrdinalIgnoreCase).Count(),
+                        UnlockedFirstKeys = new HashSet<string>(mine.Where(row => row.SelfUnlockUtc.Value < row.FriendUnlockUtc)
+                            .Select(row => row.AchievementKey), StringComparer.OrdinalIgnoreCase),
+                        TheyFirstKeys = new HashSet<string>(mine.Where(row => row.FriendUnlockUtc < row.SelfUnlockUtc.Value)
+                            .Select(row => row.AchievementKey), StringComparer.OrdinalIgnoreCase),
                         SharedGameIds = group
                             .Where(row => row.GameId.HasValue && myGames.Contains(row.GameId.Value) && inYear(dayOf(row.FriendUnlockUtc)))
                             .Select(row => row.GameId.Value)
@@ -273,7 +271,7 @@ namespace PlayniteAchievements.Services.YearReview
 
             return new YearReviewFriendSummary
             {
-                UnlockedFirst = unlockedFirst,
+                UnlockedFirstKeys = unlockedFirst,
                 PerFriend = perFriend,
                 TopFriendKey = top?.Key,
                 TopFriendName = top?.Name,
