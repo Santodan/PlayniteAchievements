@@ -103,6 +103,21 @@ namespace PlayniteAchievements
             ShowLibraryEditorWindow();
         }
 
+        /// <summary>
+        /// The Achievement Editor locked to <paramref name="gameIds"/>, from a selection of games.
+        /// An open editor is locked to them and brought to the front.
+        /// </summary>
+        private void OpenLibraryEditorWindow(System.Collections.Generic.IReadOnlyCollection<Guid> gameIds)
+        {
+            if (_windowService.TryActivateOpenWindowHosting<Views.ManageAchievements.LibraryAchievementEditorControl>(out var open))
+            {
+                open.LockToGames(gameIds);
+                return;
+            }
+
+            ShowLibraryEditorWindow(gameIds);
+        }
+
         /// <summary>The Achievement Editor hotkey: opens the editor, or brings it forward, or closes it when it is the active window.</summary>
         private void ToggleLibraryEditorWindow()
         {
@@ -114,7 +129,7 @@ namespace PlayniteAchievements
             ShowLibraryEditorWindow();
         }
 
-        private void ShowLibraryEditorWindow()
+        private void ShowLibraryEditorWindow(System.Collections.Generic.IReadOnlyCollection<Guid> lockedGameIds = null)
         {
             Views.ManageAchievements.LibraryAchievementEditorControl view;
             try
@@ -125,7 +140,8 @@ namespace PlayniteAchievements
                     _achievementOverridesService,
                     _achievementDataService,
                     _settingsViewModel.Settings,
-                    _logger);
+                    _logger,
+                    lockedGameIds);
             }
             catch (Exception ex)
             {
