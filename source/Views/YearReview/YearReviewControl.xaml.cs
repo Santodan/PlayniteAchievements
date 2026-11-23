@@ -25,10 +25,8 @@ namespace PlayniteAchievements.Views.YearReview
         private const double TransitionMs = 350;
         private const double TransitionOffset = 60;
         private const double WheelStepMs = 450;
-        private const double SavedImageWidth = 1600;
-
-        /// <summary>Saves the element given as the parameter as a PNG image.</summary>
-        public static readonly RoutedUICommand SaveImageCommand = new RoutedUICommand("SaveImage", "SaveImage", typeof(YearReviewControl));
+        private const double SavedImageWidth = 1920;
+        private const double BackdropOpacity = 0.4;
 
         private readonly YearReviewViewModel _viewModel;
         private readonly Func<string> _pickSavePath;
@@ -44,7 +42,6 @@ namespace PlayniteAchievements.Views.YearReview
 
             InitializeComponent();
             DataContext = _viewModel;
-            CommandBindings.Add(new CommandBinding(SaveImageCommand, OnSaveImage));
             _viewModel.PropertyChanged += OnViewModelPropertyChanged;
             Loaded += OnLoaded;
             PreviewKeyDown += OnPreviewKeyDown;
@@ -97,6 +94,8 @@ namespace PlayniteAchievements.Views.YearReview
             OutgoingHost.Content = hadSlide ? CurrentHost.Content : null;
             CurrentHost.Content = slide;
 
+            PlayBackdrop();
+
             if (YearReviewMotion.Enabled && hadSlide)
             {
                 Slide(OutgoingHost, 1, 0, 0, -TransitionOffset * direction, () => OutgoingHost.Content = null);
@@ -115,6 +114,28 @@ namespace PlayniteAchievements.Views.YearReview
                     YearReviewMotion.Play(CurrentHost);
                 }
             }));
+        }
+
+        /// <summary>Fades the new slide's art in and lets it settle from a slight zoom.</summary>
+        private void PlayBackdrop()
+        {
+            if (!YearReviewMotion.Enabled)
+            {
+                return;
+            }
+
+            if (!(Backdrop.RenderTransform is ScaleTransform scale) || scale.IsFrozen)
+            {
+                scale = new ScaleTransform();
+                Backdrop.RenderTransform = scale;
+            }
+
+            var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+            var fade = AnimationFrameRate.Apply(new DoubleAnimation(0, BackdropOpacity, TimeSpan.FromMilliseconds(700)) { FillBehavior = FillBehavior.Stop });
+            var settle = AnimationFrameRate.Apply(new DoubleAnimation(1.12, 1, TimeSpan.FromSeconds(6)) { EasingFunction = ease, FillBehavior = FillBehavior.Stop });
+            Backdrop.BeginAnimation(OpacityProperty, fade);
+            scale.BeginAnimation(ScaleTransform.ScaleXProperty, settle);
+            scale.BeginAnimation(ScaleTransform.ScaleYProperty, settle);
         }
 
         private int IndexOf(YearReviewSlide slide)
@@ -155,6 +176,10 @@ namespace PlayniteAchievements.Views.YearReview
         private void Next() => _viewModel.Go(_shownIndex + 1);
 
         private void Previous() => _viewModel.Go(_shownIndex - 1);
+
+        private void Next_Click(object sender, RoutedEventArgs e) => Next();
+
+        private void Previous_Click(object sender, RoutedEventArgs e) => Previous();
 
         private void Deck_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
@@ -237,9 +262,14 @@ namespace PlayniteAchievements.Views.YearReview
             return false;
         }
 
-        private void OnSaveImage(object sender, ExecutedRoutedEventArgs e)
+        /// <summary>
+        /// Saves the slide on screen, backdrop included, as a PNG. Its entrances are finished
+        /// first, so the image shows the slide complete.
+        /// </summary>
+        private void SaveImage_Click(object sender, RoutedEventArgs e)
         {
-            if (!(e.Parameter is FrameworkElement card) || card.ActualWidth <= 0 || card.ActualHeight <= 0)
+            var stage = SlideStage;
+            if (CurrentHost.Content == null || stage.ActualWidth <= 0 || stage.ActualHeight <= 0)
             {
                 return;
             }
@@ -250,6 +280,19 @@ namespace PlayniteAchievements.Views.YearReview
                 return;
             }
 
+            YearReviewMotion.Reset(CurrentHost);
+            CurrentHost.BeginAnimation(OpacityProperty, null);
+            (CurrentHost.RenderTransform as TranslateTransform)?.BeginAnimation(TranslateTransform.XProperty, null);
+            OutgoingHost.Content = null;
+            Backdrop.BeginAnimation(OpacityProperty, null);
+            if (Backdrop.RenderTransform is ScaleTransform zoom)
+            {
+                zoom.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+                zoom.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+            }
+
+            stage.UpdateLayout();
+            var card = stage;
             try
             {
                 var scale = SavedImageWidth / card.ActualWidth;
@@ -273,7 +316,7 @@ namespace PlayniteAchievements.Views.YearReview
             }
             catch (Exception ex)
             {
-                _logger?.Error(ex, "Year in Review: the summary image could not be saved.");
+                _logger?.Error(ex, "Year in Review: the slide image could not be saved.");
             }
         }
     }
