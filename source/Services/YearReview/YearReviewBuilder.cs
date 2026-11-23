@@ -121,7 +121,7 @@ namespace PlayniteAchievements.Services.YearReview
         }
 
         /// <summary>
-        /// Collection and prestige score earned in the year, and the collection level before and
+        /// Collection and prestige score earned in the year, and each one's level before and
         /// after it. Unlocks
         /// without a date count toward the starting score, as in the score history chart.
         /// </summary>
@@ -129,6 +129,7 @@ namespace PlayniteAchievements.Services.YearReview
         {
             var before = 0;
             var during = 0;
+            var prestigeBefore = 0;
             var prestige = 0;
             foreach (var fact in inputs.Facts ?? Array.Empty<UnlockFact>())
             {
@@ -140,6 +141,7 @@ namespace PlayniteAchievements.Services.YearReview
                 if (!fact.Day.HasValue || fact.Day.Value < firstDay)
                 {
                     before += fact.CollectionScore;
+                    prestigeBefore += fact.PrestigeScore;
                 }
                 else if (fact.Day.Value <= yearEnd)
                 {
@@ -152,6 +154,8 @@ namespace PlayniteAchievements.Services.YearReview
             data.PrestigeGained = prestige;
             data.LevelAtStart = DisplayLevel(before);
             data.LevelAtEnd = DisplayLevel(before + during);
+            data.PrestigeLevelAtStart = DisplayLevel(prestigeBefore);
+            data.PrestigeLevelAtEnd = DisplayLevel(prestigeBefore + prestige);
         }
 
         private static int DisplayLevel(int score)
