@@ -54,7 +54,7 @@ namespace PlayniteAchievements.Views.Controls
         private const double DefaultFriendColumnWidth = 140;
         private const double DefaultTrophyIconColumnWidth = 72;
         private const double DefaultCapturesColumnWidth = 56;
-        private const double MinimumStatusColumnWidth = 28;
+        private const double MinimumStatusColumnWidth = 16;
         private const double MinimumGameImageColumnWidth = 32;
         private const double MinimumFriendAvatarColumnWidth = 32;
         private const double MinimumFriendColumnWidth = 64;
