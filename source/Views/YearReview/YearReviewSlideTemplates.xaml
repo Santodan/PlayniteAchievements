@@ -964,9 +964,17 @@
          place; the year's figures sit beside the top game's cover; the plugin's logo signs it. -->
     <DataTemplate DataType="{x:Type vm:YearReviewSummarySlide}">
         <Canvas Width="1280" Height="770">
+            <!-- Upright, and without a shadow effect over its text: an effect renders the card
+                 through a bitmap, which softens text. The shadow is a blurred plate behind it. -->
+            <Border Canvas.Left="96" Canvas.Top="92" Width="820" Height="{Binding ActualHeight, ElementName=SummaryCard}"
+                    CornerRadius="10" Background="Black" Opacity="0.35"
+                    local:YearReviewMotion.Reveal="Fade" local:YearReviewMotion.Delay="100">
+                <Border.Effect>
+                    <BlurEffect Radius="24"/>
+                </Border.Effect>
+            </Border>
             <Border Canvas.Left="90" Canvas.Top="80"
-                    local:YearReviewMotion.Reveal="Zoom" local:YearReviewMotion.Delay="100" local:YearReviewMotion.Angle="-2"
-                    Effect="{StaticResource YearReview.CardShadow}">
+                    local:YearReviewMotion.Reveal="Rise" local:YearReviewMotion.Delay="100">
                 <Border x:Name="SummaryCard" Width="820" CornerRadius="10" Padding="26,24"
                         Background="{DynamicResource PlayAch.Brush.PopupSurface}"
                         BorderBrush="{DynamicResource PlayAch.Brush.Border}" BorderThickness="1">
