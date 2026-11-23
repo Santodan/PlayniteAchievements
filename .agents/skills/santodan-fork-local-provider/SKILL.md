@@ -15,10 +15,18 @@ read the whole file.
   `source/Providers/Local/Santodan/`:
   `LocalSavesProvider.SantodanDiscovery.cs`, `.SantodanOfflineCache.cs`
   (`LocalOfflineSchemaCache.cs`), `.SantodanPolling.cs`, `.SantodanStartupBaseline.cs`,
-  `.NativeSources.cs`.
+  `.NativeSources.cs`, `.AwnCompat.cs` (Achievement Watcher Next formats, extra roots,
+  GreenLuma registry, portable saves from emulator configs, `Stats.ini` stat progress),
+  `.AwnPlatforms.cs` (GOG/Ubisoft product-id saves mapped to a Steam schema, SocialClub
+  name-keyed folders, FF7 2013, Ubisoft objective-id remap).
+- AWN compatibility record: `source/Providers/Local/Santodan/AWN_SYNC.md` (last compared AWN
+  commit, AWN-to-fork map, deferred items). Update it whenever AWN behavior is ported.
 - Recognized save files: grep the literals `"achievements.json"`, `"achievements.ini"`,
   `"user_stats.ini"`, `"achievement_progress.json"`, `"tenoke.ini"`, `"SOVEREIGN.ini"`,
-  `"LumaPlay.ini"`, `"achievements_db.json"` (Nemirtingas Epic).
+  `"LumaPlay.ini"`, `"achievements_db.json"` (Nemirtingas Epic). The full list is
+  `LocalAchievementIniFileNames` (adds `achiev.ini`, `Achievements.Bin`, `achieve.dat`,
+  `CreamAPI.Achievements.cfg`, `stats.ini`, `stats.bin`, `achievement`); every INI-like file is
+  parsed by `ParseLocalSaveFileWithAwnFormats`, and `IsAwnSaveFileAccepted` guards generic names.
 - Settings model: `source/Providers/Local/LocalSettings.cs` (also holds all fork notification
   and Memories settings), `Santodan/LocalSettings.NativeSources.cs`.
 - Settings UI: `source/Providers/Local/LocalSettingsView.xaml` (+ `.xaml.cs`). Sections:
@@ -28,6 +36,8 @@ read the whole file.
   SuccessStory.
 - Native consoles/ports: `source/Providers/Local/Santodan/NativeSources/`
   (`NativeSourceReader.cs`, `NativeTrophyReader.cs`, `NativeLocation*.cs`,
+  `NativeX360PortTable.cs` + `NativeX360Ports.json` (Xbox 360 recomp port table, re:Blue bonus),
+  `NativeXllnReader.cs` (Games for Windows - LIVE / XLiveLessNess, SPA definitions),
   `NativeSourcesSettingsView.cs`, `NativePortDefinitions.json`, icons and licenses).
   The user doc is `NATIVE_SOURCES_GUIDE.md`. Keep the license/attribution files.
 - Import: `LocalFolderGamesImporter.cs`, `LocalImportTargetDialog.xaml`,

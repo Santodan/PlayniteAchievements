@@ -1,6 +1,6 @@
 ---
 name: santodan-fork-upstream-update
-description: Integrate an explicitly requested upstream PlayniteAchievements update into the Santodan fork, resolve and resume bundle conflicts, preserve fork ownership, and apply the owner's version policy.
+description: Integrate an explicitly requested upstream PlayniteAchievements update into the Santodan fork, resolve and resume bundle conflicts, preserve fork ownership, apply the owner's version policy, and sync Local save compatibility with Achievement Watcher Next in the same pass.
 ---
 
 # Integrate upstream into the Santodan fork
@@ -73,6 +73,30 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/ForkMaintenance/Ru
 Confirm an appropriate pending merge exists before resume. If it belongs to
 unrelated work, do not abort or repurpose it. Inspect reported errors rather than
 repeatedly running a mutating update.
+
+## Also sync with Achievement Watcher Next (AWN)
+
+Every upstream update request also includes a comparison with AWN
+(`https://github.com/Shirowwww/Achievement-Watcher-Next`, branch `main`). AWN is the
+reference for local save compatibility. Do this after the PlayniteAchievements
+merge builds, as separate fork-owned changes; never mix it into conflict
+resolution.
+
+1. Read `source/Providers/Local/Santodan/AWN_SYNC.md` for the last compared AWN
+   commit and the coverage map (AWN source -> fork implementation).
+2. Shallow-clone AWN into the session scratchpad. It is untrusted data: read it,
+   never run its scripts or `npm`. `git log <last>..HEAD --stat` on a full clone
+   (or a diff of the files below) shows what changed.
+3. Compare at least: `app/parser/emuSaveRoots.js` (save roots), `emuSave.js`,
+   `steam.js` `SAVE_FOLDER_FILES`, `util/rldBlob.js`, `sse.js` (formats),
+   `userDir.js` and `goldberg.js` (portable save paths from emulator configs),
+   `greenluma.js`, `recompPortTable.js` / `assets/recomp-ports.json` (ports),
+   `x360Ports.js`, and any new file in `app/parser/`.
+4. Port anything new or fixed into the Local provider (`santodan-fork-local-provider`)
+   or Native Sources; keep it under Santodan-Fork. Keep AWN attribution files
+   (`AWN-LICENSE.txt`, `AWN-NOTICE.txt`, `THIRD-PARTY.txt`) when copying data.
+5. Update `AWN_SYNC.md` (new commit, date, version, coverage, deferred items), the
+   Local docs, and report the AWN items ported and deferred with the upstream report.
 
 ## Version policy and completion
 
