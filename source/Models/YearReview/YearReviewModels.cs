@@ -133,7 +133,8 @@ namespace PlayniteAchievements.Models.YearReview
 
         public int Unlocked { get; set; }
         public int GamesWithUnlocks { get; set; }
-        public int ScoreGained { get; set; }
+        public int CollectionGained { get; set; }
+        public int PrestigeGained { get; set; }
         public int LevelAtStart { get; set; }
         public int LevelAtEnd { get; set; }
 
@@ -154,6 +155,9 @@ namespace PlayniteAchievements.Models.YearReview
 
         /// <summary>Games finished in the year, earliest first.</summary>
         public IReadOnlyList<YearReviewGame> Completed { get; set; } = Array.Empty<YearReviewGame>();
+
+        /// <summary>Every unlock of the year, earliest first.</summary>
+        public IReadOnlyList<YearReviewUnlock> Unlocks { get; set; } = Array.Empty<YearReviewUnlock>();
 
         /// <summary>The year's rarest unlocks with an icon, rarest first, for decoration.</summary>
         public IReadOnlyList<YearReviewUnlock> Highlights { get; set; } = Array.Empty<YearReviewUnlock>();
