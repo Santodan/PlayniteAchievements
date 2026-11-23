@@ -750,44 +750,99 @@
         </Canvas>
     </DataTemplate>
 
-    <!-- 8. Unlocks by platform: a donut off the corner, each figure sized by its share. -->
+    <!-- 8. Unlocks by platform: one row per platform down the left (count, share and its top
+         covers), the whole donut on the right with the year's total in its hole. A row and its
+         slice light up together. -->
     <DataTemplate DataType="{x:Type vm:YearReviewPlatformsSlide}">
         <Canvas Width="1280" Height="770">
-            <ItemsControl Canvas.Left="730" Canvas.Top="260" Width="700" Height="700"
-                          ItemsSource="{Binding Segments}"
-                          ItemsPanel="{StaticResource YearReview.CanvasPanel}"
-                          local:YearReviewMotion.Reveal="Spin">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate DataType="{x:Type vm:YearReviewDonutSegment}">
-                        <local:YearReviewDonutSlice Width="700" Height="700"
-                                                    StartAngle="{Binding StartAngle}"
-                                                    Sweep="{Binding Sweep}"
-                                                    Fill="{Binding Fill}"
-                                                    ToolTip="{Binding ToolTip}"
-                                                    local:YearReviewUnlockPopover.Group="{Binding Group}"/>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+            <Grid Canvas.Left="690" Canvas.Top="150" Width="560" Height="560"
+                  local:YearReviewMotion.Reveal="Spin">
+                <ItemsControl ItemsSource="{Binding Segments}" ItemsPanel="{StaticResource YearReview.CanvasPanel}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:YearReviewDonutSegment}">
+                            <local:YearReviewDonutSlice Width="560" Height="560"
+                                                        StartAngle="{Binding StartAngle}"
+                                                        Sweep="{Binding Sweep}"
+                                                        Fill="{Binding Fill}"
+                                                        ToolTip="{Binding ToolTip}"
+                                                        IsLifted="{Binding Entry.IsHighlighted}"
+                                                        local:YearReviewHoverSync.IsEnabled="True"
+                                                        local:YearReviewHoverSync.IsHovered="{Binding Entry.IsHighlighted}"
+                                                        local:YearReviewUnlockPopover.Group="{Binding Group}"/>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Background="Transparent"
+                            local:YearReviewUnlockPopover.Group="{Binding AllGroup}">
+                    <Viewbox Height="96" HorizontalAlignment="Center">
+                        <local:CountUpText Value="{Binding Total}" Style="{StaticResource YearReview.Display}" local:YearReviewMotion.Delay="600"/>
+                    </Viewbox>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Column_Unlocks}" Style="{StaticResource YearReview.Label}" HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Grid>
 
             <ItemsControl Width="1280" Height="770" ItemsSource="{Binding Entries}"
                           ItemsPanel="{StaticResource YearReview.CanvasPanel}">
                 <ItemsControl.ItemContainerStyle>
                     <Style TargetType="ContentPresenter" BasedOn="{StaticResource YearReview.PlacedItem}">
-                        <Setter Property="local:YearReviewMotion.Reveal" Value="Rise"/>
-                        <Setter Property="local:YearReviewMotion.Hover" Value="True"/>
+                        <Setter Property="local:YearReviewMotion.Reveal" Value="SlideIn"/>
                     </Style>
                 </ItemsControl.ItemContainerStyle>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate DataType="{x:Type vm:YearReviewPlatformEntry}">
-                        <StackPanel Background="Transparent" local:YearReviewUnlockPopover.Group="{Binding Group}">
-                            <Viewbox Height="{Binding NumberHeight}" HorizontalAlignment="Left">
-                                <local:CountUpText Value="{Binding Unlocks}" Style="{StaticResource YearReview.Display}" local:YearReviewMotion.Delay="{Binding Delay}"/>
-                            </Viewbox>
-                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                                <Rectangle Width="11" Height="11" RadiusX="2" RadiusY="2" Fill="{Binding Fill}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                <TextBlock Text="{Binding Name}" Style="{StaticResource YearReview.Label}"/>
-                            </StackPanel>
-                        </StackPanel>
+                        <Grid Width="580" Height="{Binding RowHeight}"
+                              local:YearReviewHoverSync.IsEnabled="True"
+                              local:YearReviewHoverSync.IsHovered="{Binding IsHighlighted}"
+                              local:YearReviewUnlockPopover.Group="{Binding Group}">
+                            <!-- The highlight: a faint wash of the platform's own color. -->
+                            <Border CornerRadius="{DynamicResource PlayAch.Radius.Layout}" Background="{Binding Fill}" Margin="-12,4,0,4">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Opacity" Value="0"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
+                                                <Setter Property="Opacity" Value="0.16"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                            </Border>
+                            <Grid Background="Transparent" VerticalAlignment="Center">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Viewbox Height="{Binding NumberHeight}" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                    <local:CountUpText Value="{Binding Unlocks}" Style="{StaticResource YearReview.Display}" local:YearReviewMotion.Delay="{Binding Delay}"/>
+                                </Viewbox>
+                                <StackPanel Grid.Column="1" Margin="18,0,12,0" VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Rectangle Width="12" Height="12" RadiusX="2" RadiusY="2" Fill="{Binding Fill}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                        <TextBlock Text="{Binding Name}" Style="{StaticResource YearReview.Title}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding ShareText}" Style="{StaticResource YearReview.Label}" Margin="20,2,0,0"/>
+                                </StackPanel>
+                                <ItemsControl Grid.Column="2" ItemsSource="{Binding Covers}" VerticalAlignment="Center">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Width="{Binding DataContext.CoverWidth, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                  Height="{Binding DataContext.CoverHeight, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                  Margin="6,0,0,0" ClipToBounds="True" helpers:RoundedClip.Radius="5">
+                                                <Image Stretch="UniformToFill" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       helpers:AsyncImage.Uri="{Binding}"
+                                                       helpers:AsyncImage.DecodePixel="300"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Grid>
+                        </Grid>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
