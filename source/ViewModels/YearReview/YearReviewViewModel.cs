@@ -16,6 +16,18 @@ namespace PlayniteAchievements.ViewModels.YearReview
     {
         private bool _isReached;
 
+        public YearReviewProgressSegment(int index, string title)
+        {
+            Index = index;
+            Title = title;
+        }
+
+        /// <summary>The slide's position, for jumping to it.</summary>
+        public int Index { get; }
+
+        /// <summary>The slide's name, shown on hover.</summary>
+        public string Title { get; }
+
         /// <summary>True for the current slide and every slide before it.</summary>
         public bool IsReached
         {
@@ -205,7 +217,7 @@ namespace PlayniteAchievements.ViewModels.YearReview
                 }
 
                 _index = -1;
-                Segments = slides.Select(_ => new YearReviewProgressSegment()).ToList();
+                Segments = slides.Select((slide, index) => new YearReviewProgressSegment(index, slide.Title ?? ResourceProvider.GetString("LOCPlayAch_YearReview_Title"))).ToList();
                 Slides = slides;
                 IsLoading = false;
                 Go(0);
