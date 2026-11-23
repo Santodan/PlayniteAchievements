@@ -89,7 +89,6 @@ namespace PlayniteAchievements.Views
         public OverviewControl()
         {
             InitializeComponent();
-            YearReviewButton.Tag = DateTime.Today.Year.ToString(System.Globalization.CultureInfo.InvariantCulture);
         }
 
         private readonly Common.KeySequenceMatcher _keySequence = new Common.KeySequenceMatcher("jeshibu");
@@ -753,11 +752,6 @@ namespace PlayniteAchievements.Views
         private void YearReviewButton_Click(object sender, RoutedEventArgs e)
         {
             PlayniteAchievementsPlugin.Instance?.OpenYearReviewWindow();
-        }
-
-        private void YearReviewButton_MouseEnter(object sender, MouseEventArgs e)
-        {
-            (YearReviewButton.Template?.FindName("YearReviewRays", YearReviewButton) as Views.YearReview.YearReviewSunburst)?.Restart();
         }
 
         private void ShowcaseGames_ItemUpdated(
