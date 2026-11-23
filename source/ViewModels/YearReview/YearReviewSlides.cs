@@ -375,9 +375,14 @@ namespace PlayniteAchievements.ViewModels.YearReview
 
         public int BigNumber { get; set; }
         public string BigLabel { get; set; }
+        public YearReviewUnlockGroup BigGroup { get; set; }
         public bool HasSecond { get; set; }
         public int SecondNumber { get; set; }
         public string SecondLabel { get; set; }
+        public YearReviewUnlockGroup SecondGroup { get; set; }
+
+        /// <summary>The user's unlocks in the games shared with the friend.</summary>
+        public YearReviewUnlockGroup SharedGroup { get; set; }
 
         public bool HasFriend { get; set; }
         public string FriendName { get; set; }
