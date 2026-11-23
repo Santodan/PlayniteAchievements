@@ -225,6 +225,14 @@ namespace PlayniteAchievements.Views.YearReview
 
         private void Next_Click(object sender, RoutedEventArgs e) => Next();
 
+        private void Segment_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.DataContext is YearReviewProgressSegment segment)
+            {
+                _viewModel.Go(segment.Index);
+            }
+        }
+
         private void Previous_Click(object sender, RoutedEventArgs e) => Previous();
 
         /// <summary>
