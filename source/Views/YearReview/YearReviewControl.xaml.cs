@@ -175,15 +175,45 @@ namespace PlayniteAchievements.Views.YearReview
 
         private void Previous_Click(object sender, RoutedEventArgs e) => Previous();
 
+        /// <summary>
+        /// A click on a month bar or a day opens its unlocks; a click on anything else that
+        /// reacts to the mouse is left alone; a click on the slide itself moves to the next one.
+        /// </summary>
         private void Deck_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
-            if (IsInside<ButtonBase>(e.OriginalSource as DependencyObject))
+            var source = e.OriginalSource as DependencyObject;
+            if (IsInside<ButtonBase>(source))
+            {
+                return;
+            }
+
+            if (YearReviewUnlockPopover.FindTarget(source) is FrameworkElement target)
+            {
+                e.Handled = true;
+                YearReviewUnlockPopover.Open(target);
+                return;
+            }
+
+            if (IsHoverable(source))
             {
                 return;
             }
 
             Next();
             Focus();
+        }
+
+        private bool IsHoverable(DependencyObject source)
+        {
+            for (var current = source; current != null && !ReferenceEquals(current, Deck); current = current is Visual ? VisualTreeHelper.GetParent(current) : LogicalTreeHelper.GetParent(current))
+            {
+                if (YearReviewMotion.GetHover(current))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private void OnPreviewKeyDown(object sender, KeyEventArgs e)
