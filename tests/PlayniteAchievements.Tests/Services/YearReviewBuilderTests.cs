@@ -203,6 +203,8 @@ namespace PlayniteAchievements.Tests.Services
             var ode = review.Friends.PerFriend.Single(friend => friend.Name == "Ode");
             Assert.AreEqual(1, ode.UnlockedFirst);
             Assert.AreEqual(1, ode.TheyFirst);
+            CollectionAssert.Contains(ode.UnlockedFirstKeys.ToList(), "a1");
+            CollectionAssert.Contains(ode.TheyFirstKeys.ToList(), "a2");
             Assert.AreEqual("Mara", review.Friends.PerFriend[0].Name);
             Assert.AreEqual(2, review.Friends.SharedGameIds.Count);
             Assert.IsTrue(review.Slides.Contains(YearReviewSlideKind.Friends));
