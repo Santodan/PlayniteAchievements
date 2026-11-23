@@ -367,6 +367,28 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
+        public void Import_CarriesTheFriendsLeaderboardsGridToTheNewInstance()
+        {
+            var (settings, grids, page, _, _) = BuildSource();
+            var leaderboard = ShowcaseLayoutService.CreateWidget(settings, ShowcaseWidgetKind.FriendLeaderboard);
+            var blocks = ShowcaseLayoutService.DenseBlocks(page);
+            Assert.IsTrue(ShowcaseLayoutService.PlaceWidget(settings, page.PageId, blocks[3].BlockId, leaderboard.InstanceId));
+            grids.GetFriendSummaries(ShowcaseGridSurfaces.ResolveWidgetSurface(leaderboard.Kind, leaderboard.InstanceId))
+                .SortMode = FriendSummariesSortMode.CompletedGames;
+            var path = Path.Combine(_tempDirectory, "friends.pashowcase");
+            ShowcasePagePortableStore.Write(path, ShowcasePagePortableStore.BuildPortable(settings, grids, page.PageId));
+
+            var imported = ShowcasePagePortableStore.ApplyPortable(settings, grids, ShowcasePagePortableStore.Read(path), page.PageId);
+            ShowcaseGridSurfaces.PruneOrphaned(grids, settings);
+
+            var key = ShowcaseGridSurfaces.ResolveWidgetSurface(
+                ShowcaseWidgetKind.FriendLeaderboard,
+                WidgetOf(settings, imported, ShowcaseWidgetKind.FriendLeaderboard).InstanceId);
+            Assert.IsTrue(grids.FriendSummaries.ContainsKey(key));
+            Assert.AreEqual(FriendSummariesSortMode.CompletedGames, grids.FriendSummaries[key].SortMode);
+        }
+
+        [TestMethod]
         public void RoundTrip_CarriesTheAchievementGridWidgetsCategoryList()
         {
             var (settings, grids, page, recent, _) = BuildSource();
