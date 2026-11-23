@@ -183,6 +183,26 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
+        public void CloneAndCopyFrom_PreserveYearReviewCardProfile()
+        {
+            var source = new PersistedSettings
+            {
+                YearReviewDisplayName = "Mara",
+                YearReviewAvatarPath = @"C:\pictures\me.png"
+            };
+
+            var clone = source.Clone();
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+
+            foreach (var copy in new[] { clone, target })
+            {
+                Assert.AreEqual("Mara", copy.YearReviewDisplayName);
+                Assert.AreEqual(@"C:\pictures\me.png", copy.YearReviewAvatarPath);
+            }
+        }
+
+        [TestMethod]
         public void CloneAndCopyFrom_PreserveControlBarStates()
         {
             var source = new PersistedSettings
