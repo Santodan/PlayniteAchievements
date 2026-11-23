@@ -217,7 +217,7 @@ namespace PlayniteAchievements.Views.YearReview
         private void Deck_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
             var source = e.OriginalSource as DependencyObject;
-            if (IsInside<ButtonBase>(source))
+            if (IsInside<ButtonBase>(source) || IsFromPicker(source))
             {
                 return;
             }
@@ -253,7 +253,7 @@ namespace PlayniteAchievements.Views.YearReview
 
         private void OnPreviewKeyDown(object sender, KeyEventArgs e)
         {
-            if (IsInside<ComboBox>(e.OriginalSource as DependencyObject))
+            if (IsFromPicker(e.OriginalSource as DependencyObject))
             {
                 return;
             }
@@ -285,7 +285,7 @@ namespace PlayniteAchievements.Views.YearReview
         /// <summary>One wheel step moves one slide; steps that arrive during the move are dropped.</summary>
         private void OnPreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
-            if (IsInside<ComboBox>(e.OriginalSource as DependencyObject))
+            if (IsFromPicker(e.OriginalSource as DependencyObject))
             {
                 return;
             }
@@ -306,6 +306,21 @@ namespace PlayniteAchievements.Views.YearReview
             {
                 Previous();
             }
+        }
+
+        /// <summary>
+        /// True for input from a dropdown or from anything in a popup, such as a dropdown's open
+        /// list. A popup's events bubble out through its owner, so without this a click on a list
+        /// item would also move to the next slide.
+        /// </summary>
+        private bool IsFromPicker(DependencyObject source)
+        {
+            if (IsInside<ComboBox>(source))
+            {
+                return true;
+            }
+
+            return source is Visual visual && !IsAncestorOf(visual);
         }
 
         private static bool IsInside<T>(DependencyObject source) where T : DependencyObject
