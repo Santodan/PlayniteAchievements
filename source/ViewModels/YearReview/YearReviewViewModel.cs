@@ -32,6 +32,8 @@ namespace PlayniteAchievements.ViewModels.YearReview
     {
         private readonly YearReviewReader _reader;
         private readonly ILogger _logger;
+        private readonly Func<(string Name, string AvatarPath)> _savedProfile;
+        private readonly Action<string, string> _saveProfile;
         private CancellationTokenSource _load;
         private YearReviewLibrary _library;
         private IReadOnlyList<int> _years = Array.Empty<int>();
@@ -41,10 +43,16 @@ namespace PlayniteAchievements.ViewModels.YearReview
         private int _index;
         private bool _isLoading = true;
 
-        public YearReviewViewModel(YearReviewReader reader, ILogger logger)
+        public YearReviewViewModel(
+            YearReviewReader reader,
+            ILogger logger,
+            Func<(string Name, string AvatarPath)> savedProfile = null,
+            Action<string, string> saveProfile = null)
         {
             _reader = reader;
             _logger = logger;
+            _savedProfile = savedProfile;
+            _saveProfile = saveProfile;
         }
 
         public IReadOnlyList<int> Years
@@ -188,6 +196,14 @@ namespace PlayniteAchievements.ViewModels.YearReview
                     friends.PropertyChanged += OnFriendsViewChanged;
                 }
 
+                var saved = _savedProfile?.Invoke() ?? (null, null);
+                foreach (var summary in slides.OfType<YearReviewSummarySlide>())
+                {
+                    summary.CardName = string.IsNullOrWhiteSpace(saved.Name) ? library.ProfileName : saved.Name;
+                    summary.CardAvatarPath = string.IsNullOrWhiteSpace(saved.AvatarPath) ? library.ProfileAvatarPath : saved.AvatarPath;
+                    summary.PropertyChanged += OnCardEdited;
+                }
+
                 _index = -1;
                 Segments = slides.Select(_ => new YearReviewProgressSegment()).ToList();
                 Slides = slides;
@@ -201,6 +217,27 @@ namespace PlayniteAchievements.ViewModels.YearReview
             {
                 _logger?.Error(ex, $"Year in Review: {year} could not be built.");
                 IsLoading = false;
+            }
+        }
+
+        /// <summary>Keeps the card's name and picture for next time; a cleared name goes back to the profile's.</summary>
+        private void OnCardEdited(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (!(sender is YearReviewSummarySlide summary)
+                || (e.PropertyName != nameof(YearReviewSummarySlide.CardName) && e.PropertyName != nameof(YearReviewSummarySlide.CardAvatarPath)))
+            {
+                return;
+            }
+
+            var name = string.IsNullOrWhiteSpace(summary.CardName) ? null : summary.CardName.Trim();
+            var avatar = string.IsNullOrWhiteSpace(summary.CardAvatarPath) ? null : summary.CardAvatarPath;
+            try
+            {
+                _saveProfile?.Invoke(name, avatar);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "Year in Review: the card profile could not be saved.");
             }
         }
 
