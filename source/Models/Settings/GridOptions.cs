@@ -1126,6 +1126,34 @@ namespace PlayniteAchievements.Models.Settings
             return _gameSummaries.Remove(id);
         }
 
+        public bool RemoveFriendSummaries(string id)
+        {
+            if (string.IsNullOrWhiteSpace(id) || !_friendSummaries.TryGetValue(id, out var options))
+            {
+                return false;
+            }
+
+            DetachOptions(options);
+            return _friendSummaries.Remove(id);
+        }
+
+        /// <summary>
+        /// Stores a clone of <paramref name="options"/> under the surface, replacing (and
+        /// detaching) any existing record so change notifications follow the new instance.
+        /// </summary>
+        public void SetFriendSummaries(string id, FriendSummaryGridOptions options)
+        {
+            if (string.IsNullOrWhiteSpace(id) || options == null)
+            {
+                return;
+            }
+
+            RemoveFriendSummaries(id);
+            var copy = options.Clone();
+            _friendSummaries[id] = copy;
+            AttachOptions(FriendSummariesKindName, id, copy);
+        }
+
         public bool RemoveCategorySummaries(string id)
         {
             if (string.IsNullOrWhiteSpace(id) || !_categorySummaries.TryGetValue(id, out var options))
@@ -1285,6 +1313,12 @@ namespace PlayniteAchievements.Models.Settings
         /// </summary>
         public static bool TryResolveFriendSummariesId(string columnSettingsKey, out string id)
         {
+            if (ShowcaseGridSurfaces.IsFriendSummariesSurface(columnSettingsKey))
+            {
+                id = columnSettingsKey;
+                return true;
+            }
+
             return FriendSummaryIdsByColumnKey.TryGetValue(columnSettingsKey ?? string.Empty, out id);
         }
 
@@ -1327,6 +1361,12 @@ namespace PlayniteAchievements.Models.Settings
 
         public static string ResolveFriendSummariesId(string columnSettingsKey)
         {
+            // The friends leaderboard widget keeps a record per instance, keyed by the raw key.
+            if (ShowcaseGridSurfaces.IsFriendSummariesSurface(columnSettingsKey))
+            {
+                return columnSettingsKey;
+            }
+
             return FriendSummaryIdsByColumnKey.TryGetValue(columnSettingsKey ?? string.Empty, out var id)
                 ? id
                 : GridOptionKeys.FriendSummaries.FriendsOverview;
@@ -1568,7 +1608,16 @@ namespace PlayniteAchievements.Models.Settings
 
         private static FriendSummaryGridOptions CreateDefaultFriendSummaries(string key)
         {
-            return new FriendSummaryGridOptions();
+            var options = new FriendSummaryGridOptions();
+            if (ShowcaseGridSurfaces.IsFriendSummariesSurface(key))
+            {
+                // The friends leaderboard ranks by score until the user picks another sort.
+                options.ShowControlBar = false;
+                options.SortMode = FriendSummariesSortMode.CollectionScore;
+                options.MaxRows = DefaultShowcaseRecentMaxRows;
+            }
+
+            return options;
         }
 
         private static CategorySummaryGridOptions CreateDefaultCategorySummaries()
