@@ -153,6 +153,61 @@ namespace PlayniteAchievements
         }
 
         /// <summary>
+        /// The Year in Review: one calendar year of unlocks as animated slides. One window at a
+        /// time; opening it again brings the open one to the front.
+        /// </summary>
+        internal void OpenYearReviewWindow()
+        {
+            if (_windowService.TryActivateOpenWindowHosting<Views.YearReview.YearReviewControl>())
+            {
+                return;
+            }
+
+            Views.YearReview.YearReviewControl view;
+            try
+            {
+                EnsureAchievementResourcesLoaded();
+                var coordinator = GetStartPageDataCoordinator();
+                var reader = new Services.YearReview.YearReviewReader(
+                    _achievementDataService,
+                    _friendCacheManager,
+                    cancel => coordinator.GetSnapshotAsync(cancel),
+                    () => Settings?.Persisted,
+                    PlayniteApi,
+                    _logger);
+                view = new Views.YearReview.YearReviewControl(
+                    new ViewModels.YearReview.YearReviewViewModel(reader, _logger),
+                    () => PlayniteApi?.Dialogs?.SaveFile(
+                        ResourceProvider.GetString("LOCPlayAch_YearReview_PngImage") + "|*.png",
+                        true),
+                    _logger);
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Failed to open the Year in Review.");
+                PlayniteApi?.Dialogs?.ShowErrorMessage(
+                    string.Format(ResourceProvider.GetString("LOCPlayAch_Status_Failed"), ex.Message),
+                    ResourceProvider.GetString("LOCPlayAch_Title_PluginName"));
+                return;
+            }
+
+            _windowService.OpenManagedPopout(
+                view.WindowTitle,
+                view,
+                new Views.Helpers.WindowOptions
+                {
+                    ShowMinimizeButton = true,
+                    ShowMaximizeButton = true,
+                    ShowCloseButton = true,
+                    CanBeResizable = true,
+                    Width = 1280,
+                    Height = 800
+                },
+                "YearReview",
+                view.Cleanup);
+        }
+
+        /// <summary>
         /// Opens the Workshop browser, optionally landing on one kind's tab or on the game-data
         /// items that match one library game.
         /// </summary>
