@@ -1900,6 +1900,7 @@ namespace PlayniteAchievements
                 // change a save did not finish applying.
                 StartAutoCapstoneTextApply();
                 StartAutoCapstoneTagsApply();
+                StartAutoCapstoneMarkerRepair();
 
                 _notificationImageStore?.PruneOrphans(
                     _settingsViewModel?.Settings?.Persisted,
@@ -2091,6 +2092,31 @@ namespace PlayniteAchievements
                 catch (Exception ex)
                 {
                     _logger?.Error(ex, "Failed to apply auto capstone text templates.");
+                }
+            });
+        }
+
+        /// <summary>
+        /// Restores, in the background, the mark on auto capstones an editor save before 4.3.2
+        /// cleared; a no-op once none lacks it. See <see cref="AutoCapstoneMarkerRepair"/>.
+        /// </summary>
+        private void StartAutoCapstoneMarkerRepair()
+        {
+            var maintainer = _autoCapstoneMaintainer;
+            if (maintainer == null)
+            {
+                return;
+            }
+
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    maintainer.RepairLostMarkers();
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Error(ex, "Failed to repair auto capstone marks.");
                 }
             });
         }

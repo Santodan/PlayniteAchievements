@@ -20,7 +20,7 @@ namespace PlayniteAchievements.Services.Achievements
     /// </summary>
     public sealed class AutoCapstoneAuthoring
     {
-        private const string BaseId = "auto-capstone";
+        private const string BaseId = AutoCapstoneMarkerRepair.BaseId;
 
         // The art record's source once the user replaced an auto capstone's art.
         private const string UserArtSource = "user";
