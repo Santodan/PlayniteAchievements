@@ -23,7 +23,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         private readonly FriendWidgetLists _lists;
 
         // One row for the user, updated in place, so a new snapshot does not replace the row.
-        private readonly FriendSummaryItem _self = new FriendSummaryItem();
+        private readonly FriendSummaryItem _self = new FriendSummaryItem { IsSelf = true };
 
         public FriendLeaderboardWidgetViewModel()
         {
