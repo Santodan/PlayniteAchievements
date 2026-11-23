@@ -10,6 +10,9 @@ namespace PlayniteAchievements.Models.YearReview
     /// <summary>One of the current user's unlocks, as the Year in Review reads it.</summary>
     public sealed class YearReviewUnlock
     {
+        /// <summary>Identifies the achievement across users, as <see cref="YearReviewFriendUnlock.AchievementKey"/> does.</summary>
+        public string Key { get; set; }
+
         public Guid GameId { get; set; }
         public string GameName { get; set; }
         public string AchievementName { get; set; }
@@ -99,10 +102,13 @@ namespace PlayniteAchievements.Models.YearReview
         public string Name { get; set; }
 
         /// <summary>Achievements the user unlocked in the year before this friend did.</summary>
-        public int UnlockedFirst { get; set; }
+        public int UnlockedFirst => UnlockedFirstKeys.Count;
 
         /// <summary>Achievements the user unlocked in the year that this friend had unlocked earlier.</summary>
-        public int TheyFirst { get; set; }
+        public int TheyFirst => TheyFirstKeys.Count;
+
+        public IReadOnlyCollection<string> UnlockedFirstKeys { get; set; } = Array.Empty<string>();
+        public IReadOnlyCollection<string> TheyFirstKeys { get; set; } = Array.Empty<string>();
 
         /// <summary>Games both unlocked something in this year.</summary>
         public IReadOnlyList<Guid> SharedGameIds { get; set; } = Array.Empty<Guid>();
@@ -114,7 +120,9 @@ namespace PlayniteAchievements.Models.YearReview
         public IReadOnlyList<YearReviewFriendStats> PerFriend { get; set; } = Array.Empty<YearReviewFriendStats>();
 
         /// <summary>Achievements the user unlocked in the year before a friend who also has them.</summary>
-        public int UnlockedFirst { get; set; }
+        public int UnlockedFirst => UnlockedFirstKeys.Count;
+
+        public IReadOnlyCollection<string> UnlockedFirstKeys { get; set; } = Array.Empty<string>();
 
         /// <summary>The friend with the most games both of them unlocked something in this year; null without one.</summary>
         public string TopFriendKey { get; set; }
