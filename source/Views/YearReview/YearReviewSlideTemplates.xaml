@@ -76,7 +76,7 @@
     <!-- A game cover card: the art, its name and unlock count on a strip below it, and the rank
          or completion badge pinned to a corner. -->
     <DataTemplate x:Key="YearReview.CoverCard" DataType="{x:Type vm:YearReviewCoverCard}">
-        <Grid Width="{Binding Width}">
+        <Grid Width="{Binding Width}" ToolTip="{Binding Name}">
             <Border CornerRadius="6"
                     Background="{DynamicResource PlayAch.Brush.PopupSurface}"
                     BorderBrush="{DynamicResource PlayAch.Brush.Border}"
@@ -87,7 +87,7 @@
                            Stretch="UniformToFill"
                            helpers:RoundedClip.Radius="5"
                            helpers:AsyncImage.Uri="{Binding CoverPath, Converter={StaticResource DefaultGameImage}, ConverterParameter=cover}"
-                           helpers:AsyncImage.DecodePixel="300"/>
+                           helpers:AsyncImage.DecodePixel="600"/>
                     <StackPanel Margin="10,8,10,10"
                                 Visibility="{Binding ShowCaption, Converter={StaticResource BoolToVis}}">
                         <TextBlock Text="{Binding Name}"
@@ -150,6 +150,7 @@
     <!-- Cards that drop in at their spot. -->
     <Style x:Key="YearReview.DroppedCard" TargetType="ContentPresenter" BasedOn="{StaticResource YearReview.PlacedItem}">
         <Setter Property="local:YearReviewMotion.Reveal" Value="Drop"/>
+        <Setter Property="local:YearReviewMotion.Hover" Value="True"/>
     </Style>
 
     <!-- 1. Intro: the year, huge, running off the bottom-left corner over the rays. -->
@@ -192,14 +193,16 @@
                 <ItemsControl.ItemContainerStyle>
                     <Style TargetType="ContentPresenter" BasedOn="{StaticResource YearReview.PlacedItem}">
                         <Setter Property="local:YearReviewMotion.Reveal" Value="Pop"/>
+                        <Setter Property="local:YearReviewMotion.Hover" Value="True"/>
                     </Style>
                 </ItemsControl.ItemContainerStyle>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate DataType="{x:Type vm:YearReviewIcon}">
                         <Image Width="{Binding Size}" Height="{Binding Size}" Stretch="Uniform"
+                               ToolTip="{Binding ToolTip}"
                                helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.AchievementIcon}"
                                helpers:AsyncImage.Uri="{Binding IconPath}"
-                               helpers:AsyncImage.DecodePixel="96"/>
+                               helpers:AsyncImage.DecodePixel="256"/>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
@@ -255,6 +258,7 @@
                                 <TextBlock Text="{Binding Unlocks, StringFormat={}{0:N0}}" Style="{StaticResource YearReview.Display}"/>
                             </Viewbox>
                             <Border Height="{Binding Height}"
+                                    ToolTip="{Binding ToolTip}"
                                     local:YearReviewMotion.Reveal="Grow"
                                     local:YearReviewMotion.Delay="{Binding Delay}">
                                 <Border.Style>
@@ -286,6 +290,7 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="{x:Type vm:YearReviewHeatCell}">
                             <Border Width="8" Height="8" CornerRadius="2"
+                                    ToolTip="{Binding ToolTip}"
                                     local:YearReviewMotion.Reveal="Fade"
                                     local:YearReviewMotion.Delay="{Binding Delay}">
                                 <Border.Style>
@@ -392,7 +397,7 @@
             <Image Canvas.Left="200" Canvas.Top="270" Width="260" Height="260" Stretch="Uniform"
                    helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.AchievementIcon}"
                    helpers:AsyncImage.Uri="{Binding IconPath}"
-                   helpers:AsyncImage.DecodePixel="260"
+                   helpers:AsyncImage.DecodePixel="512"
                    local:YearReviewMotion.Reveal="Zoom" local:YearReviewMotion.Delay="200" local:YearReviewMotion.Angle="-6"/>
 
             <TextBlock Canvas.Left="640" Canvas.Top="96"
@@ -433,6 +438,7 @@
                 <ItemsControl.ItemContainerStyle>
                     <Style TargetType="ContentPresenter" BasedOn="{StaticResource YearReview.PlacedItem}">
                         <Setter Property="local:YearReviewMotion.Reveal" Value="Pop"/>
+                        <Setter Property="local:YearReviewMotion.Hover" Value="True"/>
                     </Style>
                 </ItemsControl.ItemContainerStyle>
                 <ItemsControl.ItemTemplate>
@@ -484,6 +490,7 @@
                 <ItemsControl.ItemContainerStyle>
                     <Style TargetType="ContentPresenter" BasedOn="{StaticResource YearReview.PlacedItem}">
                         <Setter Property="local:YearReviewMotion.Reveal" Value="Rise"/>
+                        <Setter Property="local:YearReviewMotion.Hover" Value="True"/>
                     </Style>
                 </ItemsControl.ItemContainerStyle>
                 <ItemsControl.ItemTemplate>
@@ -519,11 +526,11 @@
 
             <Image Canvas.Left="150" Canvas.Top="190" Width="120" Height="120"
                    helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.AchievementIcon}"
-                   helpers:AsyncImage.Uri="{Binding FirstIconPath}" helpers:AsyncImage.DecodePixel="120"
+                   helpers:AsyncImage.Uri="{Binding FirstIconPath}" helpers:AsyncImage.DecodePixel="256"
                    local:YearReviewMotion.Reveal="Zoom" local:YearReviewMotion.Delay="200" local:YearReviewMotion.Angle="-5"/>
             <Image Canvas.Left="1000" Canvas.Top="500" Width="120" Height="120"
                    helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.AchievementIcon}"
-                   helpers:AsyncImage.Uri="{Binding LatestIconPath}" helpers:AsyncImage.DecodePixel="120"
+                   helpers:AsyncImage.Uri="{Binding LatestIconPath}" helpers:AsyncImage.DecodePixel="256"
                    local:YearReviewMotion.Reveal="Zoom" local:YearReviewMotion.Delay="1600" local:YearReviewMotion.Angle="6"/>
 
             <TextBlock Canvas.Left="72" Canvas.Top="72"
@@ -573,7 +580,7 @@
                 <Image Margin="6" Stretch="UniformToFill"
                        helpers:RoundedClip.Radius="94"
                        helpers:AsyncImage.Uri="{Binding AvatarPath}"
-                       helpers:AsyncImage.DecodePixel="200"/>
+                       helpers:AsyncImage.DecodePixel="400"/>
             </Grid>
 
             <TextBlock Canvas.Left="72" Canvas.Top="72"
@@ -628,7 +635,7 @@
                         <Image Stretch="UniformToFill"
                                helpers:RoundedClip.Radius="5"
                                helpers:AsyncImage.Uri="{Binding TopCoverPath, Converter={StaticResource DefaultGameImage}, ConverterParameter=cover}"
-                               helpers:AsyncImage.DecodePixel="400"/>
+                               helpers:AsyncImage.DecodePixel="800"/>
                         <StackPanel Grid.Column="1" Margin="30,26">
                             <Viewbox Height="84" HorizontalAlignment="Left">
                                 <TextBlock Text="{Binding YearText}" Style="{StaticResource YearReview.Display}"/>
