@@ -76,7 +76,7 @@
     <!-- A game cover card: the art, its name and unlock count on a strip below it, and the rank
          or completion badge pinned to a corner. -->
     <DataTemplate x:Key="YearReview.CoverCard" DataType="{x:Type vm:YearReviewCoverCard}">
-        <Grid Width="{Binding Width}" ToolTip="{Binding Name}">
+        <Grid Width="{Binding Width}" ToolTip="{Binding Name}" local:YearReviewUnlockPopover.Group="{Binding Group}">
             <Border CornerRadius="6"
                     Background="{DynamicResource PlayAch.Brush.PopupSurface}"
                     BorderBrush="{DynamicResource PlayAch.Brush.Border}"
@@ -283,6 +283,7 @@
                        Style="{StaticResource YearReview.Label}"
                        local:YearReviewMotion.Reveal="Rise"/>
             <Viewbox Canvas.Left="56" Canvas.Top="150" Height="300"
+                     local:YearReviewUnlockPopover.Group="{Binding AllGroup}"
                      local:YearReviewMotion.Reveal="Rise" local:YearReviewMotion.Delay="80" local:YearReviewMotion.Angle="-4">
                 <local:CountUpText Value="{Binding Unlocked}" Style="{StaticResource YearReview.Display}" local:YearReviewMotion.Delay="230"/>
             </Viewbox>
@@ -299,6 +300,7 @@
                     <DataTemplate DataType="{x:Type vm:YearReviewIcon}">
                         <Image Width="{Binding Size}" Height="{Binding Size}" Stretch="Uniform"
                                ToolTip="{Binding ToolTip}"
+                               local:YearReviewUnlockPopover.Group="{Binding Group}"
                                helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.AchievementIcon}"
                                helpers:AsyncImage.Uri="{Binding IconPath}"
                                helpers:AsyncImage.DecodePixel="256"/>
@@ -316,7 +318,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Canvas.Right="330" Canvas.Top="230" Style="{StaticResource YearReview.Chip}"
+            <Border Canvas.Right="330" Canvas.Top="200" Style="{StaticResource YearReview.Chip}"
                     local:YearReviewMotion.Reveal="Drop" local:YearReviewMotion.Delay="1000" local:YearReviewMotion.Angle="-3">
                 <StackPanel>
                     <Viewbox Height="60" HorizontalAlignment="Left">
@@ -326,7 +328,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Canvas.Right="110" Canvas.Top="390" Style="{StaticResource YearReview.Chip}"
+            <Border Canvas.Right="110" Canvas.Top="330" Style="{StaticResource YearReview.Chip}"
                     Background="{DynamicResource PlayAch.Brush.Accent}" BorderBrush="{DynamicResource PlayAch.Brush.Accent}"
                     local:YearReviewMotion.Reveal="Drop" local:YearReviewMotion.Delay="1150" local:YearReviewMotion.Angle="-2">
                 <StackPanel>
@@ -337,8 +339,19 @@
                 </StackPanel>
             </Border>
 
-            <Border Canvas.Right="330" Canvas.Top="560" Style="{StaticResource YearReview.Chip}"
-                    local:YearReviewMotion.Reveal="Drop" local:YearReviewMotion.Delay="1300" local:YearReviewMotion.Angle="6">
+            <Border Canvas.Right="380" Canvas.Top="455" Style="{StaticResource YearReview.Chip}"
+                    Background="{DynamicResource PlayAch.Brush.Accent}" BorderBrush="{DynamicResource PlayAch.Brush.Accent}"
+                    local:YearReviewMotion.Reveal="Drop" local:YearReviewMotion.Delay="1250" local:YearReviewMotion.Angle="3">
+                <StackPanel>
+                    <Viewbox Height="60" HorizontalAlignment="Left">
+                        <TextBlock Text="{Binding PrestigeLevelText}" Style="{StaticResource YearReview.Display}" Foreground="{DynamicResource PlayAch.Brush.PopupSurface}"/>
+                    </Viewbox>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Column_PrestigeLevel}" Style="{StaticResource YearReview.Label}" Foreground="{DynamicResource PlayAch.Brush.PopupSurface}"/>
+                </StackPanel>
+            </Border>
+
+            <Border Canvas.Right="110" Canvas.Top="590" Style="{StaticResource YearReview.Chip}"
+                    local:YearReviewMotion.Reveal="Drop" local:YearReviewMotion.Delay="1400" local:YearReviewMotion.Angle="6">
                 <StackPanel>
                     <Viewbox Height="60" HorizontalAlignment="Left">
                         <local:CountUpText Value="{Binding Games}" Style="{StaticResource YearReview.Display}" local:YearReviewMotion.Delay="1450"/>
@@ -436,6 +449,7 @@
             </StackPanel>
 
             <Border Canvas.Left="120" Canvas.Top="170" Width="210" Height="210" CornerRadius="105"
+                    local:YearReviewUnlockPopover.Group="{Binding StreakGroup}"
                     BorderThickness="4"
                     BorderBrush="{DynamicResource PlayAch.Brush.Accent}"
                     Background="{DynamicResource PlayAch.Brush.PopupSurface}"
@@ -489,6 +503,7 @@
                        Style="{StaticResource YearReview.Title}"
                        local:YearReviewMotion.Reveal="Rise"/>
             <Viewbox Canvas.Left="60" Canvas.Top="130" Height="330"
+                     local:YearReviewUnlockPopover.Group="{Binding AllGroup}"
                      local:YearReviewMotion.Reveal="Zoom" local:YearReviewMotion.Delay="150">
                 <local:CountUpText Value="{Binding Count}" Style="{StaticResource YearReview.Display}" local:YearReviewMotion.Delay="300"/>
             </Viewbox>
@@ -507,6 +522,7 @@
                                       IsActive="True"
                                       Color="{Binding TierBrush}"/>
             <Image Canvas.Left="200" Canvas.Top="270" Width="260" Height="260" Stretch="Uniform"
+                   local:YearReviewUnlockPopover.Group="{Binding Group}"
                    helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.AchievementIcon}"
                    helpers:AsyncImage.Uri="{Binding IconPath}"
                    helpers:AsyncImage.DecodePixel="512"
@@ -555,7 +571,7 @@
                 </ItemsControl.ItemContainerStyle>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate DataType="{x:Type vm:YearReviewBubble}">
-                        <Grid Width="{Binding Diameter}" Height="{Binding Diameter}">
+                        <Grid Width="{Binding Diameter}" Height="{Binding Diameter}" local:YearReviewUnlockPopover.Group="{Binding Group}">
                             <Ellipse Fill="{Binding Fill}"/>
                             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                                 <Viewbox Height="{Binding NumberHeight}" HorizontalAlignment="Center">
@@ -607,7 +623,7 @@
                 </ItemsControl.ItemContainerStyle>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate DataType="{x:Type vm:YearReviewPlatformEntry}">
-                        <StackPanel>
+                        <StackPanel Background="Transparent" local:YearReviewUnlockPopover.Group="{Binding Group}">
                             <Viewbox Height="{Binding NumberHeight}" HorizontalAlignment="Left">
                                 <local:CountUpText Value="{Binding Unlocks}" Style="{StaticResource YearReview.Display}" local:YearReviewMotion.Delay="{Binding Delay}"/>
                             </Viewbox>
@@ -637,10 +653,12 @@
                   local:YearReviewMotion.Reveal="Draw" local:YearReviewMotion.Delay="400" local:YearReviewMotion.DrawLength="1200"/>
 
             <Image Canvas.Left="150" Canvas.Top="190" Width="120" Height="120"
+                   local:YearReviewUnlockPopover.Group="{Binding FirstGroup}"
                    helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.AchievementIcon}"
                    helpers:AsyncImage.Uri="{Binding FirstIconPath}" helpers:AsyncImage.DecodePixel="256"
                    local:YearReviewMotion.Reveal="Zoom" local:YearReviewMotion.Delay="200" local:YearReviewMotion.Angle="-5"/>
             <Image Canvas.Left="1000" Canvas.Top="500" Width="120" Height="120"
+                   local:YearReviewUnlockPopover.Group="{Binding LatestGroup}"
                    helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.AchievementIcon}"
                    helpers:AsyncImage.Uri="{Binding LatestIconPath}" helpers:AsyncImage.DecodePixel="256"
                    local:YearReviewMotion.Reveal="Zoom" local:YearReviewMotion.Delay="1600" local:YearReviewMotion.Angle="6"/>
