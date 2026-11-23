@@ -204,6 +204,12 @@
                                 SortMemberPath="UnlockedAchievementsCount"
                                 ElementStyle="{StaticResource FriendSummaryTextStyle}"
                                 helpers:ColumnVisibilityHelper.ColumnKey="FriendSummaryUnlocks"/>
+            <DataGridTextColumn Width="*" MinWidth="56" CanUserResize="True"
+                                Header="{DynamicResource LOCPlayAch_Completed}"
+                                Binding="{Binding CompletedGamesCount, Converter={StaticResource BlankZeroNumber}}"
+                                SortMemberPath="CompletedGamesCount"
+                                ElementStyle="{StaticResource FriendSummaryTextStyle}"
+                                helpers:ColumnVisibilityHelper.ColumnKey="FriendSummaryCompletedGames"/>
             <DataGridTextColumn Width="*" MinWidth="72" CanUserResize="True"
                                 Header="{DynamicResource LOCPlayAch_Score_Prestige}"
                                 Binding="{Binding PrestigeScore, Converter={StaticResource BlankZeroNumber}}"
