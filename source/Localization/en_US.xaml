@@ -1692,7 +1692,7 @@
     <sys:String x:Key="LOCPlayAch_YearReview_DateRange">{0} to {1}</sys:String>
     <sys:String x:Key="LOCPlayAch_YearReview_ClickToStart">Click anywhere to start</sys:String>
     <sys:String x:Key="LOCPlayAch_YearReview_AchievementsUnlocked">Achievements unlocked</sys:String>
-    <sys:String x:Key="LOCPlayAch_YearReview_ScoreGained">Score gained</sys:String>
+    <sys:String x:Key="LOCPlayAch_YearReview_SaveCard">Save card</sys:String>
     <sys:String x:Key="LOCPlayAch_YearReview_GamesWithUnlocks">Games with unlocks</sys:String>
     <sys:String x:Key="LOCPlayAch_YearReview_UnlocksByMonth">Unlocks by month</sys:String>
     <!-- YearReview_BusiestDay: {0} is a date, {1} is the number of unlocks on that date -->
