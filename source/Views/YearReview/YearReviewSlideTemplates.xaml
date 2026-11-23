@@ -14,6 +14,7 @@
     <ResourceDictionary.MergedDictionaries>
         <helpers:SharedResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
         <helpers:SharedResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/RarityBadges.xaml"/>
+        <helpers:SharedResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/LogoResources.xaml"/>
     </ResourceDictionary.MergedDictionaries>
 
     <FontFamily x:Key="YearReview.DisplayFont">pack://application:,,,/PlayniteAchievements;component/Resources/Fonts/#Big Shoulders Display Black</FontFamily>
@@ -925,33 +926,113 @@
         </Canvas>
     </DataTemplate>
 
-    <!-- 11. Summary: the year on one tilted card, which can be saved as an image. -->
+    <!-- A text box that reads as plain text until hovered or focused, for editing in place. -->
+    <Style x:Key="YearReview.InlineTextBox" TargetType="TextBox">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+        <Setter Property="CaretBrush" Value="{DynamicResource PlayAch.Brush.Text}"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+        <Setter Property="Padding" Value="0,1"/>
+        <Setter Property="FontFamily" Value="{DynamicResource PlayAch.FontFamily.Body}"/>
+        <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Title}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            Padding="{TemplateBinding Padding}">
+                        <ScrollViewer x:Name="PART_ContentHost" Focusable="False"
+                                      HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Border}"/>
+            </Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True">
+                <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- 11. Summary: the shareable card. The user's picture and name head it, both editable in
+         place; the year's figures sit beside the top game's cover; the plugin's logo signs it. -->
     <DataTemplate DataType="{x:Type vm:YearReviewSummarySlide}">
         <Canvas Width="1280" Height="770">
-            <Border Canvas.Left="110" Canvas.Top="120"
+            <Border Canvas.Left="90" Canvas.Top="80"
                     local:YearReviewMotion.Reveal="Zoom" local:YearReviewMotion.Delay="100" local:YearReviewMotion.Angle="-2"
                     Effect="{StaticResource YearReview.CardShadow}">
-                <Border x:Name="SummaryCard" Width="780" CornerRadius="6" ClipToBounds="True"
+                <Border x:Name="SummaryCard" Width="820" CornerRadius="10" Padding="26,24"
                         Background="{DynamicResource PlayAch.Brush.PopupSurface}"
                         BorderBrush="{DynamicResource PlayAch.Brush.Border}" BorderThickness="1">
                     <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="250"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <Grid ClipToBounds="True" helpers:RoundedClip.Radius="5">
-                            <Image Stretch="UniformToFill"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   helpers:AsyncImage.Uri="{Binding TopCoverPath, Converter={StaticResource DefaultGameImage}, ConverterParameter=cover}"
-                                   helpers:AsyncImage.DecodePixel="800"/>
-                        </Grid>
-                        <StackPanel Grid.Column="1" Margin="30,26">
-                            <Viewbox Height="84" HorizontalAlignment="Left">
-                                <TextBlock Text="{Binding YearText}" Style="{StaticResource YearReview.Display}"/>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Picture, name and year. -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Width="72" Height="72" Cursor="Hand" Focusable="False"
+                                    Command="{x:Static local:YearReviewControl.ChooseAvatarCommand}"
+                                    ToolTip="{DynamicResource LOCPlayAch_Column_Avatar}"
+                                    AutomationProperties.Name="{DynamicResource LOCPlayAch_Column_Avatar}">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Grid>
+                                            <Border CornerRadius="14" Background="{DynamicResource PlayAch.Brush.Panel}">
+                                                <Viewbox Height="38">
+                                                    <TextBlock Text="{Binding CardInitial}" Style="{StaticResource YearReview.Display}"/>
+                                                </Viewbox>
+                                            </Border>
+                                            <Grid ClipToBounds="True" helpers:RoundedClip.Radius="14">
+                                                <Image Stretch="UniformToFill" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       helpers:AsyncImage.Uri="{Binding CardAvatarPath}"
+                                                       helpers:AsyncImage.DecodePixel="200"/>
+                                            </Grid>
+                                        </Grid>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
+                            <StackPanel Grid.Column="1" Margin="18,0,16,0" VerticalAlignment="Center">
+                                <TextBox Text="{Binding CardName}" Style="{StaticResource YearReview.InlineTextBox}" MaxLength="40"
+                                         ToolTip="{DynamicResource LOCPlayAch_Showcase_ProfileName}"
+                                         AutomationProperties.Name="{DynamicResource LOCPlayAch_Showcase_ProfileName}">
+                                    <TextBox.LayoutTransform>
+                                        <ScaleTransform ScaleX="1.3" ScaleY="1.3"/>
+                                    </TextBox.LayoutTransform>
+                                </TextBox>
+                                <TextBlock Text="{DynamicResource LOCPlayAch_YearReview_Title}" Style="{StaticResource YearReview.Label}" Margin="0,2,0,0"/>
+                            </StackPanel>
+                            <Viewbox Grid.Column="2" Height="76" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding YearText}" Style="{StaticResource YearReview.Display}" Foreground="{DynamicResource PlayAch.Brush.Accent}"/>
                             </Viewbox>
-                            <TextBlock Text="{DynamicResource LOCPlayAch_YearReview_Title}" Style="{StaticResource YearReview.Label}" Margin="0,4,0,18"/>
-                            <ItemsControl ItemsSource="{Binding Figures}">
+                        </Grid>
+
+                        <!-- The top game's cover beside the figures, inset from the card's edge. -->
+                        <Grid Grid.Row="1" Margin="0,22,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="200"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid Width="200" Height="300" ClipToBounds="True" VerticalAlignment="Top"
+                                  helpers:RoundedClip.Radius="8">
+                                <Image Stretch="UniformToFill" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       helpers:AsyncImage.Uri="{Binding TopCoverPath, Converter={StaticResource DefaultGameImage}, ConverterParameter=cover}"
+                                       helpers:AsyncImage.DecodePixel="600"/>
+                            </Grid>
+                            <ItemsControl Grid.Column="1" Margin="28,4,0,0" ItemsSource="{Binding Figures}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
                                         <UniformGrid Columns="2"/>
@@ -959,8 +1040,8 @@
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <StackPanel Margin="0,0,20,14">
-                                            <Viewbox Height="36" MaxWidth="210" HorizontalAlignment="Left">
+                                        <StackPanel Margin="0,0,20,16">
+                                            <Viewbox Height="40" MaxWidth="230" HorizontalAlignment="Left">
                                                 <TextBlock Text="{Binding Key}" Style="{StaticResource YearReview.Display}"/>
                                             </Viewbox>
                                             <TextBlock Text="{Binding Value}" FontSize="{DynamicResource PlayAch.FontSize.Caption}"
@@ -969,23 +1050,47 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
-                        </StackPanel>
+                        </Grid>
+
+                        <!-- Signed with the plugin's logo. -->
+                        <Border Grid.Row="2" Margin="0,20,0,0" Padding="0,14,0,0"
+                                BorderBrush="{DynamicResource PlayAch.Brush.Border}" BorderThickness="0,1,0,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Image Source="{StaticResource PlayAch.Image.Logo}" Width="26" Height="26" VerticalAlignment="Center"/>
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Title_PluginName}" Margin="10,0,0,0" VerticalAlignment="Center"
+                                           FontWeight="SemiBold" FontSize="{DynamicResource PlayAch.FontSize.Body}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"/>
+                            </StackPanel>
+                        </Border>
                     </Grid>
                 </Border>
             </Border>
 
-            <StackPanel Canvas.Left="960" Canvas.Top="560" Orientation="Horizontal"
-                        local:YearReviewMotion.Reveal="Rise" local:YearReviewMotion.Delay="700">
-                <Button Content="&#xEF08;"
-                        Width="40" Height="40" Padding="0"
-                        Style="{StaticResource PlayAch.Button.ToolbarIconStyle}"
-                        ContentTemplate="{StaticResource PlayAch.ButtonContent.Glyph}"
-                        Command="{x:Static local:YearReviewControl.SaveCardCommand}"
-                        CommandParameter="{Binding ElementName=SummaryCard}"
-                        ToolTip="{DynamicResource LOCPlayAch_YearReview_SaveCard}"
-                        AutomationProperties.Name="{DynamicResource LOCPlayAch_YearReview_SaveCard}"/>
-                <TextBlock Text="{DynamicResource LOCPlayAch_YearReview_SaveCard}" Style="{StaticResource YearReview.Label}"
-                           VerticalAlignment="Center" Margin="12,0,0,0"/>
+            <StackPanel Canvas.Left="960" Canvas.Top="600" local:YearReviewMotion.Reveal="Rise" local:YearReviewMotion.Delay="700">
+                <StackPanel Orientation="Horizontal">
+                    <Button Content="&#xEF08;"
+                            Width="40" Height="40" Padding="0"
+                            Style="{StaticResource PlayAch.Button.ToolbarIconStyle}"
+                            ContentTemplate="{StaticResource PlayAch.ButtonContent.Glyph}"
+                            Command="{x:Static local:YearReviewControl.SaveCardCommand}"
+                            CommandParameter="{Binding ElementName=SummaryCard}"
+                            ToolTip="{DynamicResource LOCPlayAch_YearReview_SaveCard}"
+                            AutomationProperties.Name="{DynamicResource LOCPlayAch_YearReview_SaveCard}"/>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_YearReview_SaveCard}" Style="{StaticResource YearReview.Label}"
+                               VerticalAlignment="Center" Margin="12,0,0,0"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                    <Button Content="&#xEDEA;"
+                            Width="40" Height="40" Padding="0"
+                            Style="{StaticResource PlayAch.Button.ToolbarIconStyle}"
+                            ContentTemplate="{StaticResource PlayAch.ButtonContent.Glyph}"
+                            Command="{x:Static local:YearReviewControl.CopyImageCommand}"
+                            CommandParameter="{Binding ElementName=SummaryCard}"
+                            ToolTip="{DynamicResource LOCPlayAch_Common_Copy}"
+                            AutomationProperties.Name="{DynamicResource LOCPlayAch_Common_Copy}"/>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Common_Copy}" Style="{StaticResource YearReview.Label}"
+                               VerticalAlignment="Center" Margin="12,0,0,0"/>
+                </StackPanel>
             </StackPanel>
         </Canvas>
     </DataTemplate>
