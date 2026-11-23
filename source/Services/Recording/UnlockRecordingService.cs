@@ -436,8 +436,8 @@ namespace PlayniteAchievements.Services.Recording
 
         /// <summary>
         /// Whether a game may be captured at all. Mirrors the gates the rest of the plugin applies
-        /// before it acts on a game: a user exclusion, and at least one enabled provider able to
-        /// service it. Capturing a game that can report no unlock is pure background cost - video,
+        /// before it acts on a game: a user exclusion, and at least one enabled provider or a
+        /// linked file able to service it. Capturing a game that can report no unlock is pure background cost - video,
         /// audio and a rolling buffer maintained for a clip that can never be requested.
         /// </summary>
         private bool ShouldCaptureGame(
@@ -464,7 +464,7 @@ namespace PlayniteAchievements.Services.Recording
             {
                 if (logReason)
                 {
-                    _logger?.Debug($"[Recording] Skipped: no effective provider for {game.Name}.");
+                    _logger?.Debug($"[Recording] Skipped: no effective provider or linked file for {game.Name}.");
                 }
 
                 return false;
