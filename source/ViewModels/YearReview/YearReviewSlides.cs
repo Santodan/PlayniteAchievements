@@ -378,7 +378,30 @@ namespace PlayniteAchievements.ViewModels.YearReview
 
     public sealed class YearReviewSummarySlide : YearReviewSlide
     {
+        private string _cardName;
+        private string _cardAvatarPath;
+
         public YearReviewSummarySlide() : base(YearReviewSlideKind.Summary) { }
+
+        /// <summary>The name on the card; edited on the card.</summary>
+        public string CardName
+        {
+            get => _cardName;
+            set
+            {
+                SetValue(ref _cardName, value);
+                OnPropertyChanged(nameof(CardInitial));
+            }
+        }
+
+        /// <summary>The picture on the card; chosen on the card.</summary>
+        public string CardAvatarPath
+        {
+            get => _cardAvatarPath;
+            set => SetValue(ref _cardAvatarPath, value);
+        }
+
+        public string CardInitial => string.IsNullOrWhiteSpace(CardName) ? string.Empty : CardName.Trim().Substring(0, 1).ToUpperInvariant();
 
         public string YearText { get; set; }
         public string TopGameName { get; set; }
