@@ -725,12 +725,12 @@
                             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                                 <Viewbox Height="{Binding NumberHeight}" HorizontalAlignment="Center">
                                     <local:CountUpText Value="{Binding Unlocks}" Style="{StaticResource YearReview.Display}"
-                                                       Foreground="{StaticResource PlayAch.Brush.Overlay.Shade.80}"
+                                                       Foreground="{Binding TextBrush}"
                                                        local:YearReviewMotion.Delay="{Binding Delay}"/>
                                 </Viewbox>
                                 <TextBlock Text="{Binding Label}" HorizontalAlignment="Center" FontWeight="SemiBold"
                                            FontSize="{DynamicResource PlayAch.FontSize.Body}"
-                                           Foreground="{StaticResource PlayAch.Brush.Overlay.Shade.80}"/>
+                                           Foreground="{Binding TextBrush}"/>
                             </StackPanel>
                         </Grid>
                     </DataTemplate>
@@ -966,14 +966,14 @@
          which Save card and Copy capture. Cards stay upright and free of effects so their text
          stays crisp. -->
     <DataTemplate x:Key="YearReview.CardAvatar">
-        <Button Width="{Binding Tag, RelativeSource={RelativeSource Self}}" Cursor="Hand" Focusable="False"
-                Tag="64"
+        <!-- Fills the width its card gives it, and stays square. -->
+        <Button Cursor="Hand" Focusable="False"
                 Command="{x:Static local:YearReviewControl.ChooseAvatarCommand}"
                 ToolTip="{DynamicResource LOCPlayAch_Column_Avatar}"
                 AutomationProperties.Name="{DynamicResource LOCPlayAch_Column_Avatar}">
             <Button.Template>
                 <ControlTemplate TargetType="Button">
-                    <Grid Height="{TemplateBinding Width}">
+                    <Grid Height="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}">
                         <Border CornerRadius="14" Background="{DynamicResource PlayAch.Brush.Panel}">
                             <Viewbox Height="32">
                                 <TextBlock Text="{Binding CardInitial}" Style="{StaticResource YearReview.Display}"/>
