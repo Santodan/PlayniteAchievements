@@ -15,7 +15,9 @@ namespace PlayniteAchievements.ViewModels.YearReview
     /// <summary>Art the slides show that is read per review rather than per game.</summary>
     public sealed class YearReviewArt
     {
-        public string TopGameBackgroundPath { get; set; }
+        /// <summary>Each backdrop game's background art, or its cover when it has none.</summary>
+        public IReadOnlyDictionary<Guid, string> Backdrops { get; set; } = new Dictionary<Guid, string>();
+
         public string TopFriendAvatarPath { get; set; }
     }
 
@@ -28,10 +30,11 @@ namespace PlayniteAchievements.ViewModels.YearReview
         private const double MonthBarMax = 430;
         private const int MaxPlatforms = 4;
 
-        // Fan of the runners-up, back to front: rank 5, 4, 3, 2. The leader sits in front.
-        private static readonly (double X, double Y, double Angle)[] FanSlots =
+        // The runners-up in a loose row, rank 5, 4, 3, 2, each tilted a little. They sit apart,
+        // so every caption stays readable; the leader is larger, to their left.
+        private static readonly (double X, double Y, double Angle)[] RowSlots =
         {
-            (1050, 330, 16), (900, 300, 9), (750, 285, 2), (600, 300, -5)
+            (1105, 300, 3), (925, 270, -2), (745, 290, 2), (565, 260, -3)
         };
 
         // Completed games tossed on a pile, in drop order.
@@ -60,6 +63,7 @@ namespace PlayniteAchievements.ViewModels.YearReview
             var slides = new List<YearReviewSlide>();
             foreach (var kind in data.Slides)
             {
+                var before = slides.Count;
                 switch (kind)
                 {
                     case YearReviewSlideKind.Intro:
@@ -75,14 +79,15 @@ namespace PlayniteAchievements.ViewModels.YearReview
                             Unlocked = data.Unlocked,
                             ScoreGained = data.ScoreGained,
                             LevelText = Number(data.LevelAtStart) + " → " + Number(data.LevelAtEnd),
-                            Games = data.GamesWithUnlocks
+                            Games = data.GamesWithUnlocks,
+                            Icons = Scatter(data.Highlights)
                         });
                         break;
                     case YearReviewSlideKind.Months:
                         slides.Add(Months(data));
                         break;
                     case YearReviewSlideKind.TopGames:
-                        slides.Add(TopGames(data, art));
+                        slides.Add(TopGames(data));
                         break;
                     case YearReviewSlideKind.Completions:
                         slides.Add(Completions(data));
@@ -94,7 +99,11 @@ namespace PlayniteAchievements.ViewModels.YearReview
                         slides.Add(Rarity(data));
                         break;
                     case YearReviewSlideKind.Platforms:
-                        slides.Add(Platforms(data));
+                        if (Platforms(data) is YearReviewPlatformsSlide platforms)
+                        {
+                            slides.Add(platforms);
+                        }
+
                         break;
                     case YearReviewSlideKind.FirstAndLatest:
                         slides.Add(FirstAndLatest(data));
@@ -112,9 +121,51 @@ namespace PlayniteAchievements.ViewModels.YearReview
                         });
                         break;
                 }
+
+                if (slides.Count > before && BackdropGame(data, kind) is Guid backdrop
+                    && art.Backdrops.TryGetValue(backdrop, out var path))
+                {
+                    slides[slides.Count - 1].BackdropPath = path;
+                }
             }
 
             return slides;
+        }
+
+        /// <summary>
+        /// The game whose art sits behind a slide: the slide's own game where it has one, else
+        /// one of the top games, so consecutive slides change backdrop.
+        /// </summary>
+        public static Guid? BackdropGame(YearReviewData data, YearReviewSlideKind kind)
+        {
+            Guid? Top(int rank) =>
+                (data.TopGames.ElementAtOrDefault(rank) ?? data.TopGames.FirstOrDefault())?.Game.GameId;
+
+            switch (kind)
+            {
+                case YearReviewSlideKind.Intro:
+                case YearReviewSlideKind.TopGames:
+                case YearReviewSlideKind.Summary:
+                    return Top(0);
+                case YearReviewSlideKind.Numbers:
+                    return Top(1);
+                case YearReviewSlideKind.Months:
+                    return Top(2);
+                case YearReviewSlideKind.Completions:
+                    return data.Completed.FirstOrDefault()?.GameId ?? Top(0);
+                case YearReviewSlideKind.Rarest:
+                    return data.Rarest?.GameId ?? Top(0);
+                case YearReviewSlideKind.Rarity:
+                    return Top(3);
+                case YearReviewSlideKind.Platforms:
+                    return Top(4);
+                case YearReviewSlideKind.FirstAndLatest:
+                    return data.First?.GameId ?? Top(0);
+                case YearReviewSlideKind.Friends:
+                    return data.Friends.SharedGameIds.FirstOrDefault() is Guid shared && shared != Guid.Empty ? shared : Top(0);
+                default:
+                    return null;
+            }
         }
 
         private static YearReviewMonthsSlide Months(YearReviewData data)
@@ -164,31 +215,56 @@ namespace PlayniteAchievements.ViewModels.YearReview
             };
         }
 
-        private static YearReviewTopGamesSlide TopGames(YearReviewData data, YearReviewArt art)
+        private static YearReviewTopGamesSlide TopGames(YearReviewData data)
         {
             var cards = new List<YearReviewCoverCard>();
             var runnersUp = data.TopGames.Skip(1).ToList();
             for (var rank = runnersUp.Count; rank >= 1; rank--)
             {
                 var entry = runnersUp[rank - 1];
-                var slot = FanSlots[FanSlots.Length - rank];
-                cards.Add(Card(entry.Game, rank + 1, entry.Unlocks, slot.X, slot.Y, slot.Angle, 180, 270,
-                    300 + (FanSlots.Length - rank) * 160));
+                var slot = RowSlots[RowSlots.Length - rank];
+                cards.Add(Card(entry.Game, rank + 1, entry.Unlocks, slot.X, slot.Y, slot.Angle, 160, 240,
+                    300 + (RowSlots.Length - rank) * 160));
             }
 
             var lead = data.TopGames.FirstOrDefault();
             if (lead != null)
             {
-                cards.Add(Card(lead.Game, 1, lead.Unlocks, 300, 250, -9, 250, 375, 1000));
+                cards.Add(Card(lead.Game, 1, lead.Unlocks, 290, 170, -4, 240, 360, 1000));
             }
 
             return new YearReviewTopGamesSlide
             {
-                BackgroundPath = art.TopGameBackgroundPath,
                 LeadUnlocks = lead?.Unlocks ?? 0,
                 LeadCaption = lead == null ? string.Empty : Format("LOCPlayAch_YearReview_UnlocksInGame", lead.Game.Name),
                 Cards = cards
             };
+        }
+
+        /// <summary>
+        /// The year's rarest icons strewn under the big figure in two loose rows, each at its own
+        /// size and tilt.
+        /// </summary>
+        private static IReadOnlyList<YearReviewIcon> Scatter(IReadOnlyList<YearReviewUnlock> highlights)
+        {
+            var spots = new (double X, double Y, double Size, double Angle)[]
+            {
+                (70, 500, 96, -8), (186, 530, 78, 6), (284, 492, 88, -3), (392, 540, 72, 10), (484, 500, 92, -6),
+                (110, 628, 74, 5), (204, 640, 86, -10), (318, 620, 70, 4), (412, 636, 82, -4), (520, 616, 76, 8)
+            };
+
+            return (highlights ?? Array.Empty<YearReviewUnlock>())
+                .Take(spots.Length)
+                .Select((unlock, index) => new YearReviewIcon
+                {
+                    IconPath = unlock.IconPath,
+                    X = spots[index].X,
+                    Y = spots[index].Y,
+                    Size = spots[index].Size,
+                    Angle = spots[index].Angle,
+                    Delay = 1500 + index * 90
+                })
+                .ToList();
         }
 
         private static YearReviewCompletionsSlide Completions(YearReviewData data)
@@ -259,7 +335,7 @@ namespace PlayniteAchievements.ViewModels.YearReview
                     continue;
                 }
 
-                var diameter = 70 + 360 * Math.Sqrt((double)count / max);
+                var diameter = 70 + 330 * Math.Sqrt((double)count / max);
                 bubbles.Add(new YearReviewBubble
                 {
                     Label = tiers[i].ToDisplayText(),
@@ -267,8 +343,9 @@ namespace PlayniteAchievements.ViewModels.YearReview
                     Diameter = diameter,
                     NumberHeight = diameter * 0.3,
                     Fill = tiers[i].ToBrush(),
-                    X = BubbleCentres[i].X - diameter / 2,
-                    Y = BubbleCentres[i].Y - diameter / 2,
+                    // Kept whole on the canvas, below the title.
+                    X = Clamp(BubbleCentres[i].X - diameter / 2, 40, 1240 - diameter),
+                    Y = Clamp(BubbleCentres[i].Y - diameter / 2, 130, 740 - diameter),
                     Delay = 250 + bubbles.Count * 220
                 });
             }
@@ -282,13 +359,23 @@ namespace PlayniteAchievements.ViewModels.YearReview
 
         private static YearReviewPlatformsSlide Platforms(YearReviewData data)
         {
-            var shown = data.Platforms.Take(MaxPlatforms)
-                .Select(platform => (
-                    Name: ProviderRegistry.GetLocalizedName(platform.ProviderKey),
-                    Count: platform.Unlocks,
-                    Fill: HexBrush(ProviderRegistry.ResolveProviderVisualsOrFallback(platform.ProviderKey).colorHex)))
+            // Keys that show the same name, such as the Custom provider and a custom provider
+            // whose id no longer resolves, are one platform to the reader.
+            var merged = data.Platforms
+                .GroupBy(platform => ProviderRegistry.GetLocalizedName(platform.ProviderKey), StringComparer.CurrentCultureIgnoreCase)
+                .Select(group => (
+                    Name: group.Key,
+                    Count: group.Sum(platform => platform.Unlocks),
+                    Fill: HexBrush(ProviderRegistry.ResolveProviderVisualsOrFallback(group.First().ProviderKey).colorHex)))
+                .OrderByDescending(platform => platform.Count)
                 .ToList();
-            var rest = data.Platforms.Skip(MaxPlatforms).Sum(platform => platform.Unlocks);
+            if (merged.Count < 2)
+            {
+                return null;
+            }
+
+            var shown = merged.Take(MaxPlatforms).ToList();
+            var rest = merged.Skip(MaxPlatforms).Sum(platform => platform.Count);
             if (rest > 0)
             {
                 shown.Add((ResourceProvider.GetString("LOCPlayAch_Common_Other"), rest,
@@ -492,6 +579,8 @@ namespace PlayniteAchievements.ViewModels.YearReview
 
             return Brushes.Gray;
         }
+
+        private static double Clamp(double value, double min, double max) => Math.Max(min, Math.Min(max, value));
 
         private static string Number(int value) => value.ToString("N0", FormattingCulture.Current);
 
