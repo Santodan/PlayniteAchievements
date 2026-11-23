@@ -123,6 +123,11 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Fixed the `Refresh when game closes` hint pointing to the wrong settings tab
 - Removed old unused notification monitors and screenshot code
 - Updated the `Achievement Notifications` and `Local Provider Troubleshooting` guides
+- Added `Local` support for more emulator save formats (RLD!, ALI213, 3DM, Hoodlum, RAZOR1911, SmartSteamEmu, SKIDROW, CreamAPI), GreenLuma, and GOG, Ubisoft, SocialClub and FINAL FANTASY VII (2013) saves
+- Added `Local` progress from `Stats.ini` counters and portable saves named by the game's emulator config files
+- Fixed the `SmartSteamEmu`, `SKIDROW` and `CreamAPI` folders being scanned but never read, and the shared `EMPRESS` folder path
+- Added 10 PC ports, the Xbox 360 recompilation port table and Games for Windows - LIVE (XLiveLessNess) to the native sources
+- PC ports in `Santodan-Fork` --> `Platforms` are now sorted alphabetically, and the native source path buttons match the `Local` page
 
 ## 2026-11-17 - v4.2.1.2
 
