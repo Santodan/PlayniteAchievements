@@ -245,6 +245,15 @@ namespace PlayniteAchievements.Services.GameCustomData
             lock (_cacheSync)
             {
                 EnsureCacheCollections();
+
+                // A write that landed while this read ran has already cached its record, which is
+                // newer than what this read returned; keep it rather than caching the older one.
+                if (_cacheByGameId.TryGetValue(playniteGameId, out var written))
+                {
+                    data = written?.Clone();
+                    return data != null;
+                }
+
                 if (found && loaded != null)
                 {
                     _cacheByGameId[playniteGameId] = loaded.Clone();
@@ -303,26 +312,68 @@ namespace PlayniteAchievements.Services.GameCustomData
             var batched = batch != null && batch.ThreadId == Environment.CurrentManagedThreadId;
             if (batched && batch.Holds(playniteGameId))
             {
-                batch.Add(playniteGameId, null, null, affectsSummaryData, mutate);
+                batch.Add(playniteGameId, null, null, 0, affectsSummaryData, mutate);
                 return;
             }
 
             GameCustomDataFile data;
             GameCustomDataFile previous;
-            using (PerfScope.Start(_logger, "GameCustomData.Update.NormalizePrevious", thresholdMs: 10))
-            {
-                data = GameCustomDataNormalizer.NormalizeInternal(LoadOrDefault(playniteGameId), playniteGameId);
-                previous = data.Clone();
-            }
-
             if (batched)
             {
-                batch.Add(playniteGameId, data, previous, affectsSummaryData, mutate);
+                long version;
+                lock (_writeSync)
+                {
+                    data = LoadNormalizedForWrite(playniteGameId, out previous);
+                    version = WriteVersionOf(playniteGameId);
+                }
+
+                batch.Add(playniteGameId, data, previous, version, affectsSummaryData, mutate);
                 return;
             }
 
-            mutate(data);
-            Save(playniteGameId, data, previous, affectsSummaryData);
+            // The read, the mutation and the write happen under one lock, so a writer on another
+            // thread - the in-game monitor applies a linked file every few seconds while a game
+            // runs - cannot save a record it read before this one wrote and drop what it changed.
+            // The events run after the lock is released: they are synchronous and some of their
+            // subscribers wait on the UI thread, which may itself be waiting for this lock.
+            SavedRecord saved;
+            lock (_writeSync)
+            {
+                data = LoadNormalizedForWrite(playniteGameId, out previous);
+                mutate(data);
+                saved = SaveLocked(playniteGameId, data);
+            }
+
+            FinishSave(playniteGameId, saved, previous, affectsSummaryData);
+        }
+
+        /// <summary>
+        /// Serializes every read-modify-write of a game's record. Held from the read through the
+        /// repository write and the cache update, never while change events are raised.
+        /// </summary>
+        private readonly object _writeSync = new object();
+
+        /// <summary>Per game, how many writes have landed; lets a batch tell its read went stale. Guarded by <see cref="_writeSync"/>.</summary>
+        private readonly Dictionary<Guid, long> _writeVersions = new Dictionary<Guid, long>();
+
+        private long WriteVersionOf(Guid playniteGameId)
+        {
+            return _writeVersions.TryGetValue(playniteGameId, out var version) ? version : 0;
+        }
+
+        private void BumpWriteVersion(Guid playniteGameId)
+        {
+            _writeVersions[playniteGameId] = WriteVersionOf(playniteGameId) + 1;
+        }
+
+        private GameCustomDataFile LoadNormalizedForWrite(Guid playniteGameId, out GameCustomDataFile previous)
+        {
+            using (PerfScope.Start(_logger, "GameCustomData.Update.NormalizePrevious", thresholdMs: 10))
+            {
+                var data = GameCustomDataNormalizer.NormalizeInternal(LoadOrDefault(playniteGameId), playniteGameId);
+                previous = data.Clone();
+                return data;
+            }
         }
 
         private volatile WriteBatch _batch;
@@ -392,6 +443,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                 Guid playniteGameId,
                 GameCustomDataFile normalizedStored,
                 GameCustomDataFile previous,
+                long readVersion,
                 bool affectsSummaryData,
                 Action<GameCustomDataFile> mutate)
             {
@@ -406,12 +458,14 @@ namespace PlayniteAchievements.Services.GameCustomData
                     {
                         Data = normalizedStored,
                         Previous = previous,
+                        ReadVersion = readVersion,
                         AffectsSummaryData = affectsSummaryData
                     };
                     _games[playniteGameId] = pending;
                     _order.Add(playniteGameId);
                 }
 
+                pending.Mutations.Add(mutate);
                 mutate(pending.Data);
             }
 
@@ -431,7 +485,40 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             public GameCustomDataFile Previous { get; set; }
 
+            /// <summary>The game's write version when <see cref="Previous"/> was read.</summary>
+            public long ReadVersion { get; set; }
+
+            /// <summary>The updates applied to <see cref="Data"/>, kept to replay on a newer record.</summary>
+            public List<Action<GameCustomDataFile>> Mutations { get; } = new List<Action<GameCustomDataFile>>();
+
             public bool AffectsSummaryData { get; set; }
+        }
+
+        /// <summary>
+        /// Points a pending write at the record as stored now when another writer saved the game
+        /// after the batch read it: the batch's updates run again on the newer record, so the
+        /// commit keeps that writer's change instead of saving over it.
+        /// </summary>
+        private void RebaseIfStale(Guid playniteGameId, PendingWrite write)
+        {
+            if (WriteVersionOf(playniteGameId) == write.ReadVersion)
+            {
+                return;
+            }
+
+            var data = LoadNormalizedForWrite(playniteGameId, out var previous);
+            for (var index = 0; index < write.Mutations.Count; index++)
+            {
+                if (index > 0)
+                {
+                    data = GameCustomDataNormalizer.NormalizeInternal(data, playniteGameId);
+                }
+
+                write.Mutations[index](data);
+            }
+
+            write.Data = data;
+            write.Previous = previous;
         }
 
         private void SaveBatch(IReadOnlyList<(Guid GameId, PendingWrite Write)> writes)
@@ -439,16 +526,31 @@ namespace PlayniteAchievements.Services.GameCustomData
             using (var scope = PerfScope.Start(_logger, "GameCustomData.SaveBatch", thresholdMs: 10))
             {
                 scope?.SetContext("games=" + writes.Count);
-                var normalized = writes
-                    .Select(write => new KeyValuePair<Guid, GameCustomDataFile>(
-                        write.GameId,
-                        GameCustomDataNormalizer.NormalizeInternal(write.Write.Data, write.GameId)))
-                    .ToList();
-
+                List<KeyValuePair<Guid, GameCustomDataFile>> normalized;
                 IReadOnlyList<(GameCustomDataFile Persisted, bool Changed)> results;
-                using (PerfScope.Start(_logger, "GameCustomData.SaveBatch.Repository", thresholdMs: 10))
+                lock (_writeSync)
                 {
-                    results = _repository.SaveBatch(normalized);
+                    foreach (var write in writes)
+                    {
+                        RebaseIfStale(write.GameId, write.Write);
+                    }
+
+                    normalized = writes
+                        .Select(write => new KeyValuePair<Guid, GameCustomDataFile>(
+                            write.GameId,
+                            GameCustomDataNormalizer.NormalizeInternal(write.Write.Data, write.GameId)))
+                        .ToList();
+
+                    using (PerfScope.Start(_logger, "GameCustomData.SaveBatch.Repository", thresholdMs: 10))
+                    {
+                        results = _repository.SaveBatch(normalized);
+                    }
+
+                    for (var index = 0; index < writes.Count; index++)
+                    {
+                        SetCachedEntry(writes[index].GameId, results[index].Persisted);
+                        BumpWriteVersion(writes[index].GameId);
+                    }
                 }
 
                 var changed = new List<Guid>();
@@ -669,16 +771,59 @@ namespace PlayniteAchievements.Services.GameCustomData
             return changed;
         }
 
+        /// <summary>
+        /// Writes <paramref name="data"/> as the game's whole record. A caller that derives the
+        /// record from the stored one should use <see cref="Update"/> or <see cref="Replace"/>,
+        /// which read and write under one lock.
+        /// </summary>
         public void Save(Guid playniteGameId, GameCustomDataFile data)
         {
-            Save(playniteGameId, data, previousData: null);
+            SavedRecord saved;
+            lock (_writeSync)
+            {
+                saved = SaveLocked(playniteGameId, data);
+            }
+
+            FinishSave(playniteGameId, saved, previousData: null, affectsSummaryData: true);
         }
 
-        private void Save(
-            Guid playniteGameId,
-            GameCustomDataFile data,
-            GameCustomDataFile previousData,
-            bool affectsSummaryData = true)
+        /// <summary>
+        /// Replaces the game's record with what <paramref name="rewrite"/> builds from the stored
+        /// one, read and written under the write lock. Returning null leaves the record as it is.
+        /// </summary>
+        public void Replace(Guid playniteGameId, Func<GameCustomDataFile, GameCustomDataFile> rewrite)
+        {
+            if (rewrite == null)
+            {
+                throw new ArgumentNullException(nameof(rewrite));
+            }
+
+            SavedRecord saved;
+            lock (_writeSync)
+            {
+                var next = rewrite(LoadOrDefault(playniteGameId));
+                if (next == null)
+                {
+                    return;
+                }
+
+                saved = SaveLocked(playniteGameId, next);
+            }
+
+            FinishSave(playniteGameId, saved, previousData: null, affectsSummaryData: true);
+        }
+
+        private sealed class SavedRecord
+        {
+            public GameCustomDataFile Normalized { get; set; }
+
+            public GameCustomDataFile Persisted { get; set; }
+
+            public bool LayerChanged { get; set; }
+        }
+
+        /// <summary>Normalizes and writes one record and caches it. The caller holds <see cref="_writeSync"/>.</summary>
+        private SavedRecord SaveLocked(Guid playniteGameId, GameCustomDataFile data)
         {
             // Names the caller. A bulk rename across 641 rows produced 215 store writes over 42
             // seconds with a 5.8s UI freeze inside it, and the log could not say which path
@@ -700,12 +845,24 @@ namespace PlayniteAchievements.Services.GameCustomData
                     persisted = _repository.Save(playniteGameId, normalized, out layerChanged);
                 }
 
-                CompleteSave(playniteGameId, normalized, persisted, previousData, affectsSummaryData);
-                PublishLayerChanged(playniteGameId, layerChanged);
+                SetCachedEntry(playniteGameId, persisted);
+                BumpWriteVersion(playniteGameId);
+                return new SavedRecord { Normalized = normalized, Persisted = persisted, LayerChanged = layerChanged };
             }
         }
 
-        /// <summary>What follows a game's write: the cache, its files, and its events.</summary>
+        /// <summary>What follows a write once the lock is released: its files and its events.</summary>
+        private void FinishSave(
+            Guid playniteGameId,
+            SavedRecord saved,
+            GameCustomDataFile previousData,
+            bool affectsSummaryData)
+        {
+            CompleteSave(playniteGameId, saved.Normalized, saved.Persisted, previousData, affectsSummaryData);
+            PublishLayerChanged(playniteGameId, saved.LayerChanged);
+        }
+
+        /// <summary>What follows a game's write after the cache holds it: its files and its events.</summary>
         private void CompleteSave(
             Guid playniteGameId,
             GameCustomDataFile normalized,
@@ -713,7 +870,6 @@ namespace PlayniteAchievements.Services.GameCustomData
             GameCustomDataFile previousData,
             bool affectsSummaryData)
         {
-            SetCachedEntry(playniteGameId, persisted);
             if (ShouldSyncManagedCustomIconCache(previousData, normalized))
             {
                 SyncManagedCustomIconCache(playniteGameId, normalized);
@@ -757,13 +913,19 @@ namespace PlayniteAchievements.Services.GameCustomData
 
         public void Delete(Guid playniteGameId)
         {
-            var layerChanged = _repository.Delete(playniteGameId);
-            _repository.DeleteCapstoneArtRecords(playniteGameId);
-            lock (_cacheSync)
+            bool layerChanged;
+            lock (_writeSync)
             {
-                EnsureCacheCollections();
-                _cacheByGameId.Remove(playniteGameId);
-                _missingGameIds.Add(playniteGameId);
+                layerChanged = _repository.Delete(playniteGameId);
+                _repository.DeleteCapstoneArtRecords(playniteGameId);
+                lock (_cacheSync)
+                {
+                    EnsureCacheCollections();
+                    _cacheByGameId.Remove(playniteGameId);
+                    _missingGameIds.Add(playniteGameId);
+                }
+
+                BumpWriteVersion(playniteGameId);
             }
 
             _managedCustomIconService?.ClearGameCustomCache(playniteGameId.ToString("D"));
@@ -2048,15 +2210,16 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             normalizedPortable.CustomProviderId = ResolveImportedCustomProviderId(normalizedPortable);
 
-            var current = LoadOrDefault(playniteGameId);
-            var merged = GameCustomDataFile.FromPortable(
-                normalizedPortable,
-                playniteGameId,
-                current.ExcludedFromRefreshes,
-                current.ExcludedFromSummaries);
-            PortablePersonalState.CarryLocal(current, merged);
-
-            Save(playniteGameId, merged);
+            Replace(playniteGameId, current =>
+            {
+                var merged = GameCustomDataFile.FromPortable(
+                    normalizedPortable,
+                    playniteGameId,
+                    current.ExcludedFromRefreshes,
+                    current.ExcludedFromSummaries);
+                PortablePersonalState.CarryLocal(current, merged);
+                return merged;
+            });
             return LoadOrDefault(playniteGameId);
         }
 
