@@ -33,7 +33,7 @@
 
         <!-- The slide area. Slides are laid out at 1280 x 770 and scaled to the window. A click
              anywhere on it moves to the next slide. -->
-        <Grid x:Name="Deck" Grid.Row="1" Background="Transparent" PreviewMouseLeftButtonDown="Deck_PreviewMouseLeftButtonDown" MouseLeftButtonUp="Deck_MouseLeftButtonUp" Cursor="Hand">
+        <Grid x:Name="Deck" Grid.Row="1" Background="Transparent" PreviewMouseLeftButtonDown="Deck_PreviewMouseLeftButtonDown" PreviewMouseLeftButtonUp="Deck_PreviewMouseLeftButtonUp" MouseLeftButtonUp="Deck_MouseLeftButtonUp" Cursor="Hand">
             <Viewbox Stretch="Uniform" Margin="0,4">
                 <!-- The stage is what Save image captures: backdrop and slide together. -->
                 <Grid x:Name="SlideStage" Width="1280" Height="770" ClipToBounds="True"
