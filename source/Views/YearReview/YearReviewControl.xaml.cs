@@ -31,6 +31,12 @@ namespace PlayniteAchievements.Views.YearReview
         /// <summary>Saves the element given as the parameter, the summary card, as a PNG.</summary>
         public static readonly RoutedUICommand SaveCardCommand = new RoutedUICommand("SaveCard", "SaveCard", typeof(YearReviewControl));
 
+        /// <summary>Copies the element given as the parameter, or the slide on screen without one, as an image.</summary>
+        public static readonly RoutedUICommand CopyImageCommand = new RoutedUICommand("CopyImage", "CopyImage", typeof(YearReviewControl));
+
+        /// <summary>Picks the picture on the summary card.</summary>
+        public static readonly RoutedUICommand ChooseAvatarCommand = new RoutedUICommand("ChooseAvatar", "ChooseAvatar", typeof(YearReviewControl));
+
         /// <summary>Opens the list of the slide's views under the button given as the parameter.</summary>
         public static readonly RoutedUICommand OpenViewPickerCommand = new RoutedUICommand("OpenViewPicker", "OpenViewPicker", typeof(YearReviewControl));
 
@@ -50,6 +56,8 @@ namespace PlayniteAchievements.Views.YearReview
             InitializeComponent();
             DataContext = _viewModel;
             CommandBindings.Add(new CommandBinding(SaveCardCommand, OnSaveCard));
+            CommandBindings.Add(new CommandBinding(CopyImageCommand, OnCopyImage));
+            CommandBindings.Add(new CommandBinding(ChooseAvatarCommand, OnChooseAvatar));
             CommandBindings.Add(new CommandBinding(OpenViewPickerCommand, (s, e) => YearReviewViewPicker.Open(e.Parameter as FrameworkElement)));
             _viewModel.PropertyChanged += OnViewModelPropertyChanged;
             Loaded += OnLoaded;
@@ -253,7 +261,7 @@ namespace PlayniteAchievements.Views.YearReview
             }
 
             var source = e.OriginalSource as DependencyObject;
-            if (IsInside<ButtonBase>(source) || IsFromPicker(source))
+            if (IsInside<ButtonBase>(source) || IsInside<TextBoxBase>(source) || IsFromPicker(source))
             {
                 return;
             }
@@ -289,6 +297,11 @@ namespace PlayniteAchievements.Views.YearReview
 
         private void OnPreviewKeyDown(object sender, KeyEventArgs e)
         {
+            if (e.OriginalSource is TextBoxBase)
+            {
+                return;
+            }
+
             if (IsFromPicker(e.OriginalSource as DependencyObject))
             {
                 return;
@@ -447,12 +460,81 @@ namespace PlayniteAchievements.Views.YearReview
         /// <summary>Ends every running entrance and transition, so a capture shows each element at rest.</summary>
         private void FinishMotion()
         {
+            if (Keyboard.FocusedElement is TextBoxBase)
+            {
+                Focus();
+            }
+
             YearReviewMotion.Reset(CurrentHost);
             CurrentHost.BeginAnimation(OpacityProperty, null);
             (CurrentHost.RenderTransform as TranslateTransform)?.BeginAnimation(TranslateTransform.XProperty, null);
             OutgoingHost.Content = null;
             Backdrop.BeginAnimation(OpacityProperty, null);
             SlideStage.UpdateLayout();
+        }
+
+        private void OnCopyImage(object sender, ExecutedRoutedEventArgs e)
+        {
+            var element = e.Parameter as FrameworkElement ?? (CurrentHost.Content != null ? SlideStage : null);
+            if (element == null)
+            {
+                return;
+            }
+
+            FinishMotion();
+            try
+            {
+                if (Render(element) is BitmapSource image)
+                {
+                    Clipboard.SetImage(image);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "Year in Review: the image could not be copied.");
+            }
+        }
+
+        private void OnChooseAvatar(object sender, ExecutedRoutedEventArgs e)
+        {
+            if (!(CurrentHost.Content is YearReviewSummarySlide summary))
+            {
+                return;
+            }
+
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Filter = ResourceProvider.GetString("LOCPlayAch_Showcase_ImageFiles") + "|*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.webp",
+                CheckFileExists = true
+            };
+            if (dialog.ShowDialog(Window.GetWindow(this)) == true)
+            {
+                summary.CardAvatarPath = dialog.FileName;
+            }
+        }
+
+        /// <summary>The element drawn at the saved image's width; null for an element not laid out.</summary>
+        private static BitmapSource Render(FrameworkElement element)
+        {
+            if (element.ActualWidth <= 0 || element.ActualHeight <= 0)
+            {
+                return null;
+            }
+
+            var scale = SavedImageWidth / element.ActualWidth;
+            var width = (int)Math.Round(element.ActualWidth * scale);
+            var height = (int)Math.Round(element.ActualHeight * scale);
+            var visual = new DrawingVisual();
+            using (var dc = visual.RenderOpen())
+            {
+                dc.PushTransform(new ScaleTransform(scale, scale));
+                dc.DrawRectangle(new VisualBrush(element), null, new Rect(0, 0, element.ActualWidth, element.ActualHeight));
+            }
+
+            var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+            bitmap.Render(visual);
+            bitmap.Freeze();
+            return bitmap;
         }
 
         private void Save(FrameworkElement element, string path)
