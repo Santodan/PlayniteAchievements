@@ -38,6 +38,17 @@ namespace PlayniteAchievements.Views.YearReview
             set => SetValue(FillProperty, value);
         }
 
+        public static readonly DependencyProperty OutlineProperty = DependencyProperty.Register(
+            nameof(Outline), typeof(Brush), typeof(YearReviewSparkle),
+            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+
+        /// <summary>Edges the main star so it stays distinct from the rays behind it.</summary>
+        public Brush Outline
+        {
+            get => (Brush)GetValue(OutlineProperty);
+            set => SetValue(OutlineProperty, value);
+        }
+
         public static readonly DependencyProperty IsHotProperty = DependencyProperty.Register(
             nameof(IsHot), typeof(bool), typeof(YearReviewSparkle), new PropertyMetadata(false));
 
@@ -109,10 +120,10 @@ namespace PlayniteAchievements.Views.YearReview
                 RadiusX = reach,
                 RadiusY = reach
             };
-            rays.GradientStops.Add(new GradientStop(Color.FromArgb((byte)(0x70 + 0x40 * _hot), c.R, c.G, c.B), 0.2));
-            rays.GradientStops.Add(new GradientStop(Color.FromArgb(0, c.R, c.G, c.B), 1));
+            rays.GradientStops.Add(new GradientStop(Color.FromArgb((byte)(0xD8 + 0x27 * _hot), c.R, c.G, c.B), 0.25));
+            rays.GradientStops.Add(new GradientStop(Color.FromArgb((byte)(0x38 + 0x30 * _hot), c.R, c.G, c.B), 1));
             rays.Freeze();
-            var half = Math.PI / RayCount * 0.5;
+            var half = Math.PI / RayCount * 0.6;
             var rayGeometry = new StreamGeometry();
             using (var ctx = rayGeometry.Open())
             {
@@ -134,7 +145,9 @@ namespace PlayniteAchievements.Views.YearReview
             // Main star, breathing.
             var breath = 0.5 + 0.5 * Math.Sin(now / BreathMs * 2 * Math.PI);
             var mainRadius = size * (0.3 + 0.04 * breath + 0.04 * _hot);
-            dc.DrawGeometry(star, null, Star(center, mainRadius, _starTurn, 5, 0.42));
+            var outline = Outline == null ? null : new Pen(Outline, Math.Max(1, size * 0.05)) { LineJoin = PenLineJoin.Round };
+            outline?.Freeze();
+            dc.DrawGeometry(star, outline, Star(center, mainRadius, _starTurn, 5, 0.42));
 
             // Two twinkles, out of step with each other.
             DrawTwinkle(dc, star, new Point(center.X + size * 0.32, center.Y - size * 0.3), size * 0.13, now / TwinkleMs);
