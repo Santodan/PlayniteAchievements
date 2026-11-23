@@ -36,8 +36,16 @@
         <Grid x:Name="Deck" Grid.Row="1" Background="Transparent" PreviewMouseLeftButtonDown="Deck_PreviewMouseLeftButtonDown" PreviewMouseLeftButtonUp="Deck_PreviewMouseLeftButtonUp" MouseLeftButtonUp="Deck_MouseLeftButtonUp" Cursor="Hand">
             <Viewbox Stretch="Uniform" Margin="0,4">
                 <!-- The stage is what Save image captures: backdrop and slide together. -->
+                <!-- Text here is laid out at 1280 x 770 and scaled with the window, so it uses
+                     the scale-friendly Ideal formatting with fixed hinting. Display formatting
+                     snaps glyphs to the unscaled pixel grid and blurs once scaled. ClearType
+                     stays on over the opaque stage. -->
                 <Grid x:Name="SlideStage" Width="1280" Height="770" ClipToBounds="True"
-                      Background="{DynamicResource PlayAch.Brush.PopupSurface}">
+                      Background="{DynamicResource PlayAch.Brush.PopupSurface}"
+                      TextOptions.TextFormattingMode="Ideal"
+                      TextOptions.TextHintingMode="Fixed"
+                      TextOptions.TextRenderingMode="ClearType"
+                      RenderOptions.ClearTypeHint="Enabled">
                     <!-- The slide's game art, blurred. The blur is rasterized once into the
                          element's bitmap cache, so only the fade animates. -->
                     <Border x:Name="Backdrop" Opacity="0.4" IsHitTestVisible="False" Margin="-60">
