@@ -93,6 +93,7 @@
 
     <!-- The list of a slide's views, in the unlock list's popup chrome. -->
     <Style x:Key="YearReview.ViewRowStyle" TargetType="ListBoxItem">
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
         <Setter Property="Margin" Value="0"/>
         <Setter Property="Padding" Value="10,6"/>
         <Setter Property="Cursor" Value="Hand"/>
@@ -100,19 +101,27 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ListBoxItem">
-                    <Border x:Name="Bd"
-                            Background="Transparent"
-                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
-                            Padding="{TemplateBinding Padding}"
-                            SnapsToDevicePixels="True">
-                        <ContentPresenter VerticalAlignment="Center"/>
-                    </Border>
+                    <!-- The picked view sits on a faint wash of the theme accent; the hover tint
+                         sits over it. -->
+                    <Grid>
+                        <Border x:Name="Picked"
+                                Background="{DynamicResource PlayAch.Brush.Accent}"
+                                CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
+                                Opacity="0"/>
+                        <Border x:Name="Bd"
+                                Background="Transparent"
+                                CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                    </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Bd" Property="Background" Value="{DynamicResource PlayAch.Brush.Overlay.Tint.08}"/>
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource PlayAch.Brush.Selection}"/>
+                            <Setter TargetName="Picked" Property="Opacity" Value="0.22"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -130,6 +139,7 @@
                 MaxWidth="320">
             <ListBox ItemsSource="{Binding Views}"
                      SelectedItem="{Binding CurrentView, Mode=TwoWay}"
+                     FocusVisualStyle="{x:Null}"
                      ItemContainerStyle="{StaticResource YearReview.ViewRowStyle}"
                      Background="Transparent"
                      BorderThickness="0"
