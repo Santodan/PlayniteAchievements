@@ -1,0 +1,1030 @@
+{
+  "source": "Achievement Watcher Next app/parser/x360Ports.js (Linux-only fields omitted)",
+  "commit": "f9903eb404f0eedf152144c576f197dcd96e2950",
+  "ports": [
+    {
+      "name": "Unleashed Recompiled",
+      "titleIds": [
+        "53450812"
+      ],
+      "exes": [
+        "unleashedrecomp.exe"
+      ],
+      "layout": "unleashed",
+      "xexFolders": [
+        "patched"
+      ]
+    },
+    {
+      "name": "Dante's Inferno",
+      "titleIds": [
+        "454108CF"
+      ],
+      "exes": [
+        "dantes_inferno.exe",
+        "dantes_inferno_native.exe",
+        "dantesinferno.exe"
+      ],
+      "layout": "documents",
+      "app": "dantes_inferno"
+    },
+    {
+      "name": "LEGO Dimensions",
+      "titleIds": [
+        "5752084B"
+      ],
+      "exes": [
+        "legodimensions.exe"
+      ],
+      "layout": "documents"
+    },
+    {
+      "name": "Midnight Club: Los Angeles",
+      "titleIds": [
+        "545407F8"
+      ],
+      "exes": [
+        "midnightclubla.exe",
+        "mcla.exe",
+        "larecomp.exe"
+      ],
+      "layout": "documents",
+      "xexFolders": [
+        "MCLA_Game_Files"
+      ]
+    },
+    {
+      "name": "Spider-Man: Edge of Time",
+      "titleIds": [
+        "415608B2"
+      ],
+      "exes": [
+        "spidermaneot.exe"
+      ],
+      "layout": "tsv",
+      "app": "spider_man_edge_of_time"
+    },
+    {
+      "name": "Spider-Man: Edge of Time",
+      "titleIds": [
+        "415608B2"
+      ],
+      "exes": [
+        "edgeoftimerecomp.exe",
+        "reeot.exe"
+      ],
+      "layout": "reeot",
+      "xexFolders": [
+        "game"
+      ]
+    },
+    {
+      "name": "Blue Dragon (re:Blue)",
+      "titleIds": [
+        "4D5307DF"
+      ],
+      "exes": [
+        "reblue.exe"
+      ],
+      "layout": "profiles"
+    },
+    {
+      "name": "Castlevania: Symphony of the Night",
+      "titleIds": [
+        "58410847",
+        "5841089D"
+      ],
+      "exes": [
+        "nocturnerecomp.exe"
+      ],
+      "layout": "documents"
+    },
+    {
+      "name": "Silent Hill: Downpour",
+      "titleIds": [
+        "4B4E0823"
+      ],
+      "exes": [
+        "downpour.exe"
+      ],
+      "layout": "user",
+      "userFolder": "user"
+    },
+    {
+      "name": "Deadly Premonition",
+      "titleIds": [
+        "4D5607D1"
+      ],
+      "exes": [
+        "deadlyprem.exe"
+      ],
+      "layout": "user",
+      "userFolder": "userdata"
+    },
+    {
+      "name": "Deadly Premonition",
+      "titleIds": [
+        "494F07D4"
+      ],
+      "exes": [
+        "deadlyprem_usa.exe"
+      ],
+      "layout": "user",
+      "userFolder": "userdata"
+    },
+    {
+      "name": "Fable II",
+      "titleIds": [
+        "4D5307F1"
+      ],
+      "exes": [
+        "fable_2.exe"
+      ],
+      "layout": "user",
+      "userFolder": "saves",
+      "fixed": true
+    },
+    {
+      "name": "Naughty Bear (ReStuff)",
+      "titleIds": [
+        "464F07D8"
+      ],
+      "exes": [
+        "restuff.exe"
+      ],
+      "layout": "documents"
+    },
+    {
+      "name": "Condemned 2: Bloodshot",
+      "titleIds": [
+        "534507EF"
+      ],
+      "exes": [
+        "condemned2recomp.exe"
+      ],
+      "layout": "user",
+      "userFolder": "UserData"
+    },
+    {
+      "name": "Project Gotham Racing 4",
+      "titleIds": [
+        "4D5307F9"
+      ],
+      "exes": [
+        "pgr4_recomp.exe",
+        "pgr4_recompiled.exe"
+      ],
+      "layout": "documents"
+    },
+    {
+      "name": "Crackdown 2",
+      "titleIds": [
+        "4D5308BC"
+      ],
+      "exes": [
+        "crackdown2.exe"
+      ],
+      "layout": "documents"
+    },
+    {
+      "name": "Crackdown",
+      "titleIds": [
+        "4D5307DC"
+      ],
+      "exes": [
+        "crackdown.exe"
+      ],
+      "layout": "user",
+      "userFolder": "user_data"
+    },
+    {
+      "name": "Banjo-Kazooie: Nuts & Bolts (reNut)",
+      "titleIds": [
+        "4D5307ED"
+      ],
+      "exes": [
+        "renut.exe"
+      ],
+      "layout": "renut"
+    },
+    {
+      "name": "Skate 3",
+      "titleIds": [
+        "454108E6"
+      ],
+      "exes": [
+        "skate3.exe"
+      ],
+      "layout": "none"
+    },
+    {
+      "name": "Lost Odyssey",
+      "titleIds": [
+        "4D5307FA"
+      ],
+      "exes": [
+        "lostodysseyrecomp.exe"
+      ],
+      "layout": "earned-ini",
+      "xexFolders": [
+        "game/disc1",
+        "game",
+        "disc1"
+      ]
+    },
+    {
+      "name": "Super Street Fighter II Turbo HD Remix",
+      "titleIds": [
+        "584108A4"
+      ],
+      "exes": [
+        "ssf2t_hd_remix.exe"
+      ],
+      "layout": "user",
+      "userFolder": "user_data"
+    },
+    {
+      "name": "Geometry Wars: Retro Evolved 2",
+      "titleIds": [
+        "584108FF"
+      ],
+      "exes": [
+        "geometry_wars_retro_evolved_2.exe"
+      ],
+      "layout": "user",
+      "userFolder": "user_data",
+      "legacy": "geometry_wars_retro_evolved_2"
+    },
+    {
+      "name": "Hard Corps: Uprising",
+      "titleIds": [
+        "58410A18"
+      ],
+      "exes": [
+        "hard_corps_uprising.exe"
+      ],
+      "layout": "user",
+      "userFolder": "user_data",
+      "idAliases": {
+        "65536": 0
+      }
+    },
+    {
+      "name": "Ridge Racer 6",
+      "titleIds": [
+        "4E4D07D3"
+      ],
+      "exes": [
+        "rr6_recomp.exe"
+      ],
+      "layout": "documents",
+      "app": "rr6_recomp"
+    },
+    {
+      "name": "Peter Jackson's King Kong",
+      "titleIds": [
+        "555307D3"
+      ],
+      "exes": [
+        "king_kong.exe"
+      ],
+      "layout": "documents",
+      "app": "king_kong"
+    },
+    {
+      "name": "WET",
+      "titleIds": [
+        "425307DB"
+      ],
+      "exes": [
+        "wetrecomp.exe"
+      ],
+      "layout": "documents",
+      "app": "wetrecomp"
+    },
+    {
+      "name": "WWE SmackDown vs. Raw 2011",
+      "titleIds": [
+        "5451085D"
+      ],
+      "exes": [
+        "svr2011.exe"
+      ],
+      "layout": "user",
+      "userFolder": "UserData",
+      "fixed": true
+    },
+    {
+      "name": "Perfect Dark Zero",
+      "titleIds": [
+        "4D5307D3"
+      ],
+      "exes": [
+        "perfectdarkzerorecomp.exe"
+      ],
+      "layout": "documents",
+      "app": "perfectdarkzerorecomp",
+      "profiles": true
+    },
+    {
+      "name": "Marathon Recompiled (Sonic the Hedgehog)",
+      "titleIds": [
+        "534507D6"
+      ],
+      "exes": [
+        "marathonrecomp.exe"
+      ],
+      "layout": "unleashed",
+      "appFolder": "MarathonRecomp",
+      "achFile": "SonicNextAchievementData.bin",
+      "records": 23
+    },
+    {
+      "name": "Army of Two",
+      "titleIds": [
+        "4541084C"
+      ],
+      "exes": [
+        "armyoftworecomp.exe"
+      ],
+      "layout": "documents",
+      "app": "armyoftworecomp_tu2",
+      "xexFolders": [
+        "assets"
+      ],
+      "profileFolders": [
+        "armyoftworecomp_profiles"
+      ]
+    },
+    {
+      "name": "Army of Two",
+      "titleIds": [
+        "4541084C"
+      ],
+      "exes": [
+        "armyoftworecomp.exe"
+      ],
+      "layout": "documents",
+      "app": "armyoftworecomp",
+      "xexFolders": [
+        "assets"
+      ]
+    },
+    {
+      "name": "Army of Two",
+      "titleIds": [
+        "454107F8",
+        "4541084C"
+      ],
+      "exes": [
+        "armyof2.exe"
+      ],
+      "layout": "documents",
+      "app": "armyof2",
+      "xexFolders": [
+        "ArmyOfTwoExtracted"
+      ]
+    },
+    {
+      "name": "Gears of War 2",
+      "titleIds": [
+        "4D53082D"
+      ],
+      "exes": [
+        "gow2.exe"
+      ],
+      "layout": "localappdata",
+      "app": "GearsOfWar2PC/user",
+      "saveSetting": [
+        "gow2.toml",
+        "gow2_save_dir"
+      ]
+    },
+    {
+      "name": "NBA JAM: On Fire Edition",
+      "titleIds": [
+        "584111EC"
+      ],
+      "exes": [
+        "nbajam_ofe.exe"
+      ],
+      "layout": "saves-path",
+      "app": "nbajam_ofe"
+    },
+    {
+      "name": "Kameo: Elements of Power",
+      "titleIds": [
+        "4D5307D2"
+      ],
+      "exes": [
+        "kameorepowered.exe"
+      ],
+      "layout": "documents"
+    },
+    {
+      "name": "Ace Combat 6: Fires of Liberation",
+      "titleIds": [
+        "4E4D07D1"
+      ],
+      "exes": [
+        "ac6recomp.exe"
+      ],
+      "layout": "documents"
+    },
+    {
+      "name": "Call of Duty 3",
+      "titleIds": [
+        "415607E1"
+      ],
+      "exes": [
+        "cod3_pc.exe"
+      ],
+      "layout": "documents"
+    },
+    {
+      "name": "Superman Returns",
+      "titleIds": [
+        "454107ED"
+      ],
+      "exes": [
+        "superman_returns.exe"
+      ],
+      "layout": "documents"
+    },
+    {
+      "name": "Peggle",
+      "titleIds": [
+        "58410889"
+      ],
+      "exes": [
+        "peggle.exe"
+      ],
+      "layout": "documents",
+      "xexFolders": [
+        "extracted"
+      ]
+    },
+    {
+      "name": "Vigilante 8 Arcade",
+      "titleIds": [
+        "584108A8"
+      ],
+      "exes": [
+        "vig8.exe"
+      ],
+      "layout": "documents"
+    },
+    {
+      "name": "Dragon Ball Z: Burst Limit",
+      "titleIds": [
+        "424107DC"
+      ],
+      "exes": [
+        "burstlimit.exe"
+      ],
+      "layout": "documents",
+      "xexFolders": [
+        "game_data_root"
+      ]
+    },
+    {
+      "name": "Forza Motorsport 4",
+      "titleIds": [
+        "4D530910"
+      ],
+      "exes": [
+        "fm4.exe"
+      ],
+      "layout": "documents"
+    },
+    {
+      "name": "Forza Horizon",
+      "titleIds": [
+        "4D5309C9"
+      ],
+      "exes": [
+        "forza.exe"
+      ],
+      "layout": "documents"
+    },
+    {
+      "name": "2014 FIFA World Cup Brazil",
+      "titleIds": [
+        "454109D4"
+      ],
+      "exes": [
+        "fifawc14.exe"
+      ],
+      "layout": "documents",
+      "app": "2014 FIFA World Cup Brazil",
+      "portable": [
+        "portable.txt",
+        "saves"
+      ]
+    },
+    {
+      "name": "WWE All Stars",
+      "titleIds": [
+        "545107FD"
+      ],
+      "exes": [
+        "wweallstars.exe"
+      ],
+      "layout": "user",
+      "userFolder": "../userdata"
+    },
+    {
+      "name": "GoldenEye 007 (XBLA)",
+      "titleIds": [
+        "584108A9"
+      ],
+      "exes": [
+        "goldeneye 007.exe"
+      ],
+      "layout": "user",
+      "release": true
+    },
+    {
+      "name": "Aegis Wing",
+      "titleIds": [
+        "5841083C"
+      ],
+      "exes": [
+        "aegis wing.exe"
+      ],
+      "layout": "user",
+      "release": true
+    },
+    {
+      "name": "Fuse",
+      "titleIds": [
+        "4541096E"
+      ],
+      "exes": [
+        "fuserecomp.exe"
+      ],
+      "layout": "documents"
+    },
+    {
+      "name": "SEGA Superstars Tennis ReMatch",
+      "titleIds": [
+        "534507F5"
+      ],
+      "exes": [
+        "sst_rematch.exe"
+      ],
+      "layout": "documents"
+    },
+    {
+      "name": "Outpost Kaloki X",
+      "titleIds": [
+        "584107DB"
+      ],
+      "exes": [
+        "outpost_kaloki_x.exe"
+      ],
+      "layout": "documents",
+      "app": "outpost_kaloki_x"
+    },
+    {
+      "name": "South Park: Tenorman's Revenge",
+      "titleIds": [
+        "58410B80"
+      ],
+      "exes": [
+        "south_park_tr.exe"
+      ],
+      "layout": "documents"
+    },
+    {
+      "name": "South Park: Let's Go Tower Defense Play!",
+      "titleIds": [
+        "58410931"
+      ],
+      "exes": [
+        "south_park_td.exe"
+      ],
+      "layout": "documents"
+    },
+    {
+      "name": "3 on 3 NHL Arcade",
+      "titleIds": [
+        "58410975"
+      ],
+      "exes": [
+        "nhl3on3.exe"
+      ],
+      "layout": "documents"
+    },
+    {
+      "name": "WET",
+      "titleIds": [
+        "425307DB"
+      ],
+      "exes": [
+        "wet.exe"
+      ],
+      "layout": "documents"
+    },
+    {
+      "name": "Tenchu Z",
+      "titleIds": [
+        "465307D7"
+      ],
+      "exes": [
+        "tenchuz.exe"
+      ],
+      "layout": "documents"
+    },
+    {
+      "name": "NCAA Football 14",
+      "titleIds": [
+        "454109B6"
+      ],
+      "exes": [
+        "ncaafootball14.exe"
+      ],
+      "layout": "localappdata",
+      "app": "ncaafootball14",
+      "mods": "mods"
+    },
+    {
+      "name": "Naruto: The Broken Bond",
+      "titleIds": [
+        "55530825"
+      ],
+      "exes": [
+        "naruto the broken bond pc.exe"
+      ],
+      "layout": "user",
+      "userFolder": "hdd"
+    },
+    {
+      "name": "The Bigs 2",
+      "titleIds": [
+        "54540830"
+      ],
+      "exes": [
+        "thebigs2.exe"
+      ],
+      "layout": "user",
+      "userFolder": "saves",
+      "legacy": "thebigs2"
+    },
+    {
+      "name": "Skate 2",
+      "titleIds": [
+        "4541087F"
+      ],
+      "exes": [
+        "skate2.exe"
+      ],
+      "layout": "documents",
+      "portable": [
+        "portable.txt",
+        "userdata"
+      ]
+    },
+    {
+      "name": "Dragon Ball Z: Budokai HD (Budokai 3)",
+      "titleIds": [
+        "4E4D0856"
+      ],
+      "exes": [
+        "dbz3.exe"
+      ],
+      "layout": "user",
+      "userFolder": "user_data/dbz3",
+      "legacy": "dbz3"
+    },
+    {
+      "name": "WWE SmackDown vs. Raw 2007",
+      "titleIds": [
+        "545107E0"
+      ],
+      "exes": [
+        "svr2007.exe",
+        "svr2007_vulkan.exe"
+      ],
+      "layout": "user",
+      "userFolder": "userdata"
+    },
+    {
+      "name": "WWE SmackDown vs. Raw 2008",
+      "titleIds": [
+        "5451080B"
+      ],
+      "exes": [
+        "svr2008.exe",
+        "svr2008_vulkan.exe"
+      ],
+      "layout": "user",
+      "userFolder": "userdata"
+    },
+    {
+      "name": "WWE SmackDown vs. Raw 2009",
+      "titleIds": [
+        "54510826"
+      ],
+      "exes": [
+        "svr2009.exe",
+        "svr2009_vulkan.exe"
+      ],
+      "layout": "user",
+      "userFolder": "userdata"
+    },
+    {
+      "name": "NHL 14",
+      "titleIds": [
+        "454109BE"
+      ],
+      "exes": [
+        "bardown.exe"
+      ],
+      "layout": "user",
+      "userFolder": "userdata",
+      "localFallback": "bardown/userdata"
+    },
+    {
+      "name": "Forza Motorsport 3",
+      "titleIds": [
+        "4D53084D"
+      ],
+      "exes": [
+        "forza3.exe"
+      ],
+      "layout": "user",
+      "userFolder": "userdata"
+    },
+    {
+      "name": "Burnout Revenge",
+      "titleIds": [
+        "454107DC"
+      ],
+      "exes": [
+        "burnoutrevenge.exe"
+      ],
+      "layout": "user",
+      "userFolder": "user-data"
+    },
+    {
+      "name": "Banjo-Tooie",
+      "titleIds": [
+        "58410955"
+      ],
+      "exes": [
+        "banjotooie.exe"
+      ],
+      "layout": "user",
+      "userFolder": "user-data"
+    },
+    {
+      "name": "Plants vs. Zombies (Console Edition)",
+      "titleIds": [
+        "584109FF"
+      ],
+      "exes": [
+        "pvz-console-edition.exe"
+      ],
+      "layout": "user",
+      "userFolder": "../runtime-data/user"
+    },
+    {
+      "name": "Forza Horizon (Pinyon Shift)",
+      "titleIds": [
+        "4D5309C9"
+      ],
+      "exes": [
+        "pinyon_shift.exe"
+      ],
+      "layout": "pinyon"
+    },
+    {
+      "name": "The Darkness (Estacado)",
+      "titleIds": [
+        "545407EE"
+      ],
+      "exes": [
+        "thedarkness.exe"
+      ],
+      "layout": "estacado"
+    },
+    {
+      "name": "The Darkness",
+      "titleIds": [
+        "545407EE"
+      ],
+      "exes": [
+        "thedarknessrecomp.exe"
+      ],
+      "layout": "documents"
+    },
+    {
+      "name": "Guitar Hero II (reGH2)",
+      "titleIds": [
+        "415607E7"
+      ],
+      "exes": [],
+      "layout": "documents",
+      "app": "gh2"
+    },
+    {
+      "name": "TMNT: Turtles in Time Re-Shelled",
+      "title": "Teenage Mutant Ninja Turtles: Turtles in Time Re-Shelled",
+      "titleIds": [
+        "584109D2"
+      ],
+      "exes": [
+        "tmnt_turtles_in_time_reshelled.exe"
+      ],
+      "layout": "user",
+      "userFolder": "user_data",
+      "legacy": "tmnt_turtles_in_time_reshelled"
+    },
+    {
+      "name": "El Chavo Kart",
+      "titleIds": [
+        "475807D7"
+      ],
+      "exes": [
+        "el_chavo_kart.exe"
+      ],
+      "layout": "user",
+      "userFolder": "user_data",
+      "legacy": "el_chavo_kart"
+    },
+    {
+      "name": "Marvel Ultimate Alliance",
+      "titleIds": [
+        "415607DA"
+      ],
+      "exes": [
+        "marvel_ultimate_alliance_mua1.exe"
+      ],
+      "layout": "user",
+      "userFolder": "user_data/mua1",
+      "xexFolders": [
+        "game/mua1"
+      ]
+    },
+    {
+      "name": "Marvel Ultimate Alliance: Gold Edition",
+      "titleIds": [
+        "415607DA"
+      ],
+      "exes": [
+        "marvel_ultimate_alliance_mua1_gold.exe"
+      ],
+      "layout": "user",
+      "userFolder": "user_data/mua1_gold",
+      "xexFolders": [
+        "game/mua1-gold"
+      ]
+    },
+    {
+      "name": "Marvel Ultimate Alliance 2",
+      "titleIds": [
+        "4156082F"
+      ],
+      "exes": [
+        "marvel_ultimate_alliance_mua2.exe"
+      ],
+      "layout": "user",
+      "userFolder": "user_data/mua2",
+      "xexFolders": [
+        "game/mua2"
+      ]
+    },
+    {
+      "name": "Eternal Sonata: Reprise",
+      "titleIds": [
+        "4E4D07E2"
+      ],
+      "exes": [
+        "eternalsonata.exe"
+      ],
+      "layout": "documents",
+      "app": "eternalsonata",
+      "portable": [
+        "portable.txt",
+        "user"
+      ],
+      "saveSetting": [
+        "eternalsonata.toml",
+        "user_data_root"
+      ]
+    },
+    {
+      "name": "X-Men Destiny",
+      "titleIds": [
+        "415608AA"
+      ],
+      "exes": [
+        "xmd.exe"
+      ],
+      "layout": "user",
+      "userFolder": "user_data"
+    },
+    {
+      "name": "Crash: Mind over Mutant",
+      "titleIds": [
+        "565507FA"
+      ],
+      "exes": [
+        "crash_mom.exe"
+      ],
+      "layout": "record"
+    },
+    {
+      "name": "The Bourne Conspiracy",
+      "titleIds": [
+        "565507D4"
+      ],
+      "exes": [
+        "tbc.exe"
+      ],
+      "layout": "documents",
+      "app": "tbc"
+    },
+    {
+      "name": "Sneak King",
+      "titleIds": [
+        "4D538802"
+      ],
+      "exes": [
+        "sneak_king.exe"
+      ],
+      "layout": "documents"
+    },
+    {
+      "name": "Big Bumpin'",
+      "titleIds": [
+        "4D538801"
+      ],
+      "exes": [
+        "big_bumpin.exe"
+      ],
+      "layout": "documents"
+    },
+    {
+      "name": "PocketBike Racer",
+      "titleIds": [
+        "4D538803"
+      ],
+      "exes": [
+        "pocketbike_racer.exe"
+      ],
+      "layout": "documents"
+    },
+    {
+      "name": "Trials HD",
+      "titleIds": [
+        "5841095A"
+      ],
+      "exes": [
+        "trials_hd.exe"
+      ],
+      "layout": "documents"
+    },
+    {
+      "name": "Trials Evolution",
+      "titleIds": [
+        "58410AAD"
+      ],
+      "exes": [
+        "trials_evolution.exe"
+      ],
+      "layout": "documents"
+    },
+    {
+      "name": "Trials Fusion",
+      "titleIds": [
+        "58411401"
+      ],
+      "exes": [
+        "trials_fusion.exe"
+      ],
+      "layout": "documents"
+    },
+    {
+      "name": "Angry Birds Trilogy",
+      "titleIds": [
+        "415608E4"
+      ],
+      "exes": [
+        "ab_trilogy.exe"
+      ],
+      "layout": "documents"
+    },
+    {
+      "name": "Angry Birds Star Wars",
+      "titleIds": [
+        "41560901"
+      ],
+      "exes": [
+        "ab_starwars.exe"
+      ],
+      "layout": "documents"
+    }
+  ]
+}

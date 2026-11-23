@@ -1,6 +1,10 @@
-NativePortDefinitions.json contains the achievement definition data for six ports,
-selected without changes to their entries from Achievement Watcher Next:
+NativePortDefinitions.json contains the achievement definition data for sixteen
+ports, selected without changes to their entries from Achievement Watcher Next.
+The first six were taken at:
 https://github.com/Shirowwww/Achievement-Watcher-Next/blob/9069ff6a6b3ef59837f42ac13d0f79513918fef0/app/assets/recomp-ports.json
+The remaining ten (smas, rr64, gdiffuser, nectar, nectar2, fh2azimuth, sanctuary,
+issn, issnfl, deadnation) were taken at:
+https://github.com/Shirowwww/Achievement-Watcher-Next/blob/f9903eb404f0eedf152144c576f197dcd96e2950/app/assets/recomp-ports.json
 
 Achievement Watcher Next fork maintained by Shirowwww
 Copyright (c) 2026 Shirowwww and contributors.
@@ -12,11 +16,29 @@ HarbourMasters/Ghostship: MIT
 ThatGuyMcD/DKR-R: MIT
 ChaseM-dev/SMS-Launcher (SMS and Eclipse): MIT
 JHDev2006/Super-Mario-Bros.-Remastered-Public: GPL-3.0
+Darhkfox/SuperMarioAllStars: MIT
+linkssy2/RoadRash64Recompiled: GPL-3.0
+Zorkats/G-Diffuser: MIT
+SSunnKing/Open-Nectar---Pikmin-Native-PC-Port (Pikmin and Pikmin 2): CC0-1.0
+Trinculo54/fh2-achievements: GPL-3.0
+CaduGimenes/SanctuaryPort: GPL-2.0
+Liondarkz/issn_pc (Second Son and First Light): GPL-2.0
+rcostanza/dead-nation-ps4-recomp: GPL-2.0
 
 Copyright belongs to the respective project contributors. Definition data is
 provided without warranty. Source for the distributed data is the JSON file
 in this repository and at the pinned URL above. GPL-3.0 is included alongside
 this notice. CC0: https://creativecommons.org/publicdomain/zero/1.0/legalcode
+GPL-2.0: https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt
+
+NativeX360Ports.json is the Xbox 360 recompilation port table of Achievement
+Watcher Next's app/parser/x360Ports.js (Linux-only fields omitted), and
+AwnUplaySteam.json is its app/assets/uplay-steam.json Ubisoft-to-Steam pairing
+table, both unchanged in content, taken at:
+https://github.com/Shirowwww/Achievement-Watcher-Next/tree/f9903eb404f0eedf152144c576f197dcd96e2950/app
+The re:Blue bonus achievement texts in NativeX360PortTable.cs come from
+zolaware/reblue src/engine/achievements/achievements.cpp (BSD-3-Clause,
+Copyright (c) 2026, rexglue), as listed by AWN's app/parser/reblueBonus.js.
 
 MIT License
 Permission is hereby granted, free of charge, to any person obtaining a copy

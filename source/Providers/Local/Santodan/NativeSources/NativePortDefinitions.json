@@ -2814,5 +2814,2842 @@
                                                 "description":  "Walk up to the star statue in the castle\u0027s courtyard as Luigi."
                                             }
                                         ]
-                   }
+                   },
+    "smas":  {
+        "repository": "Darhkfox/SuperMarioAllStars",
+        "license": "MIT",
+        "achievements": [
+            {
+                "name": "smb1_toad",
+                "displayName": "Wrong Castle",
+                "description": "Defeat the false Bowser at the end of World 1."
+            },
+            {
+                "name": "smb1_castles",
+                "displayName": "Castle Crasher",
+                "description": "Clear the castle of every world.",
+                "goal": 8,
+                "mask": true
+            },
+            {
+                "name": "smb1_princess",
+                "displayName": "Thank You Mario!",
+                "description": "Rescue the Princess in World 8-4."
+            },
+            {
+                "name": "smb1_nowarp",
+                "displayName": "The Long Way Round",
+                "description": "Finish the game from World 1-1 without using a warp zone."
+            },
+            {
+                "name": "smb1_warp",
+                "displayName": "Shortcut",
+                "description": "Travel through a warp zone."
+            },
+            {
+                "name": "smb1_top",
+                "displayName": "Top of the Pole",
+                "description": "Grab a flagpole at the very top for 5000 points."
+            },
+            {
+                "name": "smb1_fireworks",
+                "displayName": "Fireworks Show",
+                "description": "Finish a level to a fireworks display."
+            },
+            {
+                "name": "smb1_heaven",
+                "displayName": "Coin Heaven",
+                "description": "Climb a vine up to a hidden area."
+            },
+            {
+                "name": "smb1_coins",
+                "displayName": "Pocket Change",
+                "description": "Collect 100 coins for an extra life."
+            },
+            {
+                "name": "smb1_flawless",
+                "displayName": "Not a Scratch",
+                "description": "Clear a castle without getting hurt."
+            },
+            {
+                "name": "smb1_star",
+                "displayName": "Star Power",
+                "description": "Defeat 5 enemies with one Starman."
+            },
+            {
+                "name": "smb1_lives",
+                "displayName": "Lives to Spare",
+                "description": "Have 20 lives at once."
+            },
+            {
+                "name": "smb1_luigi",
+                "displayName": "Player Two",
+                "description": "Finish a level as Luigi."
+            },
+            {
+                "name": "smb1_speed",
+                "displayName": "Speedy Plumber",
+                "description": "Finish World 1-1 with 300 or more on the clock.",
+                "hidden": true
+            },
+            {
+                "name": "smb1_score",
+                "displayName": "Six Figures",
+                "description": "Score 100,000 points."
+            },
+            {
+                "name": "smb1_fire",
+                "displayName": "Fired Up",
+                "description": "Grab a Fire Flower."
+            },
+            {
+                "name": "smb1_world8",
+                "displayName": "Express to World 8",
+                "description": "Warp straight to World 8."
+            },
+            {
+                "name": "smb1_hammerbro",
+                "displayName": "Bro Down",
+                "description": "Defeat a Hammer Bro."
+            },
+            {
+                "name": "smb1_bowserfire",
+                "displayName": "Barbecue Bowser",
+                "description": "Defeat Bowser with fireballs instead of the axe."
+            },
+            {
+                "name": "smb1_enemies",
+                "displayName": "Goomba Stomper",
+                "description": "Defeat 100 enemies.",
+                "goal": 100
+            },
+            {
+                "name": "ll_toad",
+                "displayName": "Same Old Story",
+                "description": "Clear the castle of World 1."
+            },
+            {
+                "name": "ll_castles",
+                "displayName": "Lost No More",
+                "description": "Clear the castles of Worlds 1 to 8.",
+                "goal": 8,
+                "mask": true
+            },
+            {
+                "name": "ll_princess",
+                "displayName": "Peach Found",
+                "description": "Rescue the Princess in World 8-4."
+            },
+            {
+                "name": "ll_world9",
+                "displayName": "Secret World 9",
+                "description": "Reach World 9 by finishing the game without a warp zone."
+            },
+            {
+                "name": "ll_letters",
+                "displayName": "The Very End",
+                "description": "Clear the castle of World D."
+            },
+            {
+                "name": "ll_warp",
+                "displayName": "Warp Ahead",
+                "description": "Travel forward through a warp zone."
+            },
+            {
+                "name": "ll_backwarp",
+                "displayName": "Wrong Way!",
+                "description": "Get sent back by a warp zone.",
+                "hidden": true
+            },
+            {
+                "name": "ll_top",
+                "displayName": "Lofty Leap",
+                "description": "Grab a flagpole at the very top for 5000 points."
+            },
+            {
+                "name": "ll_fireworks",
+                "displayName": "Celebration",
+                "description": "Finish a level to a fireworks display."
+            },
+            {
+                "name": "ll_heaven",
+                "displayName": "Cloud Nine",
+                "description": "Climb a vine up to a hidden area."
+            },
+            {
+                "name": "ll_coins",
+                "displayName": "Coin Purse",
+                "description": "Collect 100 coins for an extra life."
+            },
+            {
+                "name": "ll_flawless",
+                "displayName": "Lost but Unharmed",
+                "description": "Clear a castle without getting hurt."
+            },
+            {
+                "name": "ll_star",
+                "displayName": "Shooting Star",
+                "description": "Defeat 5 enemies with one Starman."
+            },
+            {
+                "name": "ll_speed",
+                "displayName": "No Time to Lose",
+                "description": "Finish World 1-1 with 300 or more on the clock.",
+                "hidden": true
+            },
+            {
+                "name": "ll_fire",
+                "displayName": "Hot Stuff",
+                "description": "Grab a Fire Flower."
+            },
+            {
+                "name": "ll_hammerbro",
+                "displayName": "Brother Beater",
+                "description": "Defeat a Hammer Bro."
+            },
+            {
+                "name": "ll_luigi",
+                "displayName": "Green Machine",
+                "description": "Clear a castle in the LUIGI GAME."
+            },
+            {
+                "name": "ll_bowserfire",
+                "displayName": "Bowser Flambé",
+                "description": "Defeat Bowser with fireballs instead of the axe."
+            },
+            {
+                "name": "ll_enemies",
+                "displayName": "Lost Legion",
+                "description": "Defeat 100 enemies.",
+                "goal": 100
+            },
+            {
+                "name": "smb2_mouser",
+                "displayName": "Bomb Squad",
+                "description": "Defeat Mouser in World 1."
+            },
+            {
+                "name": "smb2_tryclyde",
+                "displayName": "Snake Charmer",
+                "description": "Defeat Tryclyde in World 2."
+            },
+            {
+                "name": "smb2_mouser2",
+                "displayName": "Cat and Mouser",
+                "description": "Defeat Mouser again in World 3."
+            },
+            {
+                "name": "smb2_fryguy",
+                "displayName": "Cool Customer",
+                "description": "Defeat Fryguy in World 4."
+            },
+            {
+                "name": "smb2_clawgrip",
+                "displayName": "Rock Lobster",
+                "description": "Defeat Clawgrip in World 5."
+            },
+            {
+                "name": "smb2_tryclyde2",
+                "displayName": "Heads Will Roll",
+                "description": "Defeat Tryclyde again in World 6."
+            },
+            {
+                "name": "smb2_wart",
+                "displayName": "Wake Up!",
+                "description": "Defeat Wart and free Subcon."
+            },
+            {
+                "name": "smb2_heroes",
+                "displayName": "Dream Team",
+                "description": "Clear a level with each of the four heroes.",
+                "goal": 4,
+                "mask": true
+            },
+            {
+                "name": "smb2_unscathed",
+                "displayName": "Untouchable",
+                "description": "Clear a level without getting hurt."
+            },
+            {
+                "name": "smb2_jackpot",
+                "displayName": "Jackpot",
+                "description": "Win an extra life at the Bonus Chance."
+            },
+            {
+                "name": "smb2_hearts",
+                "displayName": "Full of Heart",
+                "description": "Have four hearts of health."
+            },
+            {
+                "name": "smb2_mushroom",
+                "displayName": "Mushroom Hunter",
+                "description": "Find a mushroom in Subspace."
+            },
+            {
+                "name": "smb2_star",
+                "displayName": "Starman",
+                "description": "Collect five cherries and catch the Starman."
+            },
+            {
+                "name": "smb2_warp",
+                "displayName": "Down the Jar",
+                "description": "Warp ahead through a jar."
+            },
+            {
+                "name": "smb2_pow",
+                "displayName": "POW!",
+                "description": "Defeat three enemies at once."
+            },
+            {
+                "name": "smb2_lives",
+                "displayName": "Extra Lives",
+                "description": "Have 10 lives at once."
+            },
+            {
+                "name": "smb2_subspace",
+                "displayName": "Through the Door",
+                "description": "Enter Subspace."
+            },
+            {
+                "name": "smb2_phanto",
+                "displayName": "Phanto Menace",
+                "description": "Pick up a key and wake a Phanto."
+            },
+            {
+                "name": "smb2_birdo",
+                "displayName": "Egg Return",
+                "description": "Defeat Birdo."
+            },
+            {
+                "name": "smb2_enemies",
+                "displayName": "Veggie Tales",
+                "description": "Defeat 100 enemies.",
+                "goal": 100
+            },
+            {
+                "name": "smb3_wand",
+                "displayName": "Royal Rescue",
+                "description": "Defeat a Koopaling and return a king's wand."
+            },
+            {
+                "name": "smb3_wands",
+                "displayName": "All the King's Wands",
+                "description": "Return the wands of all seven kings.",
+                "goal": 7,
+                "mask": true
+            },
+            {
+                "name": "smb3_dark",
+                "displayName": "Dark Land",
+                "description": "Reach World 8."
+            },
+            {
+                "name": "smb3_bowser",
+                "displayName": "The End of Bowser",
+                "description": "Defeat Bowser and rescue the Princess."
+            },
+            {
+                "name": "smb3_whistle",
+                "displayName": "Warp Whistle",
+                "description": "Blow a warp whistle to reach the Warp Zone."
+            },
+            {
+                "name": "smb3_frog",
+                "displayName": "Frog Prince",
+                "description": "Wear the Frog Suit."
+            },
+            {
+                "name": "smb3_tanooki",
+                "displayName": "Tanooki Time",
+                "description": "Wear the Tanooki Suit."
+            },
+            {
+                "name": "smb3_hammer",
+                "displayName": "Hammer Time",
+                "description": "Wear the Hammer Suit."
+            },
+            {
+                "name": "smb3_pwing",
+                "displayName": "Wings of Wonder",
+                "description": "Fly with a P-Wing."
+            },
+            {
+                "name": "smb3_cards",
+                "displayName": "Full House",
+                "description": "Collect three matching cards at the goal."
+            },
+            {
+                "name": "smb3_stars",
+                "displayName": "Five-Up",
+                "description": "Collect three Star cards at the goal.",
+                "hidden": true
+            },
+            {
+                "name": "smb3_coins",
+                "displayName": "Coin Hoard",
+                "description": "Collect 100 coins for an extra life."
+            },
+            {
+                "name": "smb3_items",
+                "displayName": "Packed Inventory",
+                "description": "Fill all 28 item slots."
+            },
+            {
+                "name": "smb3_toad",
+                "displayName": "Toad's Treasure",
+                "description": "Open a chest in a Toad House."
+            },
+            {
+                "name": "smb3_score",
+                "displayName": "Seven Figures",
+                "description": "Score 1,000,000 points in one game (a game over resets the score)."
+            },
+            {
+                "name": "smb3_lives",
+                "displayName": "Lives Galore",
+                "description": "Have 99 lives."
+            },
+            {
+                "name": "smb3_statue",
+                "displayName": "Stone Cold",
+                "description": "Turn to stone in the Tanooki Suit."
+            },
+            {
+                "name": "smb3_shoe",
+                "displayName": "If the Shoe Fits",
+                "description": "Hop into Kuribo's Shoe."
+            },
+            {
+                "name": "smb3_music",
+                "displayName": "Lullaby",
+                "description": "Use a Music Box on the map."
+            },
+            {
+                "name": "smb3_rock",
+                "displayName": "Rock Breaker",
+                "description": "Smash a rock on the map with a Hammer."
+            },
+            {
+                "name": "smb3_enemies",
+                "displayName": "Koopa Krusher",
+                "description": "Defeat 100 enemies.",
+                "goal": 100
+            },
+            {
+                "name": "smas_allstar",
+                "displayName": "All-Star",
+                "description": "Finish all four games.",
+                "goal": 4
+            },
+            {
+                "name": "smas_complete",
+                "displayName": "Completionist",
+                "description": "Unlock every other achievement."
+            }
+        ]
+    },
+    "rr64":  {
+        "repository": "linkssy2/RoadRash64Recompiled",
+        "license": "GPL-3.0",
+        "achievements": [
+            {
+                "name": "157994",
+                "displayName": "Level 2",
+                "description": "Qualify on all level 1 races and buy a level 2 bike",
+                "icon": "157994"
+            },
+            {
+                "name": "157995",
+                "displayName": "Level 3",
+                "description": "Qualify on all level 2 races and buy a level 3 bike",
+                "icon": "157995"
+            },
+            {
+                "name": "157996",
+                "displayName": "Level 4",
+                "description": "Qualify on all level 3 races and buy a level 4 bike",
+                "icon": "157996"
+            },
+            {
+                "name": "157997",
+                "displayName": "Level 5",
+                "description": "Qualify on all level 4 races and buy a level 5 bike",
+                "icon": "157997"
+            },
+            {
+                "name": "157998",
+                "displayName": "Congratulations!",
+                "description": "Qualify on all level 5 races",
+                "icon": "157998"
+            },
+            {
+                "name": "157999",
+                "displayName": "Taunting at the End - lvl 1",
+                "description": "Finish first while taunting on a level 1 track",
+                "icon": "157999"
+            },
+            {
+                "name": "158000",
+                "displayName": "Taunting at the End - lvl 2",
+                "description": "Finish first while taunting on a level 2 track",
+                "icon": "158000"
+            },
+            {
+                "name": "158001",
+                "displayName": "Taunting at the End - lvl 3",
+                "description": "Finish first while taunting on a level 3 track",
+                "icon": "158001"
+            },
+            {
+                "name": "158002",
+                "displayName": "Taunting at the End - lvl 4",
+                "description": "Finish first while taunting on a level 4 track",
+                "icon": "158002"
+            },
+            {
+                "name": "158003",
+                "displayName": "Taunting at the End - lvl 5",
+                "description": "Finish first while taunting on a level 5 track",
+                "icon": "158003"
+            },
+            {
+                "name": "158004",
+                "displayName": "One Point!",
+                "description": "Run over a pedestrian",
+                "icon": "158004"
+            },
+            {
+                "name": "158005",
+                "displayName": "Two Points! (Big Game)",
+                "description": "Run over a pedestrian while taunting",
+                "icon": "158005"
+            },
+            {
+                "name": "158006",
+                "displayName": "Five Points! (Big Game)",
+                "description": "Run over a pedestrian while taunting and riding a wheelie",
+                "icon": "158006"
+            },
+            {
+                "name": "158007",
+                "displayName": "Airborne (Big Game)",
+                "description": "Finish a race while airborne",
+                "icon": "158007"
+            },
+            {
+                "name": "158008",
+                "displayName": "Deputize Me (Big Game)",
+                "description": "Have two stolen police batons at once",
+                "icon": "158008"
+            },
+            {
+                "name": "158009",
+                "displayName": "I'm the Law Now (Big Game)",
+                "description": "Have four stolen police batons at once",
+                "icon": "158009"
+            },
+            {
+                "name": "158010",
+                "displayName": "Not Playing Billiards (Big Game)",
+                "description": "Find a pool cue",
+                "icon": "158010"
+            },
+            {
+                "name": "158011",
+                "displayName": "Jammed (Big Game)",
+                "description": "Flip four riders in one race by jamming their wheels",
+                "icon": "158011"
+            },
+            {
+                "name": "158012",
+                "displayName": "Quite the Rap Sheet (Big Game)",
+                "description": "KO two drivers, flip two drivers, and assault an officer three times in one race",
+                "icon": "158012"
+            },
+            {
+                "name": "158013",
+                "displayName": "Super Powered KO (Big Game)",
+                "description": "Knock out three riders in one race while under the 4x buff",
+                "icon": "158013"
+            },
+            {
+                "name": "158014",
+                "displayName": "Other Riders",
+                "description": "Switch between riders",
+                "icon": "158014"
+            },
+            {
+                "name": "158015",
+                "displayName": "Master Thief (Big Game)",
+                "description": "Steal three weapons and win the race",
+                "icon": "158015"
+            },
+            {
+                "name": "158016",
+                "displayName": "Unstoppable (Big Game)",
+                "description": "Crash three cops in one race",
+                "icon": "158016"
+            },
+            {
+                "name": "158017",
+                "displayName": "Bike Repair (Big Game)",
+                "description": "Find a wrench and repair your bike during a race",
+                "icon": "158017"
+            },
+            {
+                "name": "158018",
+                "displayName": "I Do What I Want (Big Game)",
+                "description": "Crash a cop while they are trying to arrest you",
+                "icon": "158018"
+            },
+            {
+                "name": "158019",
+                "displayName": "They Had It Coming (Big Game)",
+                "description": "Run over three pedestrians and qualify",
+                "icon": "158019"
+            },
+            {
+                "name": "158020",
+                "displayName": "Two Times the Power (Big Game)",
+                "description": "Get the 2x power-up",
+                "icon": "158020"
+            },
+            {
+                "name": "158021",
+                "displayName": "Four Times the Power (Big Game)",
+                "description": "Get the 4x power-up",
+                "icon": "158021"
+            },
+            {
+                "name": "158022",
+                "displayName": "Join a Gang (Big Game)",
+                "description": "Become a gang member while moving to level 2",
+                "icon": "158022"
+            },
+            {
+                "name": "158023",
+                "displayName": "Firecracker 400 (Big Game)",
+                "description": "Win a race using the Firecracker 400",
+                "icon": "158023"
+            },
+            {
+                "name": "158024",
+                "displayName": "Dumoto 500 (Big Game)",
+                "description": "Win a race using the Dumoto 500",
+                "icon": "158024"
+            },
+            {
+                "name": "158025",
+                "displayName": "Rattler 600 (Big Game)",
+                "description": "Win a race using the Rattler 600",
+                "icon": "158025"
+            },
+            {
+                "name": "158026",
+                "displayName": "Razorback 650 (Big Game)",
+                "description": "Win a race using the Razorback 650",
+                "icon": "158026"
+            },
+            {
+                "name": "158027",
+                "displayName": "How's it Feel?? (Big Game)",
+                "description": "Shock a cop",
+                "icon": "158027"
+            },
+            {
+                "name": "158028",
+                "displayName": "Have at You (Big Game)",
+                "description": "Attack a pedestrian with a weapon",
+                "icon": "158028"
+            },
+            {
+                "name": "158029",
+                "displayName": "Just Gonna Lay There? (Big Game)",
+                "description": "Stay down after a crash",
+                "icon": "158029"
+            },
+            {
+                "name": "158030",
+                "displayName": "It's Mine Now (Big Game)",
+                "description": "Steal another rider's weapon",
+                "icon": "158030"
+            },
+            {
+                "name": "158031",
+                "displayName": "One Wheel",
+                "description": "Finish first while riding a wheelie",
+                "icon": "158031"
+            },
+            {
+                "name": "158032",
+                "displayName": "Busted",
+                "description": "Get caught by the law",
+                "icon": "158032"
+            },
+            {
+                "name": "158033",
+                "displayName": "Airborne ShowStopper (Big Game)",
+                "description": "Finish a race airborne and taunting",
+                "icon": "158033"
+            },
+            {
+                "name": "158034",
+                "displayName": "Taunt the Other Racers",
+                "description": "Taunt the other racers a second time",
+                "icon": "158034"
+            },
+            {
+                "name": "158035",
+                "displayName": "Top Gear",
+                "description": "Purchase the Executioner or Hammerhead",
+                "icon": "158035"
+            },
+            {
+                "name": "158036",
+                "displayName": "Level 1 Thrash",
+                "description": "Win the specified level 1 Thrash race after knocking out or crashing at least three riders",
+                "icon": "158036"
+            },
+            {
+                "name": "158037",
+                "displayName": "Level 2 Thrash",
+                "description": "Win the specified level 2 Thrash race after knocking out at least three riders",
+                "icon": "158037"
+            },
+            {
+                "name": "158038",
+                "displayName": "Level 3 Thrash",
+                "description": "Win the specified level 3 Thrash race after knocking out at least three riders",
+                "icon": "158038"
+            },
+            {
+                "name": "158039",
+                "displayName": "Multiplayer - Level 1 Race 3",
+                "description": "Win the one-lap level 1 race 3 challenge against the toughest CPU",
+                "icon": "158039"
+            },
+            {
+                "name": "158040",
+                "displayName": "Multiplayer - Level 2 Race 2",
+                "description": "Win the one-lap level 2 race 2 challenge against the toughest CPU",
+                "icon": "158040"
+            },
+            {
+                "name": "158041",
+                "displayName": "Multiplayer - Level 3 Race 5",
+                "description": "Win the three-lap level 3 race 5 challenge against the toughest CPU",
+                "icon": "158041"
+            },
+            {
+                "name": "158042",
+                "displayName": "Multiplayer Deathmatch",
+                "description": "Win the level 3 race 4 Deathmatch challenge against the toughest CPU",
+                "icon": "158042"
+            },
+            {
+                "name": "158043",
+                "displayName": "Multiplayer Tag",
+                "description": "Win the level 2 race 1 Tag challenge against the toughest CPU",
+                "icon": "158043"
+            },
+            {
+                "name": "158044",
+                "displayName": "Multiplayer PED Hunt",
+                "description": "Win the level 3 PED Hunt challenge against the toughest CPU",
+                "icon": "158044"
+            },
+            {
+                "name": "158045",
+                "displayName": "Multiplayer PED Hunt - 10 Points",
+                "description": "Win the level 3 PED Hunt challenge with at least 10 points against the toughest CPU",
+                "icon": "158045"
+            }
+        ]
+    },
+    "gdiffuser":  {
+        "repository": "Zorkats/G-Diffuser",
+        "license": "MIT",
+        "achievements": [
+            {
+                "name": "gp.jack.clear",
+                "displayName": "Jack Cup Clear",
+                "description": "Clear the Jack Cup on any difficulty."
+            },
+            {
+                "name": "gp.queen.clear",
+                "displayName": "Queen Cup Clear",
+                "description": "Clear the Queen Cup on any difficulty."
+            },
+            {
+                "name": "gp.king.clear",
+                "displayName": "King Cup Clear",
+                "description": "Clear the King Cup on any difficulty."
+            },
+            {
+                "name": "gp.joker.clear",
+                "displayName": "Joker Cup Clear",
+                "description": "Clear the Joker Cup on any difficulty."
+            },
+            {
+                "name": "gp.jack.master",
+                "displayName": "Jack Cup Master",
+                "description": "Clear the Jack Cup on Master difficulty."
+            },
+            {
+                "name": "gp.queen.master",
+                "displayName": "Queen Cup Master",
+                "description": "Clear the Queen Cup on Master difficulty."
+            },
+            {
+                "name": "gp.king.master",
+                "displayName": "King Cup Master",
+                "description": "Clear the King Cup on Master difficulty."
+            },
+            {
+                "name": "gp.joker.master",
+                "displayName": "Joker Cup Master",
+                "description": "Clear the Joker Cup on Master difficulty."
+            },
+            {
+                "name": "gp.all_expert",
+                "displayName": "Expert Champion",
+                "description": "Clear every Grand Prix cup on Expert or higher."
+            },
+            {
+                "name": "gp.all_master",
+                "displayName": "Master of Masters",
+                "description": "Clear every Grand Prix cup on Master difficulty."
+            },
+            {
+                "name": "x.clear",
+                "displayName": "X Cup Clear",
+                "description": "Win the X Cup with any machine."
+            },
+            {
+                "name": "gp.versatile5",
+                "displayName": "Versatile Racer",
+                "description": "Win Grand Prix cups with 5 different machines."
+            },
+            {
+                "name": "dd1.clear",
+                "displayName": "DD-1 Cup Clear",
+                "description": "Clear the DD-1 Cup on any difficulty."
+            },
+            {
+                "name": "dd2.clear",
+                "displayName": "DD-2 Cup Clear",
+                "description": "Clear the DD-2 Cup on any difficulty."
+            },
+            {
+                "name": "dd1.master",
+                "displayName": "DD-1 Cup Master",
+                "description": "Clear the DD-1 Cup on Master difficulty."
+            },
+            {
+                "name": "dd2.master",
+                "displayName": "DD-2 Cup Master",
+                "description": "Clear the DD-2 Cup on Master difficulty."
+            },
+            {
+                "name": "ghost.first",
+                "displayName": "Ghost Buster",
+                "description": "Beat a staff ghost on any DD course."
+            },
+            {
+                "name": "ghost.half",
+                "displayName": "Ghost Hunter",
+                "description": "Beat staff ghosts on 6 DD courses."
+            },
+            {
+                "name": "ghost.all",
+                "displayName": "Ghost Legend",
+                "description": "Beat the staff ghosts on all 12 DD courses."
+            },
+            {
+                "name": "deathrace.first",
+                "displayName": "Death Race Survivor",
+                "description": "Set a Death Race time record."
+            },
+            {
+                "name": "deathrace.swift",
+                "displayName": "Speed Killer",
+                "description": "Finish the Death Race in 1:30.000 or better."
+            },
+            {
+                "name": "tt.first",
+                "displayName": "First Record",
+                "description": "Set a course time record on any course."
+            },
+            {
+                "name": "tt.half",
+                "displayName": "Record Collector",
+                "description": "Hold course records on 12 courses."
+            },
+            {
+                "name": "tt.all",
+                "displayName": "Record Master",
+                "description": "Hold course records on all 24 courses."
+            },
+            {
+                "name": "playtime.1h",
+                "displayName": "Getting Started",
+                "description": "Play for a total of 1 hour."
+            },
+            {
+                "name": "playtime.10h",
+                "displayName": "Dedicated Pilot",
+                "description": "Play for a total of 10 hours."
+            }
+        ]
+    },
+    "nectar":  {
+        "repository": "SSunnKing/Open-Nectar---Pikmin-Native-PC-Port",
+        "license": "CC0-1.0",
+        "achievements": [
+            {
+                "name": "0",
+                "displayName": "It Has a Strange Allure",
+                "description": "Recover the Nova Blaster."
+            },
+            {
+                "name": "1",
+                "displayName": "Eco-Friendly Exhaust",
+                "description": "Recover the Anti-Dioxin Filter."
+            },
+            {
+                "name": "2",
+                "displayName": "Straighten Up and Fly Right",
+                "description": "Recover the Omega Stabilizer."
+            },
+            {
+                "name": "3",
+                "displayName": "Swim Gracefully Through the Sea of Stars... Like a Dolphin",
+                "description": "Recover the Gravity Jumper."
+            },
+            {
+                "name": "4",
+                "displayName": "HAL-9000",
+                "description": "Recover the Analog Computer."
+            },
+            {
+                "name": "5",
+                "displayName": "Space Pirate Protection",
+                "description": "Recover the Guard Satellite."
+            },
+            {
+                "name": "6",
+                "displayName": "A Daughter's Gift",
+                "description": "Recover the Libra."
+            },
+            {
+                "name": "7",
+                "displayName": "Robot in Disguise",
+                "description": "Recover the Repair-type Bolt."
+            },
+            {
+                "name": "8",
+                "displayName": "A Very Expensive Noisemaker",
+                "description": "Recover the Gluon Drive."
+            },
+            {
+                "name": "9",
+                "displayName": "I'm 40% Zirconium!",
+                "description": "Recover the Zirconium Rotor."
+            },
+            {
+                "name": "10",
+                "displayName": "S.O.S. Signal Emitter",
+                "description": "Recover the Interstellar Radio."
+            },
+            {
+                "name": "11",
+                "displayName": "A Throne Fit for an Emperor",
+                "description": "Recover the Pilot's Seat."
+            },
+            {
+                "name": "12",
+                "displayName": "Easy on the Eyes AND the Budget",
+                "description": "Recover the #2 Ionium Jet."
+            },
+            {
+                "name": "13",
+                "displayName": "Aerodynamically Designed",
+                "description": "Recover the Bowsprit."
+            },
+            {
+                "name": "14",
+                "displayName": "Space-Time Continuum Rubber Band",
+                "description": "Recover the Chronos Reactor."
+            },
+            {
+                "name": "15",
+                "displayName": "Always Be Prepared",
+                "description": "Recover the Space Float."
+            },
+            {
+                "name": "16",
+                "displayName": "Lower Lumbar Support",
+                "description": "Recover the Massage Machine."
+            },
+            {
+                "name": "17",
+                "displayName": "Tanning Rays",
+                "description": "Recover the UV Lamp."
+            },
+            {
+                "name": "18",
+                "displayName": "My Most Prized Possession!",
+                "description": "Recover the Secret Safe."
+            },
+            {
+                "name": "19",
+                "displayName": "Its Shape Is Similar to the Pikpik Brand Carrots I Love So Much",
+                "description": "Unlock the Red Pikmin."
+            },
+            {
+                "name": "20",
+                "displayName": "The Color Is Different, but It Seems to Be a Pikmin Nonetheless",
+                "description": "Unlock the Yellow Pikmin."
+            },
+            {
+                "name": "21",
+                "displayName": "Near This One's Cheeks Is What Appears to Be a Set of Gills",
+                "description": "Unlock the Blue Pikmin."
+            },
+            {
+                "name": "22",
+                "displayName": "Fate Has Smiled Upon Me!",
+                "description": "Recover the Main Engine."
+            },
+            {
+                "name": "23",
+                "displayName": "Those Instant Space Noodles Will Taste Better When Heated Up",
+                "description": "Recover the Positron Generator."
+            },
+            {
+                "name": "24",
+                "displayName": "This Thing Chugs Right Along at Its Own Pace",
+                "description": "Recover the Automatic Gear."
+            },
+            {
+                "name": "25",
+                "displayName": "This Puts Out a Slightly Odoriferous Exhaust",
+                "description": "Recover the #1 Ionium Jet."
+            },
+            {
+                "name": "26",
+                "displayName": "With This, I'll Be Able to See All Nearby Ship Parts",
+                "description": "Recover the Whimsical Radar."
+            },
+            {
+                "name": "27",
+                "displayName": "Exactly What Makes It So Extraordinary Is a Secret",
+                "description": "Recover the Extraordinary Bolt."
+            },
+            {
+                "name": "28",
+                "displayName": "My Son Gave This to Me as a Present",
+                "description": "Recover the Sagittarius."
+            },
+            {
+                "name": "29",
+                "displayName": "I Won't Have to Worry About Saving Electricity Anymore!",
+                "description": "Recover the Eternal Fuel Dynamo."
+            },
+            {
+                "name": "30",
+                "displayName": "It's Smooth Sailing With This in Place... Usually",
+                "description": "Recover the Shock Absorber."
+            },
+            {
+                "name": "31",
+                "displayName": "I Don't Actually Know What It's For",
+                "description": "Recover the Geiger Counter."
+            },
+            {
+                "name": "32",
+                "displayName": "I'll Sleep Like a Baby Once I Get This Back to the Ship!",
+                "description": "Recover the Radiation Canopy."
+            },
+            {
+                "name": "33",
+                "displayName": "Pikmar",
+                "description": "Get the bad ending."
+            },
+            {
+                "name": "34",
+                "displayName": "Having a GOOd Time",
+                "description": "Defeat Goolix."
+            },
+            {
+                "name": "35",
+                "displayName": "I Have No Choice but to Try to Blast Off",
+                "description": "Collect all 25 critical ship parts, but not all 30, and get the normal ending."
+            },
+            {
+                "name": "36",
+                "displayName": "Now I Can Return Home to Hocotate!",
+                "description": "Collect all 30 ship parts and get the best ending."
+            },
+            {
+                "name": "37",
+                "displayName": "Allergic to Blue",
+                "description": "Collect all ship parts in the Forest of Hope before unlocking the Blue Pikmin."
+            },
+            {
+                "name": "38",
+                "displayName": "Hocotate Speed Demon",
+                "description": "Collect all 30 ship parts and beat the game in 12 days or less."
+            },
+            {
+                "name": "39",
+                "displayName": "Shipwreck Point",
+                "description": "In Challenge Mode, get a score of 200 or higher in The Impact Site."
+            },
+            {
+                "name": "40",
+                "displayName": "Forest of Hope",
+                "description": "In Challenge Mode, get a score of 400 or higher in The Forest of Hope."
+            },
+            {
+                "name": "41",
+                "displayName": "Navel of the Forest",
+                "description": "In Challenge Mode, get a score of 300 or higher in The Forest Navel."
+            },
+            {
+                "name": "42",
+                "displayName": "Where Boys Become Dandori",
+                "description": "In Challenge Mode, get a score of 450 or higher in The Distant Spring."
+            },
+            {
+                "name": "43",
+                "displayName": "Final Ordeal",
+                "description": "In Challenge Mode, get a score of 200 or higher in The Final Trial."
+            }
+        ]
+    },
+    "nectar2":  {
+        "repository": "SSunnKing/Open-Nectar---Pikmin-Native-PC-Port",
+        "license": "CC0-1.0",
+        "achievements": [
+            {
+                "name": "0",
+                "displayName": "Red Pikmin",
+                "description": "Meet the Red Pikmin."
+            },
+            {
+                "name": "1",
+                "displayName": "Yellow Pikmin",
+                "description": "Meet the Yellow Pikmin."
+            },
+            {
+                "name": "2",
+                "displayName": "Blue Pikmin",
+                "description": "Meet the Blue Pikmin."
+            },
+            {
+                "name": "3",
+                "displayName": "Purple Pikmin",
+                "description": "Meet the Purple Pikmin."
+            },
+            {
+                "name": "4",
+                "displayName": "White Pikmin",
+                "description": "Meet the White Pikmin."
+            },
+            {
+                "name": "5",
+                "displayName": "Awakening Wood",
+                "description": "Open the Awakening Wood."
+            },
+            {
+                "name": "6",
+                "displayName": "Perplexing Pool",
+                "description": "Open the Perplexing Pool."
+            },
+            {
+                "name": "7",
+                "displayName": "Wistful Wild",
+                "description": "Open the Wistful Wild."
+            },
+            {
+                "name": "8",
+                "displayName": "First Repayment",
+                "description": "Pay back 1,000 Pokos of the debt."
+            },
+            {
+                "name": "9",
+                "displayName": "Halfway There",
+                "description": "Pay back 5,000 Pokos of the debt."
+            },
+            {
+                "name": "10",
+                "displayName": "Debt Free",
+                "description": "Pay back all 10,100 Pokos and save Hocotate Freight."
+            },
+            {
+                "name": "11",
+                "displayName": "Treasure Hunter",
+                "description": "Collect 10 treasures."
+            },
+            {
+                "name": "12",
+                "displayName": "Hoarder",
+                "description": "Collect 50 treasures."
+            },
+            {
+                "name": "13",
+                "displayName": "Collector",
+                "description": "Collect 100 treasures."
+            },
+            {
+                "name": "14",
+                "displayName": "Every Last One",
+                "description": "Collect all 201 treasures."
+            },
+            {
+                "name": "15",
+                "displayName": "Ultra-Spicy",
+                "description": "Get your first Ultra-Spicy Spray."
+            },
+            {
+                "name": "16",
+                "displayName": "Ultra-Bitter",
+                "description": "Get your first Ultra-Bitter Spray."
+            }
+        ]
+    },
+    "fh2azimuth":  {
+        "repository": "Trinculo54/fh2-achievements",
+        "license": "GPL-3.0",
+        "achievements": [
+            {
+                "name": "welcome_festival",
+                "displayName": "Welcome to Horizon Europe",
+                "description": "Arrive at the Horizon Festival.",
+                "icon": "645d08"
+            },
+            {
+                "name": "welcome_sisteron",
+                "displayName": "Welcome to Sisteron",
+                "description": "Arrive at Sisteron for the first time.",
+                "icon": "04d001"
+            },
+            {
+                "name": "welcome_nice",
+                "displayName": "Welcome to Nice",
+                "description": "Arrive at Nice for the first time.",
+                "icon": "50355g"
+            },
+            {
+                "name": "welcome_saintmartin",
+                "displayName": "Welcome to Saint-Martin",
+                "description": "Arrive at Saint-Martin for the first time.",
+                "icon": "e01eej"
+            },
+            {
+                "name": "welcome_castelletto",
+                "displayName": "Welcome to Castelletto",
+                "description": "Arrive at Castelletto for the first time.",
+                "icon": "7b4774"
+            },
+            {
+                "name": "welcome_montellino",
+                "displayName": "Welcome to Montellino",
+                "description": "Arrive at Montellino for the first time.",
+                "icon": "8d6jje"
+            },
+            {
+                "name": "welcome_sangiovanni",
+                "displayName": "Welcome to San Giovanni",
+                "description": "Arrive at San Giovanni for the first time.",
+                "icon": "471003"
+            },
+            {
+                "name": "horizon_leader",
+                "displayName": "Horizon Leader",
+                "description": "Choose where the Road Trip goes for the first time.",
+                "icon": "bd6885"
+            },
+            {
+                "name": "wanderlust",
+                "displayName": "Wanderlust",
+                "description": "Complete a Road Trip.",
+                "icon": "d71gj7"
+            },
+            {
+                "name": "wristband_yellow",
+                "displayName": "Yellow Wristband",
+                "description": "Obtain the Yellow Wristband.",
+                "icon": "1b0373"
+            },
+            {
+                "name": "wristband_green",
+                "displayName": "Green Wristband",
+                "description": "Obtain the Green Wristband.",
+                "goal": 210000,
+                "icon": "310577"
+            },
+            {
+                "name": "wristband_pink",
+                "displayName": "Pink Wristband",
+                "description": "Obtain the Pink Wristband.",
+                "goal": 810000,
+                "icon": "7b4704"
+            },
+            {
+                "name": "wristband_purple",
+                "displayName": "Purple Wristband",
+                "description": "Obtain the Purple Wristband.",
+                "goal": 1410000,
+                "icon": "50357g"
+            },
+            {
+                "name": "wristband_gold",
+                "displayName": "Gold Wristband",
+                "description": "Obtain the Gold Wristband.",
+                "goal": 2910000,
+                "icon": "04d031"
+            },
+            {
+                "name": "first_of_many",
+                "displayName": "First of Many",
+                "description": "Win your first Championship race.",
+                "icon": "bd6875"
+            },
+            {
+                "name": "number_one",
+                "displayName": "Number One",
+                "description": "Win a Championship.",
+                "icon": "j7500b"
+            },
+            {
+                "name": "horizon_fan",
+                "displayName": "Horizon Fan",
+                "description": "Complete 25 Championships.",
+                "goal": 25,
+                "icon": "gb3jj4"
+            },
+            {
+                "name": "horizon_enthusiast",
+                "displayName": "Horizon Enthusiast",
+                "description": "Complete 100 Championships.",
+                "goal": 100,
+                "icon": "d71gg7"
+            },
+            {
+                "name": "all_your_race",
+                "displayName": "All Your Race Are Belong To Us 2.0",
+                "description": "Complete all 168 Championships.",
+                "goal": 168,
+                "icon": "j7506b"
+            },
+            {
+                "name": "horizon_champion",
+                "displayName": "Horizon Champion",
+                "description": "Become the Horizon Champion.",
+                "icon": "645dd8"
+            },
+            {
+                "name": "new_car_smell",
+                "displayName": "That New Car Smell",
+                "description": "Buy your first car.",
+                "icon": "8d6j5e"
+            },
+            {
+                "name": "car_lover",
+                "displayName": "Car Lover",
+                "description": "Have 50 Cars in your Garage.",
+                "goal": 50,
+                "icon": "e01e3j"
+            },
+            {
+                "name": "worthy_sultan",
+                "displayName": "Worthy of a Sultan",
+                "description": "Have 175 Cars in your Garage.",
+                "goal": 175,
+                "icon": "4710e3"
+            },
+            {
+                "name": "license_to_skill",
+                "displayName": "License to Skill",
+                "description": "Earn 5 Skill Points.",
+                "goal": 5,
+                "icon": "645d78"
+            },
+            {
+                "name": "stone_cold_skiller",
+                "displayName": "Stone Cold Skiller",
+                "description": "Earn 65 Skill Points.",
+                "goal": 65,
+                "icon": "bd68g5"
+            },
+            {
+                "name": "fast_and_clean",
+                "displayName": "Fast and Clean",
+                "description": "Earn the Clean Racing Skill 100 times.",
+                "goal": 100,
+                "icon": "1b03j3"
+            },
+            {
+                "name": "summer_sale",
+                "displayName": "Summer Sale",
+                "description": "Smash 25 Reward Boards.",
+                "goal": 25,
+                "icon": "gb3j14"
+            },
+            {
+                "name": "smash_happy",
+                "displayName": "Smash Happy",
+                "description": "Collect all Reward Boards.",
+                "goal": 150,
+                "icon": "d71g07"
+            },
+            {
+                "name": "human_gps",
+                "displayName": "Human GPS",
+                "description": "Drive down every road in the game.",
+                "goal": 315,
+                "icon": "8d6j6e"
+            },
+            {
+                "name": "storage_hunter",
+                "displayName": "Storage Hunter",
+                "description": "Restore 10 Barn Finds.",
+                "goal": 10,
+                "icon": "471013"
+            },
+            {
+                "name": "photographer",
+                "displayName": "Photographer",
+                "description": "Take photos of 100 different cars for Horizon Promo.",
+                "goal": 100,
+                "icon": "e01e1j"
+            },
+            {
+                "name": "one_down",
+                "displayName": "One Down!",
+                "description": "Complete a Solo Bucket List challenge from the first two Horizon Bucket Lists.",
+                "icon": "8d6j0e"
+            },
+            {
+                "name": "kick_the_bucket",
+                "displayName": "Kick the Bucket",
+                "description": "Scratch 15 items off the first two Horizon Bucket Lists.",
+                "goal": 15,
+                "icon": "310507"
+            },
+            {
+                "name": "rest_in_peace",
+                "displayName": "Rest in Peace",
+                "description": "Complete 30 Solo Bucket List Challenges from the first two Horizon Bucket Lists.",
+                "goal": 30,
+                "icon": "7b4744"
+            },
+            {
+                "name": "rain_master",
+                "displayName": "Rain Master",
+                "description": "Complete your first race in the rain.",
+                "icon": "gb3j04"
+            },
+            {
+                "name": "train_in_vain",
+                "displayName": "The Train's in Vain",
+                "description": "Beat the Train in a Horizon Showcase Event.",
+                "icon": "310557"
+            },
+            {
+                "name": "multi_disciplined",
+                "displayName": "Multi-Disciplined",
+                "description": "Win an Event in every type of car.",
+                "goal": 28,
+                "icon": "1b0333"
+            },
+            {
+                "name": "wild_drivatar",
+                "displayName": "A Wild Drivatar Appears!",
+                "description": "Win 3 Head-to-Head Races against Drivatars with a Bounty on them.",
+                "goal": 3,
+                "icon": "1b0303"
+            },
+            {
+                "name": "we_meet_again",
+                "displayName": "We Meet Again!",
+                "description": "Win a Showdown at every Car Meet.",
+                "icon": "5035gg"
+            },
+            {
+                "name": "friends_with_benefits",
+                "displayName": "Friends with Benefits",
+                "description": "Earn a total of 1,000,000 Cr from Rivals.",
+                "goal": 1000000,
+                "icon": "50353g"
+            },
+            {
+                "name": "super_meet_boy",
+                "displayName": "Super Meet Boy",
+                "description": "Grab a livery, grab a tuning setup, buy a car, and enter a Showdown at any Car Meet.",
+                "icon": "04d0j1"
+            },
+            {
+                "name": "bragging_rights",
+                "displayName": "Bragging Rights",
+                "description": "Beat Friends or Club members on any 20 Speed Cameras.",
+                "goal": 20,
+                "icon": "j7505b"
+            },
+            {
+                "name": "social_caterpillar",
+                "displayName": "Social Caterpillar",
+                "description": "Compete in 20 Multiplayer Events.",
+                "goal": 20,
+                "icon": "645d58"
+            },
+            {
+                "name": "social_butterfly",
+                "displayName": "Social Butterfly",
+                "description": "Compete in 200 Multiplayer Events.",
+                "goal": 200,
+                "icon": "bd6865"
+            },
+            {
+                "name": "team_player",
+                "displayName": "Team Player",
+                "description": "Win 50 Team Events.",
+                "goal": 50,
+                "icon": "310567"
+            },
+            {
+                "name": "loyal",
+                "displayName": "Loyal",
+                "description": "Earn 500,000 XP for your Club.",
+                "goal": 500000,
+                "icon": "04d0d1"
+            },
+            {
+                "name": "on_the_road_again",
+                "displayName": "On the Road Again",
+                "description": "Complete an Online Road Trip location.",
+                "icon": "gb3j34"
+            },
+            {
+                "name": "well_travelled",
+                "displayName": "Well Travelled",
+                "description": "Complete 25 Online Road Trip locations.",
+                "goal": 25,
+                "icon": "d71g17"
+            },
+            {
+                "name": "yes_we_can",
+                "displayName": "Yes We Can",
+                "description": "Complete 25 Bucket List items co-operatively from the first two Horizon Bucket Lists.",
+                "goal": 25,
+                "icon": "j750eb"
+            },
+            {
+                "name": "you_are_pg",
+                "displayName": "You Are Playground Games",
+                "description": "Complete 100 Playground Games Events.",
+                "goal": 100,
+                "icon": "7b4754"
+            },
+            {
+                "name": "welcome_storm_island",
+                "displayName": "Welcome to Storm Island",
+                "description": "Arrive on Storm Island.",
+                "icon": "e08j30"
+            },
+            {
+                "name": "into_the_jungle",
+                "displayName": "Into the Jungle",
+                "description": "Win your first Storm Island Championship.",
+                "icon": "476j15"
+            },
+            {
+                "name": "high_five",
+                "displayName": "High Five",
+                "description": "Win 5 Storm Island Championships.",
+                "goal": 5,
+                "icon": "64ge5d"
+            },
+            {
+                "name": "go_back",
+                "displayName": "We Have to Go Back!",
+                "description": "Complete every Storm Island Championship.",
+                "goal": 30,
+                "icon": "j718e1"
+            },
+            {
+                "name": "storm_island_champion",
+                "displayName": "Storm Island Champion",
+                "description": "Win the Storm Island Finale.",
+                "icon": "bd3b6g"
+            },
+            {
+                "name": "survive_gauntlet",
+                "displayName": "Survive the Gauntlet",
+                "description": "Complete your first Gauntlet Event.",
+                "icon": "1b1ejg"
+            },
+            {
+                "name": "gauntlet_runner",
+                "displayName": "Gauntlet Runner",
+                "description": "Win every Gauntlet Event.",
+                "goal": 6,
+                "icon": "7bd65e"
+            },
+            {
+                "name": "island_explorer",
+                "displayName": "Island Explorer",
+                "description": "Drive every Road on Storm Island.",
+                "goal": 50,
+                "icon": "476jb5"
+            },
+            {
+                "name": "smash_em_all",
+                "displayName": "Gotta Smash Em All!",
+                "description": "Collect every Storm Island Bonus Board.",
+                "goal": 25,
+                "icon": "e08j10"
+            },
+            {
+                "name": "tick",
+                "displayName": "Tick!",
+                "description": "Complete your first Storm Island Bucket List Challenge.",
+                "icon": "50b138"
+            },
+            {
+                "name": "another_life",
+                "displayName": "See You in Another Life!",
+                "description": "Complete every Storm Island Bucket List Challenge.",
+                "goal": 8,
+                "icon": "0416d5"
+            },
+            {
+                "name": "castaways",
+                "displayName": "Castaways",
+                "description": "Complete every Co-op Storm Island Bucket List Challenge.",
+                "goal": 8,
+                "icon": "8d4b67"
+            },
+            {
+                "name": "tropical_treasure",
+                "displayName": "Tropical Treasure",
+                "description": "Find and restore a Barn Find on Storm Island.",
+                "icon": "7bd64e"
+            },
+            {
+                "name": "skills_for_thrills",
+                "displayName": "Skills for Thrills",
+                "description": "Bank a Skill Chain of 100,000 points on Storm Island.",
+                "goal": 100000,
+                "icon": "64ge3d"
+            },
+            {
+                "name": "storm_breaker",
+                "displayName": "Storm Breaker",
+                "description": "Win 5 events in stormy conditions.",
+                "goal": 5,
+                "icon": "gb7853"
+            },
+            {
+                "name": "ready_to_bounce",
+                "displayName": "Ready to Bounce",
+                "description": "Start a race with Off-Road tires, suspension, and transmission on Storm Island.",
+                "icon": "bd3b4g"
+            },
+            {
+                "name": "fiesta_fun",
+                "displayName": "Fiesta Fun",
+                "description": "Win an event in the '81 Ford Fiesta.",
+                "icon": "1b1e0g"
+            },
+            {
+                "name": "galant_great",
+                "displayName": "Galant Great",
+                "description": "Win an Event in the Mitsubishi Galant.",
+                "icon": "gb7833"
+            },
+            {
+                "name": "metro_master",
+                "displayName": "Metro Master",
+                "description": "Win an event in the MG Metro R4.",
+                "icon": "314d0d"
+            },
+            {
+                "name": "ranger_rock_star",
+                "displayName": "Ranger Rock Star",
+                "description": "Win an event in the Ford Ranger.",
+                "icon": "j71851"
+            },
+            {
+                "name": "stadium_star",
+                "displayName": "Stadium Star",
+                "description": "Win an Event in the Robby Gordon #7 SST.",
+                "icon": "d78d1b"
+            },
+            {
+                "name": "meet_and_beat",
+                "displayName": "Meet and Beat",
+                "description": "Visit the Storm Island Car Meet and win 3 Showdowns.",
+                "icon": "314d6d"
+            },
+            {
+                "name": "horizon_5_0",
+                "displayName": "Horizon 5-0",
+                "description": "Complete 50 Online Events on Storm Island.",
+                "goal": 50,
+                "icon": "d78dbb"
+            },
+            {
+                "name": "porsche_owners_club",
+                "displayName": "Porsche Owners Club",
+                "description": "Obtain your first Porsche.",
+                "icon": "4735d0"
+            },
+            {
+                "name": "porsche_rookie",
+                "displayName": "Porsche Rookie",
+                "description": "Tick off 5 items on the Porsche Bucket List",
+                "goal": 5,
+                "icon": "646017"
+            },
+            {
+                "name": "porsche_pro",
+                "displayName": "Porsche Pro",
+                "description": "Complete the Porsche Bucket List",
+                "goal": 10,
+                "icon": "bd0716"
+            },
+            {
+                "name": "horse_power",
+                "displayName": "Horse Power",
+                "description": "Complete 40 events in Porsches.",
+                "goal": 40,
+                "icon": "d75je8"
+            },
+            {
+                "name": "air_cooled",
+                "displayName": "Air Cooled Competitor",
+                "description": "Complete 4 events in the 1970 Porsche 914/6.",
+                "goal": 4,
+                "icon": "8dg17d"
+            },
+            {
+                "name": "cajun_kickin",
+                "displayName": "Cajun Kickin'",
+                "description": "Complete 4 events in the 2015 Porsche Macan Turbo.",
+                "goal": 4,
+                "icon": "473570"
+            },
+            {
+                "name": "listen_to_it_roar",
+                "displayName": "Listen to it Roar!",
+                "description": "Complete 4 events in the 2003 Porsche Carrera GT.",
+                "goal": 4,
+                "icon": "646047"
+            },
+            {
+                "name": "ring_wraith",
+                "displayName": "Ring Wraith",
+                "description": "Complete 4 events in the 2014 Porsche 918 Spyder.",
+                "goal": 4,
+                "icon": "e04d0d"
+            },
+            {
+                "name": "show_and_display",
+                "displayName": "Show and Display",
+                "description": "Complete 4 events in the 1987 Porsche 959.",
+                "goal": 4,
+                "icon": "04g7ee"
+            },
+            {
+                "name": "this_is_my_porsche",
+                "displayName": "This Is My Porsche",
+                "description": "Complete 10 events in the same Porsche.",
+                "goal": 10,
+                "icon": "gbe045"
+            },
+            {
+                "name": "animal",
+                "displayName": "Animal!",
+                "description": "Pull off 20 Drifts in the 2015 Porsche Cayman GTS.",
+                "goal": 20,
+                "icon": "7bej38"
+            },
+            {
+                "name": "call_911",
+                "displayName": "Call 911",
+                "description": "Pull off 30 Near Miss Skills in the Porsche 911 Turbo S.",
+                "goal": 30,
+                "icon": "1bd56e"
+            },
+            {
+                "name": "cup_car",
+                "displayName": "Cup Car",
+                "description": "Earn 25,000 Credits in Rivals Mode with the Porsche 911 GT3 RS 4.0.",
+                "goal": 25000,
+                "icon": "j7jbg4"
+            },
+            {
+                "name": "no_airbag",
+                "displayName": "No Airbag Required",
+                "description": "Earn 20 Clean Racer Skills in the 1989 Porsche 944 Turbo.",
+                "goal": 20,
+                "icon": "504ejd"
+            },
+            {
+                "name": "widow_maker",
+                "displayName": "Widow Maker",
+                "description": "Win a race in the wet in a 1982 Porsche 911 Turbo 3.3.",
+                "icon": "31e3ge"
+            }
+        ]
+    },
+    "sanctuary":  {
+        "repository": "CaduGimenes/SanctuaryPort",
+        "license": "GPL-2.0",
+        "achievements": [
+            {
+                "name": "0",
+                "displayName": "Diablo III: Reaper of Souls Platinum Trophy",
+                "description": "Collected all other Diablo III: Reaper of Souls trophies.",
+                "icon": "1054je"
+            },
+            {
+                "name": "1",
+                "displayName": "Deep Pockets",
+                "description": "Pick up 500,000 gold.",
+                "icon": "303b6e"
+            },
+            {
+                "name": "2",
+                "displayName": "The Comfort of Strangers",
+                "description": "Recruit the Templar, Scoundrel, and Enchantress.",
+                "icon": "74j158"
+            },
+            {
+                "name": "3",
+                "displayName": "Up All Night To Get Lucky",
+                "description": "Equip all Inventory slots with Legendary items that have a minimum required level of 70 or higher.",
+                "icon": "53edgd"
+            },
+            {
+                "name": "4",
+                "displayName": "Breaking Not So Bad",
+                "description": "Use a merchant to repair an item.",
+                "icon": "0d75je"
+            },
+            {
+                "name": "5",
+                "displayName": "Socket to Me",
+                "description": "Socket a gem in an item.",
+                "icon": "86130d"
+            },
+            {
+                "name": "6",
+                "displayName": "A New Start",
+                "description": "Complete 5 Bounties.",
+                "icon": "e1db8d"
+            },
+            {
+                "name": "7",
+                "displayName": "Batting 500",
+                "description": "Complete 500 Bounties.",
+                "icon": "415g60"
+            },
+            {
+                "name": "8",
+                "displayName": "Just Riffing",
+                "description": "Kill 500 monsters while in Nephalem Rifts.",
+                "icon": "650jg7"
+            },
+            {
+                "name": "9",
+                "displayName": "Dashing through the Rift",
+                "description": "Finish a Nephalem Rift within 15 Minutes.",
+                "icon": "b67536"
+            },
+            {
+                "name": "10",
+                "displayName": "The Mad King's End",
+                "description": "Kill the Skeleton King.",
+                "icon": "g30d75"
+            },
+            {
+                "name": "11",
+                "displayName": "Butchered!",
+                "description": "Kill the Butcher.",
+                "icon": "d1j688"
+            },
+            {
+                "name": "12",
+                "displayName": "The Last of the Horadrim",
+                "description": "Complete all quests in Act I.",
+                "icon": "j5b314"
+            },
+            {
+                "name": "13",
+                "displayName": "The Coven Overthrown",
+                "description": "Kill Maghda.",
+                "icon": "10541e"
+            },
+            {
+                "name": "14",
+                "displayName": "Murderer. Torturer. Monster.",
+                "description": "Kill Zoltun Kulle.",
+                "icon": "303b4e"
+            },
+            {
+                "name": "15",
+                "displayName": "The Lord of Lies",
+                "description": "Kill Belial.",
+                "icon": "74j1d8"
+            },
+            {
+                "name": "16",
+                "displayName": "The Black Soulstone",
+                "description": "Complete all quests in Act II.",
+                "icon": "53edbd"
+            },
+            {
+                "name": "17",
+                "displayName": "The Ravening Beast",
+                "description": "Kill Ghom.",
+                "icon": "0d751e"
+            },
+            {
+                "name": "18",
+                "displayName": "Making a Breakthrough",
+                "description": "Kill the Siegebreaker Assault Beast.",
+                "icon": "86134d"
+            },
+            {
+                "name": "19",
+                "displayName": "The Lord of Sin",
+                "description": "Kill Azmodan.",
+                "icon": "e1db6d"
+            },
+            {
+                "name": "20",
+                "displayName": "The Wages of Sin",
+                "description": "Complete all quests in Act III.",
+                "icon": "415g40"
+            },
+            {
+                "name": "21",
+                "displayName": "The Prime Evil",
+                "description": "Kill Diablo.",
+                "icon": "650jb7"
+            },
+            {
+                "name": "22",
+                "displayName": "Victory and Sacrifice",
+                "description": "Complete all quests in Act IV.",
+                "icon": "b675e6"
+            },
+            {
+                "name": "23",
+                "displayName": "Fire in Your New Boots",
+                "description": "Kill Urzael.",
+                "icon": "g30dg5"
+            },
+            {
+                "name": "24",
+                "displayName": "Her?",
+                "description": "Kill Adria.",
+                "icon": "d1j648"
+            },
+            {
+                "name": "25",
+                "displayName": "Death Do Us Part",
+                "description": "Kill Malthael.",
+                "icon": "j5b344"
+            },
+            {
+                "name": "26",
+                "displayName": "Don't Fear the Reaper",
+                "description": "Complete all quests in Act V.",
+                "icon": "1054ge"
+            },
+            {
+                "name": "27",
+                "displayName": "Above & Beyond (Hardcore)",
+                "description": "Reach level 70 in Hardcore mode.",
+                "icon": "303bje"
+            },
+            {
+                "name": "28",
+                "displayName": "Reign of Terror",
+                "description": "Kill Diablo in Hardcore mode.",
+                "icon": "74j1g8"
+            },
+            {
+                "name": "29",
+                "displayName": "May His Death Satisfy You",
+                "description": "Kill Malthael in Hardcore mode.",
+                "icon": "53ed6d"
+            },
+            {
+                "name": "30",
+                "displayName": "Above & Beyond",
+                "description": "Reach level 70.",
+                "icon": "0d75be"
+            },
+            {
+                "name": "31",
+                "displayName": "Dream Team",
+                "description": "Reach level 70 with 6 different classes.",
+                "icon": "8613ed"
+            },
+            {
+                "name": "32",
+                "displayName": "The Elitist",
+                "description": "Kill 500 elite (champion, rare, or unique) enemies.",
+                "icon": "e1dbjd"
+            },
+            {
+                "name": "33",
+                "displayName": "Greed over Need",
+                "description": "Kill 100 Treasure Goblins.",
+                "icon": "415gj0"
+            },
+            {
+                "name": "34",
+                "displayName": "Demolition Derby",
+                "description": "Get a destruction callout for breaking 50 objects.",
+                "icon": "650je7"
+            },
+            {
+                "name": "35",
+                "displayName": "Made to Order",
+                "description": "Craft 5 items.",
+                "icon": "b675b6"
+            },
+            {
+                "name": "36",
+                "displayName": "Custom-Fit",
+                "description": "Craft 100 items.",
+                "icon": "g30d85"
+            },
+            {
+                "name": "37",
+                "displayName": "Forged Credentials",
+                "description": "Raise the Blacksmith to level 12.",
+                "icon": "d1j6d8"
+            },
+            {
+                "name": "38",
+                "displayName": "Gemkata",
+                "description": "Raise the Jeweler to level 12.",
+                "icon": "j5b384"
+            },
+            {
+                "name": "39",
+                "displayName": "Maximum Myriam",
+                "description": "Raise the Mystic to level 12.",
+                "icon": "1054ee"
+            },
+            {
+                "name": "40",
+                "displayName": "I Feel So Enchanting",
+                "description": "Enchant all your equipment slots.",
+                "icon": "303bde"
+            },
+            {
+                "name": "41",
+                "displayName": "Trade-in",
+                "description": "Replace a property with Enchanting.",
+                "icon": "74j168"
+            },
+            {
+                "name": "42",
+                "displayName": "A Mystical Meeting",
+                "description": "Acquire the Mystic.",
+                "icon": "53ed1d"
+            },
+            {
+                "name": "43",
+                "displayName": "Bejeweled",
+                "description": "Combine gems.",
+                "icon": "0d756e"
+            },
+            {
+                "name": "44",
+                "displayName": "The Silence When You Speak to Me",
+                "description": "Listen to all of Master Ordan's conversations in the Pandemonium Fortress.",
+                "icon": "44e340"
+            },
+            {
+                "name": "45",
+                "displayName": "Serve the Balance",
+                "description": "Reach level 70 with a Necromancer.",
+                "icon": "6b76b7"
+            },
+            {
+                "name": "46",
+                "displayName": "Bringer of Order",
+                "description": "Complete Act V with a Necromancer.",
+                "icon": "beg0e6"
+            },
+            {
+                "name": "47",
+                "displayName": "Bone Skewer",
+                "description": "Damage 40 enemies with Bone Spear in 3 seconds.",
+                "icon": "gg1eg5"
+            },
+            {
+                "name": "48",
+                "displayName": "What Is Dead Can Sometimes Die",
+                "description": "Kill 1,000 Undead enemies with corpses.",
+                "icon": "d40548"
+            },
+            {
+                "name": "49",
+                "displayName": "Curse Your Enthusiasm",
+                "description": "Kill 5,000 cursed enemies.",
+                "icon": "j46j44"
+            },
+            {
+                "name": "50",
+                "displayName": "Terror in the Blood",
+                "description": "Defeat Diablo after using an ability that costs health while below 10% of your life.",
+                "icon": "1g7dge"
+            },
+            {
+                "name": "51",
+                "displayName": "Game of Bones",
+                "description": "Use Bone Armor to rip the bones from the Skeleton King.",
+                "icon": "3j7eje"
+            },
+            {
+                "name": "52",
+                "displayName": "Skeleton Crew",
+                "description": "Kill 500 elite (champion, rare, or unique) enemies with Command Skeleton minions.",
+                "icon": "7g0eg8"
+            },
+            {
+                "name": "53",
+                "displayName": "Self Controlled",
+                "description": "Kill your own Shadow Clone with Simulacrum during the Diablo encounter.",
+                "icon": "44e34g"
+            }
+        ]
+    },
+    "issn":  {
+        "repository": "Liondarkz/issn_pc",
+        "license": "GPL-2.0",
+        "achievements": [
+            {
+                "name": "0",
+                "displayName": "Enjoy Your Powers",
+                "description": "Collect all trophies",
+                "icon": "85843e"
+            },
+            {
+                "name": "1",
+                "displayName": "Unstoppable",
+                "description": "Finish the game on Expert difficulty",
+                "icon": "e378bj"
+            },
+            {
+                "name": "2",
+                "displayName": "Sacrifice",
+                "description": "Risk your freedom to protect those you care about",
+                "hidden": true,
+                "icon": "4e86g3"
+            },
+            {
+                "name": "3",
+                "displayName": "Ruthless",
+                "description": "Look out for yourself, no matter the consequences",
+                "hidden": true,
+                "icon": "678gj8"
+            },
+            {
+                "name": "4",
+                "displayName": "Temperance",
+                "description": "Practice self-control",
+                "hidden": true,
+                "icon": "bgj355"
+            },
+            {
+                "name": "5",
+                "displayName": "Malice",
+                "description": "Get them before they get you",
+                "hidden": true,
+                "icon": "g167d4"
+            },
+            {
+                "name": "6",
+                "displayName": "Courage",
+                "description": "Stand up for the helpless",
+                "hidden": true,
+                "icon": "d03867"
+            },
+            {
+                "name": "7",
+                "displayName": "Contempt",
+                "description": "Don't fear the weak",
+                "hidden": true,
+                "icon": "j6d1gb"
+            },
+            {
+                "name": "8",
+                "displayName": "Mercy",
+                "description": "Everyone deserves a second chance",
+                "hidden": true,
+                "icon": "178163"
+            },
+            {
+                "name": "9",
+                "displayName": "Revenge",
+                "description": "An eye for an eye, a tooth for a tooth",
+                "hidden": true,
+                "icon": "3784g7"
+            },
+            {
+                "name": "10",
+                "displayName": "Justice",
+                "description": "Expose the corruption of the powerful",
+                "hidden": true,
+                "icon": "708d34"
+            },
+            {
+                "name": "11",
+                "displayName": "Dominance",
+                "description": "Show the world that nobody can protect them",
+                "hidden": true,
+                "icon": "578bjg"
+            },
+            {
+                "name": "12",
+                "displayName": "Reconciliation",
+                "description": "Finish the story with Good Karma",
+                "icon": "0381e1"
+            },
+            {
+                "name": "13",
+                "displayName": "Rebellion",
+                "description": "Finish the story with Evil Karma",
+                "icon": "85847e"
+            },
+            {
+                "name": "14",
+                "displayName": "Everybody Out",
+                "description": "Rescue 10 suspects from suspicion pens",
+                "icon": "e3785j"
+            },
+            {
+                "name": "15",
+                "displayName": "Spin-off",
+                "description": "Beat down 10 sign twirlers",
+                "icon": "4e86d3"
+            },
+            {
+                "name": "16",
+                "displayName": "Everyone's a Critic",
+                "description": "Take out 10 street musicians",
+                "icon": "678g18"
+            },
+            {
+                "name": "17",
+                "displayName": "Just Say No",
+                "description": "Bust 10 drug dealers",
+                "icon": "bgj315"
+            },
+            {
+                "name": "18",
+                "displayName": "Freedom of Speech",
+                "description": "Disrupt 10 activist rallies",
+                "icon": "g16744"
+            },
+            {
+                "name": "19",
+                "displayName": "What Did You Call Me?",
+                "description": "Kill 10 obnoxious Akuran gang members",
+                "icon": "d038e7"
+            },
+            {
+                "name": "20",
+                "displayName": "Someone Your Own Size",
+                "description": "Rescue 10 escaped conduits from angry mobs",
+                "icon": "j6d17b"
+            },
+            {
+                "name": "21",
+                "displayName": "Walk It Off",
+                "description": "Heal 10 wounded civilians",
+                "icon": "1781b3"
+            },
+            {
+                "name": "22",
+                "displayName": "Kicking and Screaming",
+                "description": "Finish off 10 wounded enemies or civilians",
+                "icon": "378417"
+            },
+            {
+                "name": "23",
+                "displayName": "True Hero",
+                "description": "Achieve Level 5 Good Karma",
+                "icon": "708db4"
+            },
+            {
+                "name": "24",
+                "displayName": "Infamous",
+                "description": "Achieve Level 5 Evil Karma",
+                "icon": "4e867b"
+            },
+            {
+                "name": "25",
+                "displayName": "Bweep! Bweep! Bweep!",
+                "description": "Collect half the Blast Shards",
+                "icon": "678g4g"
+            },
+            {
+                "name": "26",
+                "displayName": "Shardcore",
+                "description": "Collect all the Blast Shards",
+                "icon": "bgj3de"
+            },
+            {
+                "name": "27",
+                "displayName": "Nothing To See Here",
+                "description": "Destroy half the D.U.P. security cameras",
+                "icon": "g167b8"
+            },
+            {
+                "name": "28",
+                "displayName": "Blinded",
+                "description": "Destroy all of the D.U.P. security cameras",
+                "icon": "d03875"
+            },
+            {
+                "name": "29",
+                "displayName": "Inside Track",
+                "description": "Collect all the Informant Audio Logs",
+                "icon": "j6d17d"
+            },
+            {
+                "name": "30",
+                "displayName": "Blown Cover",
+                "description": "Defeat all the D.U.P. Secret Agents",
+                "icon": "1781b4"
+            },
+            {
+                "name": "31",
+                "displayName": "Big Brother",
+                "description": "Destroy all the D.U.P. Hidden Cameras",
+                "icon": "37841g"
+            },
+            {
+                "name": "32",
+                "displayName": "Coloring Inside the Lines",
+                "description": "Complete all the Stencil Art",
+                "icon": "708dbb"
+            },
+            {
+                "name": "33",
+                "displayName": "Prank Call",
+                "description": "Complete a District Showdown",
+                "icon": "5786ee"
+            },
+            {
+                "name": "34",
+                "displayName": "Hello Operator",
+                "description": "Complete Showdowns in half of the districts",
+                "icon": "038b70"
+            },
+            {
+                "name": "35",
+                "displayName": "Final Showdown",
+                "description": "Complete all of the District Showdowns in the city",
+                "icon": "858e15"
+            },
+            {
+                "name": "36",
+                "displayName": "One Down",
+                "description": "Clear the D.U.P. completely out of a district",
+                "icon": "e376d1"
+            },
+            {
+                "name": "37",
+                "displayName": "Home Field Advantage",
+                "description": "Clear the D.U.P. out of half the districts in the city",
+                "icon": "4e845b"
+            },
+            {
+                "name": "38",
+                "displayName": "Clean Sweep",
+                "description": "Clear the D.U.P. out of the entire city",
+                "icon": "678b0g"
+            },
+            {
+                "name": "39",
+                "displayName": "Total CARnage",
+                "description": "Destroy 5 cars in 5 seconds",
+                "icon": "bgje7e"
+            },
+            {
+                "name": "40",
+                "displayName": "Drop Everything",
+                "description": "Comet Drop over 170 meters",
+                "icon": "g16g08"
+            },
+            {
+                "name": "41",
+                "displayName": "Keep It Up",
+                "description": "Stay in the air for more than 45 seconds",
+                "icon": "d034j5"
+            },
+            {
+                "name": "42",
+                "displayName": "Put That Anywhere",
+                "description": "Defeat 10 enemies by detonating ammo crates",
+                "icon": "j6d4bd"
+            },
+            {
+                "name": "43",
+                "displayName": "Hat Trick",
+                "description": "Defeat an enemy using three different power sources",
+                "icon": "178g54"
+            },
+            {
+                "name": "44",
+                "displayName": "Double Smoke Stack Attack",
+                "description": "Dash through two red air vents without touching the ground and then Comet Drop on an enemy",
+                "icon": "378j3g"
+            },
+            {
+                "name": "45",
+                "displayName": "Cough Drop",
+                "description": "Comet Drop on three coughing enemies",
+                "icon": "708gjb"
+            },
+            {
+                "name": "46",
+                "displayName": "Make Fetch Proud",
+                "description": "Hit three weak points with Neon Beam in 6 seconds",
+                "icon": "57865e"
+            },
+            {
+                "name": "47",
+                "displayName": "Excessive Force",
+                "description": "Use a Karmic Streak attack to defeat exactly one enemy",
+                "icon": "038b00"
+            }
+        ]
+    },
+    "issnfl":  {
+        "repository": "Liondarkz/issn_pc",
+        "license": "GPL-2.0",
+        "achievements": [
+            {
+                "name": "0",
+                "displayName": "Noble Achievement",
+                "description": "Collect all Trophies",
+                "icon": "86j17j"
+            },
+            {
+                "name": "1",
+                "displayName": "Lost",
+                "description": "Suffer a Loss",
+                "hidden": true,
+                "icon": "e1ed53"
+            },
+            {
+                "name": "2",
+                "displayName": "Cracked",
+                "description": "Endure a Deception",
+                "hidden": true,
+                "icon": "4105d1"
+            },
+            {
+                "name": "3",
+                "displayName": "Betrayed",
+                "description": "Experience a Double-cross",
+                "hidden": true,
+                "icon": "65d013"
+            },
+            {
+                "name": "4",
+                "displayName": "She's Ready",
+                "description": "Complete the story of inFAMOUS First Light",
+                "hidden": true,
+                "icon": "b68713"
+            },
+            {
+                "name": "5",
+                "displayName": "Illuminated",
+                "description": "Collect all Neon Lumens",
+                "icon": "g3j04g"
+            },
+            {
+                "name": "6",
+                "displayName": "Blackout",
+                "description": "Destroy all Police Drones",
+                "icon": "d1gjed"
+            },
+            {
+                "name": "7",
+                "displayName": "Lickety Pronto",
+                "description": "Complete all Lumen Races",
+                "icon": "j50bgj"
+            },
+            {
+                "name": "8",
+                "displayName": "That's So Fetch",
+                "description": "Complete all Neon Graffiti",
+                "icon": "103568"
+            },
+            {
+                "name": "9",
+                "displayName": "Unleashed",
+                "description": "Purchase every Upgrade",
+                "icon": "3053gb"
+            },
+            {
+                "name": "10",
+                "displayName": "Novice",
+                "description": "Complete 25% of all Challenges",
+                "icon": "747j33"
+            },
+            {
+                "name": "11",
+                "displayName": "Professional",
+                "description": "Complete 50% of all Challenges",
+                "icon": "535ej0"
+            },
+            {
+                "name": "12",
+                "displayName": "Expert",
+                "description": "Complete 75% of all Challenges",
+                "icon": "0d0747"
+            },
+            {
+                "name": "13",
+                "displayName": "Perfectionist",
+                "description": "Complete all of the Challenges in the Game",
+                "icon": "86j1dj"
+            },
+            {
+                "name": "14",
+                "displayName": "Alpha Rescue Diamond",
+                "description": "Achieve a score of 500,000 points",
+                "icon": "e1ed03"
+            },
+            {
+                "name": "15",
+                "displayName": "Alpha Survival Diamond",
+                "description": "Achieve a score of 500,000 points",
+                "icon": "410571"
+            },
+            {
+                "name": "16",
+                "displayName": "Beta Rescue Diamond",
+                "description": "Achieve a score of 500,000 points",
+                "icon": "65d043"
+            },
+            {
+                "name": "17",
+                "displayName": "Beta Survival Diamond",
+                "description": "Achieve a score of 500,000 points",
+                "icon": "b687d3"
+            },
+            {
+                "name": "18",
+                "displayName": "Gamma Survival Diamond",
+                "description": "Achieve a score of 500,000 points",
+                "icon": "g3j0bg"
+            },
+            {
+                "name": "19",
+                "displayName": "Turret Syndrome",
+                "description": "Overload 25 Turrets",
+                "icon": "d1gj7d"
+            },
+            {
+                "name": "20",
+                "displayName": "Great Responsibility",
+                "description": "50 Hostage Saves",
+                "icon": "j50b7j"
+            },
+            {
+                "name": "21",
+                "displayName": "Top of the Class",
+                "description": "Earn a total of 10,000,000 points",
+                "icon": "1035b8"
+            },
+            {
+                "name": "22",
+                "displayName": "Event Horizon",
+                "description": "Defeat 100 Enemies with a Neon Singularity",
+                "icon": "30531b"
+            },
+            {
+                "name": "23",
+                "displayName": "…Bada Boom!",
+                "description": "Defeat 20 Enemies in a row with Homing Missiles",
+                "icon": "747jb3"
+            },
+            {
+                "name": "24",
+                "displayName": "Fish in a Barrel",
+                "description": "25 Stasis + Weakpoint Kills",
+                "icon": "535e00"
+            }
+        ]
+    },
+    "deadnation":  {
+        "repository": "rcostanza/dead-nation-ps4-recomp",
+        "license": "GPL-2.0",
+        "achievements": [
+            {
+                "name": "0",
+                "displayName": "Romero Would Be Proud",
+                "description": "Collect All Trophies",
+                "icon": "e37g13"
+            },
+            {
+                "name": "1",
+                "displayName": "Mediocrity",
+                "description": "Complete Campaign Mode On 'Normal'",
+                "icon": "4e8b11"
+            },
+            {
+                "name": "2",
+                "displayName": "Tough Enough",
+                "description": "Complete Campaign Mode On 'Grim'",
+                "icon": "678353"
+            },
+            {
+                "name": "3",
+                "displayName": "Morbid Curiosity",
+                "description": "Complete Campaign Mode On 'Morbid'",
+                "icon": "bgj463"
+            },
+            {
+                "name": "4",
+                "displayName": "Double the Action",
+                "description": "Complete Campaign Mode In Co-Op Mode",
+                "icon": "g1653g"
+            },
+            {
+                "name": "5",
+                "displayName": "And So It Begins...",
+                "description": "Complete Mission 1 (Any Difficulty Level)",
+                "icon": "d03b1d"
+            },
+            {
+                "name": "6",
+                "displayName": "A Trip Downtown",
+                "description": "Complete Mission 2 (Any Difficulty Level)",
+                "icon": "j6de5j"
+            },
+            {
+                "name": "7",
+                "displayName": "Walk in the Park",
+                "description": "Complete Mission 3 (Any Difficulty Level)",
+                "icon": "178j08"
+            },
+            {
+                "name": "8",
+                "displayName": "On top of the World",
+                "description": "Complete Mission 4 (Any Difficulty Level)",
+                "icon": "37860b"
+            },
+            {
+                "name": "9",
+                "displayName": "Out of the City",
+                "description": "Complete Mission 5 (Any Difficulty Level)",
+                "icon": "708543"
+            },
+            {
+                "name": "10",
+                "displayName": "Hospital Bill Through the Roof",
+                "description": "Complete Mission 6 (Any Difficulty Level)",
+                "icon": "578g30"
+            },
+            {
+                "name": "11",
+                "displayName": "Gravedigger",
+                "description": "Complete Mission 7 (Any Difficulty Level)",
+                "icon": "038jj7"
+            },
+            {
+                "name": "12",
+                "displayName": "Train to Nowhere",
+                "description": "Complete Mission 8 (Any Difficulty Level)",
+                "icon": "85800j"
+            },
+            {
+                "name": "13",
+                "displayName": "Sleeping with the Fishes",
+                "description": "Complete Mission 9 (Any Difficulty Level)",
+                "icon": "e37gg3"
+            },
+            {
+                "name": "14",
+                "displayName": "Took the Highway",
+                "description": "Complete Mission 10 (Any Difficulty Level)",
+                "icon": "4e8bb1"
+            },
+            {
+                "name": "15",
+                "displayName": "Teamwork",
+                "description": "Complete A Mission In Co-Op Mode (Any Difficulty Level)",
+                "icon": "678333"
+            },
+            {
+                "name": "16",
+                "displayName": "Very Dead",
+                "description": "Complete A Mission On 'Undead'",
+                "icon": "bgj443"
+            },
+            {
+                "name": "17",
+                "displayName": "Survivor",
+                "description": "Complete A Mission Without Dying",
+                "icon": "g1655g"
+            },
+            {
+                "name": "18",
+                "displayName": "Skilled",
+                "description": "Complete A Mission Without Receiving Any Damage",
+                "icon": "d03bbd"
+            },
+            {
+                "name": "19",
+                "displayName": "Zombie Killer",
+                "description": "Kill 1 000 Zombies",
+                "icon": "j6deej"
+            },
+            {
+                "name": "20",
+                "displayName": "Zombie Hunter",
+                "description": "Kill 10 000 Zombies",
+                "icon": "178jj8"
+            },
+            {
+                "name": "21",
+                "displayName": "Genocidiary",
+                "description": "Kill 53 597 Zombies",
+                "icon": "37866b"
+            },
+            {
+                "name": "22",
+                "displayName": "Aim For The Head",
+                "description": "Perform 500 Headshots",
+                "icon": "708553"
+            },
+            {
+                "name": "23",
+                "displayName": "Up Close & Personal",
+                "description": "Perform 500 Melee Kills",
+                "icon": "578gg0"
+            },
+            {
+                "name": "24",
+                "displayName": "Blown To Bits",
+                "description": "Blow Up 1 000 Zombies",
+                "icon": "038j17"
+            },
+            {
+                "name": "25",
+                "displayName": "Pyromaniac",
+                "description": "Burn 1 000 Zombies",
+                "icon": "85804j"
+            },
+            {
+                "name": "26",
+                "displayName": "Car Killer",
+                "description": "Destroy 500 Vehicles",
+                "icon": "e37g83"
+            },
+            {
+                "name": "27",
+                "displayName": "Upgrader",
+                "description": "Fully Upgrade A Single Stat Of Any Weapon In Campaign Mode",
+                "icon": "4e8b61"
+            },
+            {
+                "name": "28",
+                "displayName": "Weapons Specialist",
+                "description": "Fully Upgrade All Stats Of Any Weapon In Campaign Mode",
+                "icon": "6783g3"
+            },
+            {
+                "name": "29",
+                "displayName": "Suit Up",
+                "description": "Collect An Armor Piece",
+                "icon": "bgj433"
+            },
+            {
+                "name": "30",
+                "displayName": "Top Gear",
+                "description": "Collect All Armor Pieces",
+                "icon": "g1657g"
+            },
+            {
+                "name": "31",
+                "displayName": "Contributor",
+                "description": "Help Your Country To Clear The Virus Infection",
+                "icon": "d03b8d"
+            },
+            {
+                "name": "32",
+                "displayName": "Looter",
+                "description": "Collect All The Loot In Any Mission",
+                "icon": "j6de1j"
+            },
+            {
+                "name": "33",
+                "displayName": "King Of Looters",
+                "description": "Collect All The Loot In Every Mission",
+                "icon": "178j18"
+            },
+            {
+                "name": "34",
+                "displayName": "Memento Collector",
+                "description": "Find all mementos in single player campaign in a single playthrough",
+                "icon": "37864b"
+            },
+            {
+                "name": "35",
+                "displayName": "Still In the Game",
+                "description": "Survive to Round 5",
+                "icon": "7085d3"
+            },
+            {
+                "name": "36",
+                "displayName": "Never Give Up",
+                "description": "Survive to Round 10",
+                "icon": "578gb0"
+            },
+            {
+                "name": "37",
+                "displayName": "Keep It Up",
+                "description": "Complete a Round with a Kills-per-minute rate of 100 or more",
+                "icon": "038jb7"
+            },
+            {
+                "name": "38",
+                "displayName": "Combo Master",
+                "description": "Get the Apocalypse Combo Kill Bonus (150 Kills)",
+                "icon": "8580ej"
+            },
+            {
+                "name": "39",
+                "displayName": "Dynamic Duo",
+                "description": "Complete a Round in Co-Op Without Either Player Taking Damage",
+                "icon": "e37g63"
+            },
+            {
+                "name": "40",
+                "displayName": "Found 'Em",
+                "description": "Find all the Egogate emblems",
+                "icon": "4e8b41"
+            }
+        ]
+    }
 }

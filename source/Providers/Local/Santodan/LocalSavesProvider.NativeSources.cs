@@ -71,7 +71,8 @@ namespace PlayniteAchievements.Providers.Local
             if (!result.Success && config.Source == "x360recomp" && string.IsNullOrWhiteSpace(config.SchemaPath) &&
                 string.IsNullOrWhiteSpace(context.Locations.DefinitionFolders) && string.IsNullOrWhiteSpace(result.Schema))
             {
-                var schema = await GetNativeXboxDefinitionsAsync(result.Save, dataRoot).ConfigureAwait(false);
+                // A port-table match knows its title even when the list is not named after it (ACH-DATA).
+                var schema = await GetNativeXboxDefinitionsAsync(result.TitleId ?? result.Save, dataRoot).ConfigureAwait(false);
                 if (schema != null)
                 {
                     config.SchemaPath = schema;

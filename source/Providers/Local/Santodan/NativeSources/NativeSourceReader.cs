@@ -21,6 +21,10 @@ namespace PlayniteAchievements.Providers.Local
     {
         public string Source, Root, Save, Schema, Message, CollectionGame;
         public List<NativeAchievement> Achievements = new List<NativeAchievement>();
+        // Xbox 360 recomp known to the port table: its title, list format and other profiles' lists.
+        public string TitleId, X360Format;
+        public NativeX360Port X360Port;
+        public List<string> ExtraSaves = new List<string>();
         public bool Success;
         public string Description => (NativeSourceCatalog.Find(Source)?.Name ?? Source) + Environment.NewLine +
             "Install: " + Root + Environment.NewLine + "Unlock file: " + (Save ?? "Not found") + Environment.NewLine +
@@ -91,18 +95,25 @@ namespace PlayniteAchievements.Providers.Local
             if (File.Exists(Path.Combine(root, "MarkerPatch.ini"))) return "markerpatch";
             if (File.Exists(Path.Combine(root, "MadnessPatch.ini")) || File.Exists(Path.Combine(root, "Binaries", "Win32", "MadnessPatch.ini"))) return "madnesspatch";
             if (File.Exists(Path.Combine(root, "Data", "Languages", "achieve_eng.lng"))) return "ladxhd";
+            if (NativeXllnReader.Find(root) != null) return "xlln";
             var executables = Files(root, "*.exe", 0).Select(Path.GetFileNameWithoutExtension).ToArray();
-            foreach (var entry in new[] { "dusklight:dusklight", "ghostship:Ghostship", "dkrr:DKR-R", "smb1r:SMB1R", "smb1r:SuperMarioBrosRemastered", "sms:SMS-Launcher", "sms:SMS Launcher" })
+            foreach (var entry in new[] { "dusklight:dusklight", "ghostship:Ghostship", "dkrr:DKR-R", "smb1r:SMB1R", "smb1r:SuperMarioBrosRemastered", "sms:SMS-Launcher", "sms:SMS Launcher",
+                "smas:SuperMarioAllStars", "rr64:RoadRash64Recompiled", "gdiffuser:G-Diffuser", "gdiffuser:G-Diffuser-JP",
+                "nectar2:pikmin2_pc", "nectar2:pikmin2_pc-usa", "nectar2:nectar2", "nectar2:nectar2-pal", "nectar:nectar", "nectar:nectar-pal",
+                "fh2azimuth:azimuth", "sanctuary:SanctuaryPort", "issn:inFAMOUS Second Son", "issn:Play inFAMOUS Second Son", "deadnation:deadnation" })
             {
                 var pair = entry.Split(':');
                 if (executables.Any(e => string.Equals(e, pair[1], StringComparison.OrdinalIgnoreCase) ||
-                    (pair[0] == "sms" && Regex.IsMatch(e, @"^SMS[- ]Launcher", RegexOptions.IgnoreCase)))) return pair[0];
+                    (pair[0] == "sms" && Regex.IsMatch(e, @"^SMS[- ]Launcher", RegexOptions.IgnoreCase))))
+                    // One issn_pc launcher plays both games; First Light only when only its trophies exist.
+                    return pair[0] == "issn" && !IssnSaves(root, "issn").Any(File.Exists) && IssnSaves(root, "issnfl").Any(File.Exists) ? "issnfl" : pair[0];
             }
             if (File.Exists(Path.Combine(root, "ps3recomp.toml")) || File.Exists(Path.Combine(root, "ps3recomp", "libs", "network", "sceNpTrophy.c"))) return "ps3recomp";
             if (Directory.Exists(Path.Combine(root, "sce_sys", "trophy2"))) return "kytyps5";
             if (Directory.Exists(Path.Combine(root, "sce_sys", "trophy")) &&
                 new[] { "run.py", "trophies.log", "trophies.tsv", "unlocked.txt" }.Any(n => File.Exists(Path.Combine(root, n)))) return "ps4recomp";
             if (Files(Path.Combine(root, "achievements"), "*.toml", 1).Any() || File.Exists(Path.Combine(root, "SaveData", "Achievements.json"))) return "x360recomp";
+            if (executables.Any(e => NativeX360PortTable.All.Any(p => p.Exes.Any(x => string.Equals(Path.GetFileNameWithoutExtension(x), e, StringComparison.OrdinalIgnoreCase))))) return "x360recomp";
             return null;
         }
 
@@ -119,6 +130,8 @@ namespace PlayniteAchievements.Providers.Local
                 Resolve(result, config, context);
                 ValidateIdentity(result);
                 result.Achievements = LoadSchema(result, config, cacheDirectory);
+                if (result.Source == "x360recomp" && string.Equals(result.TitleId, NativeX360PortTable.ReBlueTitleId, StringComparison.OrdinalIgnoreCase) && result.Achievements.Count > 0)
+                    result.Achievements.AddRange(NativeX360PortTable.ReBlueBonus().Where(b => result.Achievements.All(a => a.Id != b.Id)));
                 if (result.Achievements.Count == 0) throw new InvalidDataException("No definitions found. Choose a schema file; see the expected files above.");
                 if (readState)
                 {
@@ -181,6 +194,25 @@ namespace PlayniteAchievements.Providers.Local
                 case "ps3recomp":
                     saves = Files(Path.Combine(root, "gamedata", "trophies"), "NPWR*.json", 0);
                     schemas = Files(root, "TROPHY.TRP", 5); break;
+                // Ports from Achievement Watcher Next's recompPortTable.js (paths from each port's source).
+                case "xlln":
+                    var xlln = NativeXllnReader.Find(root) ?? throw new InvalidDataException("No xlive.dll with an <exe>.cfg naming a title was found in this folder.");
+                    r.TitleId = xlln.TitleId;
+                    schemas = new[] { xlln.Exe };
+                    // One record list per profile; every profile is merged into one game.
+                    var states = NativeXllnReader.StateFiles(root, xlln.TitleId);
+                    saves = states.Take(1);
+                    r.ExtraSaves = states.Skip(1).ToList(); break;
+                case "smas": saves = new[] { Path.Combine(root, "achievements.ini") }; break;
+                case "rr64": saves = new[] { Path.Combine(File.Exists(Path.Combine(root, "portable.txt")) ? root : Path.Combine(Local, "RoadRash64Recompiled"), "achievements.txt") }; break;
+                case "gdiffuser": saves = new[] { Path.Combine(root, "saves", "achievements.txt") }; break;
+                case "nectar": saves = new[] { Path.Combine(root, "pikmin_achievements.txt") }; break;
+                case "nectar2": saves = new[] { Path.Combine(root, "pikmin2_achievements.txt"), Path.Combine(root, "pikmin2", "pikmin2_achievements.txt") }; break;
+                case "fh2azimuth":
+                    saves = Files(Path.Combine(root, "fh2-mods", "Achievements"), "User_*.ini", 0).Where(f => Regex.IsMatch(Path.GetFileName(f), @"^User_\w+\.ini$", RegexOptions.IgnoreCase)); break;
+                case "sanctuary": saves = new[] { Path.Combine(root, "user", "trophies.txt") }; break;
+                case "issn": case "issnfl": saves = IssnSaves(root, r.Source); break;
+                case "deadnation": saves = new[] { DeadNationSave(root) }; break;
                 case "kytyps5":
                     schemas = Files(Path.Combine(root, "sce_sys", "trophy2"), "*.ucp", 0);
                     saves = Files(Path.Combine(root, "_Trophies"), "trophies_*.json", 2); break;
@@ -190,6 +222,18 @@ namespace PlayniteAchievements.Providers.Local
                         .Concat(Files(Path.Combine(root, "user"), "trophies.json", 3)).Concat(Files(Path.Combine(root, "user"), "trophies.dat", 3))
                         .Concat(Files(Path.Combine(root, "user"), "progress_user*.txt", 3)).Concat(Files(Path.Combine(root, "user", "trophies"), "CUSA*-user*.bin", 0)); break;
                 case "x360recomp":
+                    var port = NativeX360PortTable.Find(root);
+                    if (port != null)
+                    {
+                        r.X360Port = port.Port; r.TitleId = port.TitleId; r.X360Format = port.Format;
+                        var existing = port.Saves.Where(File.Exists).ToList();
+                        if (existing.Count > 0)
+                        {
+                            // A port keeping one list per profile is read as one game: every list is merged.
+                            saves = existing.Take(1); r.ExtraSaves = existing.Skip(1).ToList();
+                            schemas = new[] { Path.Combine(root, "SaveData", "Achievements.json"), Path.Combine(root, "achievements-schema.json") }; break;
+                        }
+                    }
                     saves = Files(Path.Combine(root, "achievements"), "*.toml", 1)
                         .Concat(Files(Path.Combine(root, "Achievements"), "*.tsv", 2))
                         .Concat(new[] { Path.Combine(root, "SaveData", "Achievements.json") });
@@ -219,6 +263,7 @@ namespace PlayniteAchievements.Providers.Local
         {
             if (!string.IsNullOrWhiteSpace(r.Schema))
             {
+                if (r.Source == "xlln") return NativeXllnReader.Schema(r.Schema, r.TitleId, cache);
                 var ext = Path.GetExtension(r.Schema).ToLowerInvariant();
                 if (ext == ".trp" || ext == ".ucp" || ext == ".xml" || ext == ".sfm" || ext == ".esfm") return NativeTrophyReader.Read(r.Schema, cache);
                 if (ext == ".json") return JsonSchema(JToken.Parse(Text(r.Schema)), Path.GetDirectoryName(r.Schema));
@@ -239,7 +284,48 @@ namespace PlayniteAchievements.Providers.Local
             var data = PortDefinitions.Value[r.Source];
             if (data == null) return new List<NativeAchievement>();
             r.Schema = "Bundled port definitions (" + r.Source + ")";
-            return JsonSchema(data, r.Root);
+            var rows = JsonSchema(data, r.Root);
+            var iconBase = PortIconBase(r.Source);
+            if (iconBase != null)
+            {
+                var icons = (data["achievements"] as JArray ?? new JArray()).OfType<JObject>()
+                    .Where(t => t["icon"]?.Type == JTokenType.String && t["name"] != null)
+                    .GroupBy(t => (string)t["name"]).ToDictionary(g => g.Key, g => (string)g.First()["icon"]);
+                foreach (var row in rows)
+                    if (string.IsNullOrWhiteSpace(row.Icon) && icons.TryGetValue(row.Id, out var icon) && Regex.IsMatch(icon, "^[A-Za-z0-9_-]+$")) row.Icon = iconBase + icon + ".png";
+            }
+            return rows;
+        }
+
+        // Where AWN's recompPortTable.js fetches pictures for ports whose list names a picture id.
+        private static string PortIconBase(string source)
+        {
+            switch (source)
+            {
+                case "rr64": return "https://raw.githubusercontent.com/linkssy2/RoadRash64Recompiled/37e33d4f832857a60a34f1369b83b32afe00d25d/native/assets/achievements/";
+                case "fh2azimuth": return "https://m.exophase.com/xbox/awards/m/";
+                case "sanctuary": case "issn": case "issnfl": case "deadnation": return "https://m.exophase.com/psn/awards/m/";
+                default: return null;
+            }
+        }
+
+        internal static IEnumerable<string> IssnSaves(string root, string source) =>
+            (source == "issnfl" ? new[] { "CUSA00575", "CUSA00897", "CUSA01064" } : new[] { "CUSA00004", "CUSA00223" })
+                .Select(title => Path.Combine(root, "user", "trophies-" + title + ".txt"));
+
+        // Dead Nation's launcher: save= of paths.ini beside the exe (relative to it), else <exe>\save.
+        internal static string DeadNationSave(string root)
+        {
+            var value = "";
+            var ini = Path.Combine(root, "paths.ini");
+            if (File.Exists(ini) && new FileInfo(ini).Length <= 64 * 1024)
+                foreach (var line in Text(ini).Split('\n'))
+                {
+                    var pair = Regex.Match(line.TrimEnd('\r'), @"^\s*([^=;#\[\s][^=]*?)\s*=\s*""?(.*?)""?\s*$");
+                    if (pair.Success && pair.Groups[1].Value.Equals("save", StringComparison.OrdinalIgnoreCase) && pair.Groups[2].Value.Length > 0) { value = pair.Groups[2].Value; break; }
+                }
+            var folder = value.Length == 0 ? Path.Combine(root, "save") : Path.IsPathRooted(value) ? value : Path.Combine(root, value);
+            return Path.Combine(folder, "trophies.dat");
         }
 
         private static void EnsurePatchEnabled(string file)
@@ -308,7 +394,25 @@ namespace PlayniteAchievements.Providers.Local
 
         internal static void ReadState(NativeSourceResult r)
         {
-            if (r.Source == "ps4recomp" && (Path.GetExtension(r.Save).Equals(".bin", StringComparison.OrdinalIgnoreCase) || Path.GetExtension(r.Save).Equals(".dat", StringComparison.OrdinalIgnoreCase)))
+            if (r.Source == "xlln")
+            {
+                var unlocked = new Dictionary<string, DateTime?>(StringComparer.Ordinal);
+                foreach (var file in new[] { r.Save }.Concat(r.ExtraSaves).Distinct(StringComparer.OrdinalIgnoreCase))
+                    foreach (var pair in NativeXllnReader.ParseState(File.ReadAllBytes(file)))
+                        if (!unlocked.TryGetValue(pair.Key, out var known) || (pair.Value.HasValue && (!known.HasValue || pair.Value < known))) unlocked[pair.Key] = pair.Value ?? known;
+                foreach (var a in r.Achievements)
+                {
+                    a.Unlocked = unlocked.TryGetValue(a.Id, out var time);
+                    a.Time = a.Unlocked ? time : null;
+                }
+                return;
+            }
+            if (r.Source == "x360recomp" && (r.X360Format == "unleashed" || r.X360Format == "ini-earned" || r.ExtraSaves.Count > 0 || r.X360Port?.IdAliases.Count > 0))
+            {
+                ReadX360Lists(r);
+                return;
+            }
+            if (r.Source == "deadnation" || (r.Source == "ps4recomp" && (Path.GetExtension(r.Save).Equals(".bin", StringComparison.OrdinalIgnoreCase) || Path.GetExtension(r.Save).Equals(".dat", StringComparison.OrdinalIgnoreCase))))
             {
                 if (new FileInfo(r.Save).Length != 16) throw new InvalidDataException("PS4 trophy flags must be exactly 16 bytes.");
                 var bytes = File.ReadAllBytes(r.Save);
@@ -401,7 +505,124 @@ namespace PlayniteAchievements.Providers.Local
                     break;
                 case "x360recomp": ReadXbox(text, Path.GetExtension(r.Save), set); break;
                 case "ps4recomp": ReadPs4(text, set, r.CollectionGame, r.Root); break;
+                case "smas": ReadIniUnlocked(text, r, byId, set); break;
+                case "fh2azimuth":
+                    if (text.StartsWith("Forza Horizon 2 achievements", StringComparison.Ordinal)) ReadFh2Report(text, r, set);
+                    else
+                    {
+                        ReadIniUnlocked(text, r, byId, set);
+                        // The mod's report beside the profile gives locked achievements their progress.
+                        var report = Path.Combine(Path.GetDirectoryName(r.Save), "Achievements.txt");
+                        if (File.Exists(report)) { try { ReadFh2Report(Text(report), r, set); } catch (InvalidDataException) { } }
+                    }
+                    break;
+                case "rr64": case "nectar": case "nectar2":
+                    // A "#" header and the closing newline are always written: anything else was caught mid-write.
+                    if (!text.StartsWith("#", StringComparison.Ordinal) || !text.EndsWith("\n", StringComparison.Ordinal)) throw new InvalidDataException("No header, or the last line is cut; retry after the game saves.");
+                    foreach (var raw in text.Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0 && !l.StartsWith("#", StringComparison.Ordinal)))
+                    {
+                        if (!Regex.IsMatch(raw, @"^\d{1,9}$")) throw new InvalidDataException("Not an achievement number line.");
+                        set(int.Parse(raw, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture), true, null, null);
+                    }
+                    break;
+                case "gdiffuser":
+                    var lines = text.Split('\n').Select(l => l.TrimEnd('\r')).ToArray();
+                    if (lines[0] != "version=1" || !text.EndsWith("\n", StringComparison.Ordinal)) throw new InvalidDataException("Not a version 1 G-Diffuser file, or the last line is cut.");
+                    foreach (var line in lines.Skip(1).Where(l => l.Length > 0))
+                    {
+                        var unlock = Regex.Match(line, @"^unlock=(\S{1,64}) (\d{1,12})$");
+                        if (unlock.Success) set(unlock.Groups[1].Value, true, Unix(unlock.Groups[2].Value), null);
+                        else if (!Regex.IsMatch(line, @"^[a-z_]+=[^\s]*$") || line.StartsWith("unlock=", StringComparison.Ordinal)) throw new InvalidDataException("Not a name=value line.");
+                    }
+                    break;
+                case "sanctuary":
+                    var trophyLines = text.Split('\n').ToList();
+                    // A last line without its newline is still being written.
+                    if (!text.EndsWith("\n", StringComparison.Ordinal)) trophyLines.RemoveAt(trophyLines.Count - 1);
+                    foreach (var raw in trophyLines.Select(l => l.Trim()).Where(l => l.Length > 0))
+                    {
+                        var m = Regex.Match(raw, @"^(\d{1,3})(?:\s+(\d{1,12}))?$");
+                        if (!m.Success) throw new InvalidDataException("Not a trophy number line.");
+                        set(int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture), true, Unix(m.Groups[2].Value), null);
+                    }
+                    break;
+                case "issn": case "issnfl":
+                    foreach (var raw in text.Split('\n').Select(l => l.TrimEnd('\r')).Where(l => l.Trim().Length > 0 && !l.StartsWith("#", StringComparison.Ordinal)))
+                    {
+                        var m = Regex.Match(raw, @"^(\d{1,3})(?:\s+(\S.*?))?\s*$");
+                        if (!m.Success) throw new InvalidDataException("Not an \"<id> <date>\" trophy line.");
+                        // The file is replaced whole: an odd date only loses the date.
+                        DateTime? when = null;
+                        if (m.Groups[2].Success) { try { when = IniDate(m.Groups[2].Value); } catch (InvalidDataException) { } }
+                        set(int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture), true, when, null);
+                    }
+                    break;
                 default: throw new InvalidDataException("Unsupported source.");
+            }
+        }
+
+        // "YYYY-MM-DD[ HH:MM:SS][ UTC]": local time unless marked UTC; a day alone is midnight.
+        internal static DateTime IniDate(string value)
+        {
+            var m = Regex.Match(value ?? "", @"^(\d{4})-(\d{2})-(\d{2})(?: (\d{2}):(\d{2}):(\d{2}))?( UTC)?$");
+            if (!m.Success) throw new InvalidDataException("Not a date: " + value);
+            int Part(int i) => m.Groups[i].Success ? int.Parse(m.Groups[i].Value, CultureInfo.InvariantCulture) : 0;
+            try
+            {
+                var date = new DateTime(Part(1), Part(2), Part(3), Part(4), Part(5), Part(6), m.Groups[7].Success ? DateTimeKind.Utc : DateTimeKind.Local);
+                return date.Kind == DateTimeKind.Utc ? date : date.ToUniversalTime();
+            }
+            catch (ArgumentOutOfRangeException) { throw new InvalidDataException("Not a date: " + value); }
+        }
+
+        // Super Mario All-Stars / FH2 mod profile: [unlocked] id=date, [progress] id=count, [notice] ignored.
+        // An entry the list marks "mask" keeps a bit mask: its progress is the number of bits set.
+        private static void ReadIniUnlocked(string text, NativeSourceResult r, Dictionary<string, NativeAchievement> byId, Action<string, bool, DateTime?, int?> set)
+        {
+            var masks = new HashSet<string>(((PortDefinitions.Value[r.Source]?["achievements"] as JArray) ?? new JArray()).OfType<JObject>()
+                .Where(t => (bool?)t["mask"] == true).Select(t => (string)t["name"]), StringComparer.Ordinal);
+            var unlocked = new HashSet<string>(StringComparer.Ordinal);
+            var counts = new Dictionary<string, long>(StringComparer.Ordinal);
+            var section = "";
+            foreach (var raw in text.Split('\n').Select(l => l.TrimEnd('\r')))
+            {
+                if (raw.Trim().Length == 0 || raw.StartsWith(";", StringComparison.Ordinal)) continue;
+                var header = Regex.Match(raw, @"^\[(\w+)\]$");
+                if (header.Success) { section = header.Groups[1].Value; continue; }
+                var pair = Regex.Match(raw, @"^([^=\[\]\s]+)=(.*)$");
+                if (!pair.Success) throw new InvalidDataException("Not a section, a key=value line or a comment.");
+                var key = pair.Groups[1].Value;
+                if (section == "unlocked")
+                {
+                    var time = IniDate(pair.Groups[2].Value);
+                    if (byId.TryGetValue(key, out var a) && unlocked.Add(key)) set(key, true, time, a.Goal > 0 ? a.Goal : null);
+                }
+                else if (section == "progress")
+                {
+                    if (!Regex.IsMatch(pair.Groups[2].Value, @"^-?\d{1,10}$")) throw new InvalidDataException("Not a number: " + pair.Groups[2].Value);
+                    counts[key] = long.Parse(pair.Groups[2].Value, CultureInfo.InvariantCulture);
+                }
+            }
+            foreach (var count in counts)
+            {
+                if (unlocked.Contains(count.Key) || !byId.TryGetValue(count.Key, out var a) || !(a.Goal > 0)) continue;
+                var value = masks.Contains(count.Key) ? Enumerable.Range(0, 31).Count(bit => ((count.Value >> bit) & 1) == 1) : count.Value;
+                var progress = (int)Math.Min(value, a.Goal.Value);
+                if (progress > 0) set(count.Key, false, null, progress);
+            }
+        }
+
+        // The FH2 mod's Achievements.txt report: "[ ] <title>  <n>G  ... [have / need unit]" per locked achievement.
+        private static void ReadFh2Report(string text, NativeSourceResult r, Action<string, bool, DateTime?, int?> set)
+        {
+            if (!Regex.IsMatch(text, @"^Forza Horizon 2 achievements: \d+ of \d+ unlocked")) throw new InvalidDataException("Not the FH2 mod report, or its first line is cut.");
+            var byTitle = r.Achievements.Where(a => a.Goal > 1 && !string.IsNullOrWhiteSpace(a.Name)).GroupBy(a => a.Name).ToDictionary(g => g.Key, g => g.First());
+            foreach (var line in text.Split('\n'))
+            {
+                var row = Regex.Match(line.TrimEnd('\r'), @"^\[ \] (.+?) {2,}\d+G {2}.*?\[(\d+) \/ (\d+)[^\]]*\]");
+                if (!row.Success || !byTitle.TryGetValue(row.Groups[1].Value.Trim(), out var a) || a.Unlocked) continue;
+                var progress = (int)Math.Min(long.Parse(row.Groups[2].Value, CultureInfo.InvariantCulture), a.Goal.Value);
+                if (progress > 0) set(a.Id, false, null, progress);
             }
         }
 
@@ -425,6 +646,40 @@ namespace PlayniteAchievements.Providers.Local
             if (!long.TryParse(value, out var ticks) || ticks <= 0) return null;
             try { var date = DateTime.FromFileTimeUtc(ticks); return date.Year >= 2000 && date.Year <= 2100 ? date : (DateTime?)null; }
             catch (ArgumentOutOfRangeException) { return null; }
+        }
+
+        // Every list of a table port (profiles merged, each unlock at its earliest known time).
+        private static void ReadX360Lists(NativeSourceResult r)
+        {
+            var unlocked = new Dictionary<string, DateTime?>(StringComparer.Ordinal);
+            Action<string, bool, DateTime?, int?> collect = (id, isUnlocked, time, progress) =>
+            {
+                if (!isUnlocked || id == null) return;
+                if (r.X360Port != null && r.X360Port.IdAliases.TryGetValue(id, out var alias)) id = alias;
+                if (!unlocked.TryGetValue(id, out var known) || (time.HasValue && (!known.HasValue || time < known))) unlocked[id] = time ?? known;
+            };
+            foreach (var file in new[] { r.Save }.Concat(r.ExtraSaves).Where(f => !string.IsNullOrWhiteSpace(f)).Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                if (r.X360Format == "unleashed")
+                {
+                    if (new FileInfo(file).Length > 1024 * 1024) throw new InvalidDataException("ACH-DATA is too large.");
+                    foreach (var pair in NativeX360PortTable.ParseUnleashed(File.ReadAllBytes(file), r.X360Port?.Records ?? 50)) collect(pair.Key, true, pair.Value, null);
+                }
+                else if (r.X360Format == "ini-earned")
+                    foreach (var pair in NativeX360PortTable.ParseEarnedIni(Text(file))) collect(pair.Key, true, pair.Value, null);
+                else
+                {
+                    var text = Text(file);
+                    if (string.IsNullOrWhiteSpace(text)) throw new InvalidDataException("Unlock file is empty or still being written. Retry after the game saves.");
+                    ReadXbox(text, Path.GetExtension(file), collect);
+                }
+            }
+            foreach (var a in r.Achievements)
+            {
+                var isUnlocked = unlocked.TryGetValue(a.Id, out var time);
+                a.Unlocked = isUnlocked;
+                a.Time = isUnlocked ? time : null;
+            }
         }
 
         private static void ReadXbox(string text, string extension, Action<string, bool, DateTime?, int?> set)

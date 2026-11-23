@@ -21,6 +21,9 @@
     <Compile Include="..\..\source\Providers\Local\Santodan\NativeSources\NativeKytySettings.cs" Link="Source\Providers\Local\NativeKytySettings.cs" />
     <Compile Include="..\..\source\Providers\Local\Santodan\NativeSources\NativeTrophyReader.cs" Link="Source\Providers\Local\NativeTrophyReader.cs" />
     <EmbeddedResource Include="..\..\source\Providers\Local\Santodan\NativeSources\NativePortDefinitions.json" LogicalName="PlayniteAchievements.NativePortDefinitions.json" />
+    <EmbeddedResource Include="..\..\source\Providers\Local\Santodan\NativeSources\NativeX360Ports.json" LogicalName="PlayniteAchievements.NativeX360Ports.json" />
+    <Compile Include="..\..\source\Providers\Local\Santodan\NativeSources\NativeX360PortTable.cs" Link="Source\Providers\Local\NativeX360PortTable.cs" />
+    <Compile Include="..\..\source\Providers\Local\Santodan\NativeSources\NativeXllnReader.cs" Link="Source\Providers\Local\NativeXllnReader.cs" />
     <Compile Include="..\..\source\Services\Logging\ForkLogger.cs" Link="Source\Services\Logging\ForkLogger.cs" />
     <Compile Include="..\..\source\Services\Logging\CefDebugTrace.cs" Link="Source\Services\Logging\CefDebugTrace.cs" />
     <Compile Include="..\..\source\Services\InGameMonitoring\SantodanStartupBaselineStore.cs" Link="Source\Services\InGameMonitoring\SantodanStartupBaselineStore.cs" />
