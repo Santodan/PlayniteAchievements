@@ -436,6 +436,8 @@
                                 Padding="0"
                                 VerticalAlignment="Center"
                                 Style="{StaticResource PlayAch.Button.ToolbarIconStyle}"
+                                Background="Transparent"
+                                BorderBrush="Transparent"
                                 ToolTip="{DynamicResource LOCPlayAch_YearReview_Title}"
                                 AutomationProperties.Name="{DynamicResource LOCPlayAch_YearReview_Title}">
                             <yearReview:YearReviewSparkle Width="24"
