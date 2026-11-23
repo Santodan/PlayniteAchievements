@@ -443,6 +443,7 @@
                             <yearReview:YearReviewSparkle Width="24"
                                                           Height="24"
                                                           Fill="{DynamicResource PlayAch.Brush.Accent}"
+                                                          Outline="{DynamicResource PlayAch.Brush.Text}"
                                                           IsHot="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Button}}"/>
                         </Button>
                     </StackPanel>
