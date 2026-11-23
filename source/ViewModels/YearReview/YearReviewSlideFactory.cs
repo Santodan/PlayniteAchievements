@@ -34,7 +34,7 @@ namespace PlayniteAchievements.ViewModels.YearReview
         // so every caption stays readable; the leader is larger, to their left.
         private static readonly (double X, double Y, double Angle)[] RowSlots =
         {
-            (1105, 300, 3), (925, 270, -2), (745, 290, 2), (565, 260, -3)
+            (1110, 300, 3), (945, 272, -2), (780, 290, 2), (615, 262, -3)
         };
 
         // Completed games tossed on a pile, in drop order.
@@ -179,7 +179,8 @@ namespace PlayniteAchievements.ViewModels.YearReview
                     Unlocks = count,
                     Height = Math.Max(4, count * MonthBarMax / max),
                     IsPeak = index == data.BusiestMonth,
-                    Delay = 200 + index * 60
+                    Delay = 200 + index * 60,
+                    ToolTip = Format("LOCPlayAch_YearReview_GameAndDate", culture.DateTimeFormat.GetMonthName(index + 1), Number(count))
                 })
                 .ToList();
 
@@ -196,6 +197,7 @@ namespace PlayniteAchievements.ViewModels.YearReview
                     X = column * 10,
                     Y = (int)day.DayOfWeek * 10,
                     Level = count == 0 ? 0 : share <= 0.25 ? 1 : share <= 0.5 ? 2 : share <= 0.75 ? 3 : 4,
+                    ToolTip = Format("LOCPlayAch_YearReview_GameAndDate", day.ToString("D", culture), Number(count)),
                     Delay = 1250 + column * 14
                 });
             }
@@ -223,14 +225,14 @@ namespace PlayniteAchievements.ViewModels.YearReview
             {
                 var entry = runnersUp[rank - 1];
                 var slot = RowSlots[RowSlots.Length - rank];
-                cards.Add(Card(entry.Game, rank + 1, entry.Unlocks, slot.X, slot.Y, slot.Angle, 160, 240,
+                cards.Add(Card(entry.Game, rank + 1, entry.Unlocks, slot.X, slot.Y, slot.Angle, 145, 218,
                     300 + (RowSlots.Length - rank) * 160));
             }
 
             var lead = data.TopGames.FirstOrDefault();
             if (lead != null)
             {
-                cards.Add(Card(lead.Game, 1, lead.Unlocks, 290, 170, -4, 240, 360, 1000));
+                cards.Add(Card(lead.Game, 1, lead.Unlocks, 370, 170, -4, 210, 315, 1000));
             }
 
             return new YearReviewTopGamesSlide
@@ -258,6 +260,7 @@ namespace PlayniteAchievements.ViewModels.YearReview
                 .Select((unlock, index) => new YearReviewIcon
                 {
                     IconPath = unlock.IconPath,
+                    ToolTip = Format("LOCPlayAch_YearReview_GameAndDate", unlock.AchievementName, unlock.GameName),
                     X = spots[index].X,
                     Y = spots[index].Y,
                     Size = spots[index].Size,
