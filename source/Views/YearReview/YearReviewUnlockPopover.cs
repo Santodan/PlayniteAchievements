@@ -7,9 +7,10 @@ using PlayniteAchievements.ViewModels.YearReview;
 namespace PlayniteAchievements.Views.YearReview
 {
     /// <summary>
-    /// Opens a list of unlocks under an element when it is clicked: a month bar or a day of the
-    /// year. One popup serves the whole window; the click is handled here, so it does not also
-    /// move to the next slide.
+    /// A list of unlocks opened under a clicked month bar or day of the year. The window's click
+    /// handler finds the element carrying <see cref="GroupProperty"/> and calls <see cref="Open"/>,
+    /// so one decision covers opening a list, leaving a hovered element alone and moving on.
+    /// One popup serves the whole window.
     /// </summary>
     public static class YearReviewUnlockPopover
     {
@@ -32,22 +33,36 @@ namespace PlayniteAchievements.Views.YearReview
                 return;
             }
 
-            element.MouseLeftButtonUp -= OnClick;
-            if (e.NewValue is YearReviewUnlockGroup group && group.Count > 0)
-            {
-                element.MouseLeftButtonUp += OnClick;
-                element.Cursor = Cursors.Hand;
-            }
+            element.Cursor = e.NewValue is YearReviewUnlockGroup group && group.Count > 0 ? Cursors.Hand : null;
         }
 
-        private static void OnClick(object sender, MouseButtonEventArgs e)
+        /// <summary>The nearest element from <paramref name="source"/> up that has a list to show.</summary>
+        public static FrameworkElement FindTarget(DependencyObject source)
         {
-            if (!(sender is FrameworkElement element) || !(GetGroup(element) is YearReviewUnlockGroup group))
+            for (var current = source; current != null; current = Parent(current))
+            {
+                if (current is FrameworkElement element && GetGroup(element) is YearReviewUnlockGroup group && group.Count > 0)
+                {
+                    return element;
+                }
+            }
+
+            return null;
+        }
+
+        private static DependencyObject Parent(DependencyObject current) =>
+            current is System.Windows.Media.Visual
+                ? System.Windows.Media.VisualTreeHelper.GetParent(current)
+                : LogicalTreeHelper.GetParent(current);
+
+        /// <summary>Opens <paramref name="element"/>'s list under it.</summary>
+        public static void Open(FrameworkElement element)
+        {
+            if (!(GetGroup(element) is YearReviewUnlockGroup group))
             {
                 return;
             }
 
-            e.Handled = true;
             Close();
             _popup = new Popup
             {
