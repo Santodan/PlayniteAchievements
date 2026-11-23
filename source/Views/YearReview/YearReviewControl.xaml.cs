@@ -38,6 +38,7 @@ namespace PlayniteAchievements.Views.YearReview
         private readonly ILogger _logger;
         private int _shownIndex = -1;
         private YearReviewSlide _watchedSlide;
+        private bool _pressedOnDeck;
         private DateTime _wheelReadyAt = DateTime.MinValue;
 
         internal YearReviewControl(YearReviewViewModel viewModel, ILogger logger)
@@ -221,8 +222,24 @@ namespace PlayniteAchievements.Views.YearReview
         /// A click on a month bar or a day opens its unlocks; a click on anything else that
         /// reacts to the mouse is left alone; a click on the slide itself moves to the next one.
         /// </summary>
+        /// <summary>
+        /// A click counts only when it also began on the slide. A popup that closes on press,
+        /// such as the view list after a pick, would otherwise hand its release to the slide.
+        /// </summary>
+        private void Deck_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            _pressedOnDeck = !IsFromPicker(e.OriginalSource as DependencyObject);
+        }
+
         private void Deck_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
+            var pressed = _pressedOnDeck;
+            _pressedOnDeck = false;
+            if (!pressed)
+            {
+                return;
+            }
+
             var source = e.OriginalSource as DependencyObject;
             if (IsInside<ButtonBase>(source) || IsFromPicker(source))
             {
