@@ -237,13 +237,24 @@ namespace PlayniteAchievements
                             _ = StartMenuRefreshAsync(new RefreshRequest { GameIds = selectedIds });
                         }
                     };
-
-                    yield return new GameMenuItem
-                    {
-                        Description = "-",
-                        MenuSection = PluginGameMenuSection,
-                    };
                 }
+
+                // The Achievement Editor locked to the selection; shown mid-refresh, as in the main menu.
+                yield return new GameMenuItem
+                {
+                    Description = ResourceProvider.GetString("LOCPlayAch_Menu_AchievementEditor"),
+                    MenuSection = PluginGameMenuSection,
+                    Action = (a) =>
+                    {
+                        OpenLibraryEditorWindow(selectedGames.Select(g => g.Id).ToList());
+                    }
+                };
+
+                yield return new GameMenuItem
+                {
+                    Description = "-",
+                    MenuSection = PluginGameMenuSection,
+                };
 
                 foreach (var item in MaintenanceMenuItems(selectedGames))
                 {
