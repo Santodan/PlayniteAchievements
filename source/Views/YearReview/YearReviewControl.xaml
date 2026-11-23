@@ -47,7 +47,7 @@
                         <Image Stretch="UniformToFill"
                                HorizontalAlignment="Center"
                                VerticalAlignment="Center"
-                               helpers:AsyncImage.Uri="{Binding CurrentSlide.BackdropPath}"
+                               helpers:AsyncImage.Uri="{Binding CurrentSlide.ShownBackdropPath}"
                                helpers:AsyncImage.DecodePixel="640">
                             <Image.Effect>
                                 <BlurEffect Radius="36" KernelType="Gaussian" RenderingBias="Performance"/>
