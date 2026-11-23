@@ -12,6 +12,27 @@ namespace PlayniteAchievements.Services.Achievements
     internal static class AchievementClassificationFilter
     {
         /// <summary>
+        /// The Tags filter's None option: matches an achievement that carries no tag besides the
+        /// derived unlock modes (Softcore, Hardcore). No kind or tag key takes this value.
+        /// </summary>
+        public const string NoTagsKey = "pa:none";
+
+        /// <summary>Whether <paramref name="tags"/> holds no tag besides the derived unlock modes.</summary>
+        public static bool HasNoTags(string tags)
+        {
+            var components = AchievementTagHelper.GetComponents(tags);
+            for (var i = 0; i < components.Count; i++)
+            {
+                if (!AchievementTagHelper.IsDerivedTag(components[i]))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
         /// The filter keys offered for <paramref name="gameId"/> (all games when null): every kind,
         /// then every tag shown there, in list order.
         /// </summary>
@@ -88,6 +109,11 @@ namespace PlayniteAchievements.Services.Achievements
 
         public static bool Matches(string categoryKind, string tags, string key)
         {
+            if (string.Equals(key, NoTagsKey, StringComparison.OrdinalIgnoreCase))
+            {
+                return HasNoTags(tags);
+            }
+
             var canonical = Canonicalize(key);
             if (canonical == null)
             {
@@ -102,6 +128,11 @@ namespace PlayniteAchievements.Services.Achievements
         /// <summary>The display name of a filter key: a kind's or a tag's name.</summary>
         public static string GetDisplayName(string key, Guid? gameId = null)
         {
+            if (string.Equals(key, NoTagsKey, StringComparison.OrdinalIgnoreCase))
+            {
+                return Playnite.SDK.ResourceProvider.GetString("LOCPlayAch_Common_None");
+            }
+
             var canonical = Canonicalize(key);
             if (canonical == null)
             {
