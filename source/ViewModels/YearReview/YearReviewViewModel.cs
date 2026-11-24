@@ -15,6 +15,7 @@ namespace PlayniteAchievements.ViewModels.YearReview
     public sealed class YearReviewProgressSegment : ObservableObject
     {
         private bool _isReached;
+        private bool _isCurrent;
 
         public YearReviewProgressSegment(int index, string title)
         {
@@ -33,6 +34,13 @@ namespace PlayniteAchievements.ViewModels.YearReview
         {
             get => _isReached;
             set => SetValue(ref _isReached, value);
+        }
+
+        /// <summary>True for the slide on screen.</summary>
+        public bool IsCurrent
+        {
+            get => _isCurrent;
+            set => SetValue(ref _isCurrent, value);
         }
     }
 
@@ -102,9 +110,11 @@ namespace PlayniteAchievements.ViewModels.YearReview
 
         public YearReviewSlide CurrentSlide => _index >= 0 && _index < _slides.Count ? _slides[_index] : null;
 
-        public string Counter => _slides.Count == 0
-            ? string.Empty
-            : (_index + 1).ToString(FormattingCulture.Current) + " / " + _slides.Count.ToString(FormattingCulture.Current);
+        /// <summary>The current slide's number, two digits wide.</summary>
+        public string Position => _slides.Count == 0 ? string.Empty : (_index + 1).ToString("00", FormattingCulture.Current);
+
+        /// <summary>How many slides the year has.</summary>
+        public string Total => _slides.Count == 0 ? string.Empty : _slides.Count.ToString(FormattingCulture.Current);
 
         public bool IsLoading
         {
@@ -150,10 +160,12 @@ namespace PlayniteAchievements.ViewModels.YearReview
             for (var i = 0; i < _segments.Count; i++)
             {
                 _segments[i].IsReached = i <= _index;
+                _segments[i].IsCurrent = i == _index;
             }
 
             OnPropertyChanged(nameof(CurrentSlide));
-            OnPropertyChanged(nameof(Counter));
+            OnPropertyChanged(nameof(Position));
+            OnPropertyChanged(nameof(Total));
         }
 
         private async Task LoadYearAsync(int year)
