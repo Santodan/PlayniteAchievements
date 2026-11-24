@@ -117,6 +117,8 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
+## 2026-11-24 - v4.3.2.1
+
 - v4.3.2 merge
 - Added native emulator, recompilation and PC port achievement support #93
 - Fixed the `Capture delay (ms)` in `Memories` not being applied to the screenshots
@@ -126,7 +128,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Added `Local` support for more emulator save formats (RLD!, ALI213, 3DM, Hoodlum, RAZOR1911, SmartSteamEmu, SKIDROW, CreamAPI), GreenLuma, and GOG, Ubisoft, SocialClub and FINAL FANTASY VII (2013) saves
 - Added `Local` progress from `Stats.ini` counters and portable saves named by the game's emulator config files
 - Fixed the `SmartSteamEmu`, `SKIDROW` and `CreamAPI` folders being scanned but never read, and the shared `EMPRESS` folder path
-- Fixed LumaPlay achievements not combining registry unlocks with the full achievement list #95
+- Fixed `LumaPlay` achievements not combining registry unlocks with the full achievement list #95
 
 ## 2026-11-17 - v4.2.1.2
 
@@ -147,6 +149,9 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Added `Debug` mode in `Santodan-Fork` --> `General`
 - Added a `Performance Tab` as a better performance polling mechanism with settings
 - Fixed account-free SteamHunters fetching for Local achievements
+
+## Old Changelogs
+<details>
 
 ## 2026-10-25 - v4.1.1.1
 
@@ -180,9 +185,6 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Added the option to choose between multiple notification or update the current notification for multiple achievements
   - Option present in `Achievement Notifications` --> `General` --> `Use a Single custom notification`
 - Added the option to use the upstream notification template instead
-
-## Old Changelogs
-<details>
 
 ## 2026-10-18 - v4.1.0.1
 

@@ -1,5 +1,21 @@
 AddonId: PlayniteAchievementsSantodan
 Packages:
+  - Version: 4.3.2.1
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-11-17
+    PackageUrl: https://github.com/santodan/PlayniteAchievements/releases/download/v4.3.2.1/PlayniteAchievementsSantodan_4_3_2_1.pext
+    Changelog:
+    - "v4.3.2 merge"
+    - "Added native emulator, recompilation and PC port achievement support #93"
+    - "Fixed the `Capture delay (ms)` in `Memories` not being applied to the screenshots"
+    - "Fixed the `Refresh when game closes` hint pointing to the wrong settings tab"
+    - "Removed old unused notification monitors and screenshot code"
+    - "Updated the `Achievement Notifications` and `Local Provider Troubleshooting` guides"
+    - "Added `Local` support for more emulator save formats (RLD!, ALI213, 3DM, Hoodlum, RAZOR1911, SmartSteamEmu, SKIDROW, CreamAPI), GreenLuma, and GOG, Ubisoft, SocialClub and FINAL FANTASY VII (2013) saves"
+    - "Added `Local` progress from `Stats.ini` counters and portable saves named by the game's emulator config files"
+    - "Fixed the `SmartSteamEmu`, `SKIDROW` and `CreamAPI` folders being scanned but never read, and the shared `EMPRESS` folder path"
+    - "Fixed LumaPlay achievements not combining registry unlocks with the full achievement list #95"
+
   - Version: 4.2.1.2
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-11-17
