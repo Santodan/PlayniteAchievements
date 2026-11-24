@@ -28,6 +28,7 @@ namespace PlayniteAchievements.Views.YearReview
         private const double WheelStepMs = 450;
         private const double SavedImageWidth = 1920;
         private const double BackdropOpacity = 0.4;
+        private const double WindowBackdropOpacity = 0.55;
 
         /// <summary>Saves the element given as the parameter, the summary card, as a PNG.</summary>
         public static readonly RoutedUICommand SaveCardCommand = new RoutedUICommand("SaveCard", "SaveCard", typeof(YearReviewControl));
@@ -190,6 +191,8 @@ namespace PlayniteAchievements.Views.YearReview
 
             var fade = AnimationFrameRate.Apply(new DoubleAnimation(0, BackdropOpacity, TimeSpan.FromMilliseconds(700)) { FillBehavior = FillBehavior.Stop });
             Backdrop.BeginAnimation(OpacityProperty, fade);
+            var windowFade = AnimationFrameRate.Apply(new DoubleAnimation(0, WindowBackdropOpacity, TimeSpan.FromMilliseconds(900)) { FillBehavior = FillBehavior.Stop });
+            WindowBackdrop.BeginAnimation(OpacityProperty, windowFade);
         }
 
         private int IndexOf(YearReviewSlide slide)
