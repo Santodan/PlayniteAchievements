@@ -2084,7 +2084,7 @@ namespace PlayniteAchievements.Models
                 .Select(key => key.Trim())
                 .Distinct(StringComparer.OrdinalIgnoreCase)));
 
-        private const string FriendAccountKeysOption = "FriendAccountKeys";
+        internal const string FriendAccountKeysOption = "FriendAccountKeys";
 
         private static string GetString(ShowcaseWidgetInstanceSettings settings, string key, bool trim = true)
         {
