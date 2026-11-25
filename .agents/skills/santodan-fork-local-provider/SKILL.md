@@ -89,6 +89,10 @@ Options and defaults: `source/Views/Settings/General/ForkPerformanceSettingsSect
 - Cached unlock protection: failed or empty payloads stay protected; disabled protection
   accepts valid lower counts.
 - Successful refreshes must report written game IDs (normal and custom-poll paths).
+- The Steam appcache schema `.bin` holds every language: its parsers
+  (`ParseLocalizedTokenValue`, `ResolveSteamKvLocalizedField`) take `GetSteamLanguage()`
+  first, then `english`. Never hardcode English there: an appcache-only schema (SteamHunters
+  down) is cached in memory and offline under the user's language.
 
 User doc to keep in sync: `LOCAL_PROVIDER_TROUBLESHOOTING.md` (its Performance section
 mirrors the Performance tab). Checklist sections: `## Local provider and game overrides`,

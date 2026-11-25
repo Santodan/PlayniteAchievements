@@ -2773,7 +2773,7 @@ namespace PlayniteAchievements.Providers.Local
                         continue;
                     }
 
-                    var schemaEntries = ExtractSteamAppCacheSchemaFromKv(schemaRoot);
+                    var schemaEntries = ExtractSteamAppCacheSchemaFromKv(schemaRoot, GetSteamLanguage());
                     if (schemaEntries.Count == 0)
                     {
                         continue;
@@ -3038,10 +3038,10 @@ namespace PlayniteAchievements.Providers.Local
             node[key] = value;
         }
 
-        private static List<SteamKvSchemaEntry> ExtractSteamAppCacheSchemaFromKv(Dictionary<string, object> root)
+        private static List<SteamKvSchemaEntry> ExtractSteamAppCacheSchemaFromKv(Dictionary<string, object> root, string preferredLanguage = null)
         {
             var results = new List<SteamKvSchemaEntry>();
-            WalkSteamAppCacheSchemaNode(root, new List<string> { "root" }, results);
+            WalkSteamAppCacheSchemaNode(root, new List<string> { "root" }, results, preferredLanguage);
 
             var deduplicated = new List<SteamKvSchemaEntry>();
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -3059,7 +3059,7 @@ namespace PlayniteAchievements.Providers.Local
             return deduplicated;
         }
 
-        private static void WalkSteamAppCacheSchemaNode(object node, List<string> path, List<SteamKvSchemaEntry> results)
+        private static void WalkSteamAppCacheSchemaNode(object node, List<string> path, List<SteamKvSchemaEntry> results, string preferredLanguage)
         {
             var dict = AsSteamKvDictionary(node);
             if (dict == null)
@@ -3105,11 +3105,11 @@ namespace PlayniteAchievements.Providers.Local
                             Bit = bit.Value,
                             ApiName = apiName,
                             DisplayName = FirstNonEmpty(
-                                ResolveSteamKvLocalizedField(GetSteamKvValue(bitDict, "display"), "name"),
+                                ResolveSteamKvLocalizedField(GetSteamKvValue(bitDict, "display"), "name", preferredLanguage),
                                 AsSteamKvString(GetSteamKvValue(bitDict, "displayName")),
                                 AsSteamKvString(GetSteamKvValue(bitDict, "name"))),
                             Description = FirstNonEmpty(
-                                ResolveSteamKvLocalizedField(GetSteamKvValue(bitDict, "display"), "desc"),
+                                ResolveSteamKvLocalizedField(GetSteamKvValue(bitDict, "display"), "desc", preferredLanguage),
                                 AsSteamKvString(GetSteamKvValue(bitDict, "description")),
                                 AsSteamKvString(GetSteamKvValue(bitDict, "desc"))),
                             IconHash = FirstNonEmpty(
@@ -3135,11 +3135,11 @@ namespace PlayniteAchievements.Providers.Local
                     Bit = legacyBit,
                     ApiName = legacyName,
                     DisplayName = FirstNonEmpty(
-                        ResolveSteamKvLocalizedField(GetSteamKvValue(dict, "display"), "name"),
+                        ResolveSteamKvLocalizedField(GetSteamKvValue(dict, "display"), "name", preferredLanguage),
                         AsSteamKvString(GetSteamKvValue(dict, "display")),
                         legacyName),
                     Description = FirstNonEmpty(
-                        ResolveSteamKvLocalizedField(GetSteamKvValue(dict, "display"), "desc"),
+                        ResolveSteamKvLocalizedField(GetSteamKvValue(dict, "display"), "desc", preferredLanguage),
                         AsSteamKvString(GetSteamKvValue(dict, "description")),
                         AsSteamKvString(GetSteamKvValue(dict, "desc"))),
                     IconHash = FirstNonEmpty(
@@ -3161,7 +3161,7 @@ namespace PlayniteAchievements.Providers.Local
                     if (AsSteamKvDictionary(child) != null)
                     {
                         var childPath = new List<string>(path) { pair.Key };
-                        WalkSteamAppCacheSchemaNode(child, childPath, results);
+                        WalkSteamAppCacheSchemaNode(child, childPath, results, preferredLanguage);
                     }
                 }
             }
@@ -3325,7 +3325,7 @@ namespace PlayniteAchievements.Providers.Local
             return null;
         }
 
-        private static string ResolveSteamKvLocalizedField(object containerNode, string fieldName)
+        private static string ResolveSteamKvLocalizedField(object containerNode, string fieldName, string preferredLanguage = null)
         {
             var fieldNode = ResolveSteamKvRawField(containerNode, fieldName);
             var fieldText = AsSteamKvString(fieldNode);
@@ -3338,6 +3338,16 @@ namespace PlayniteAchievements.Providers.Local
             if (dict == null)
             {
                 return null;
+            }
+
+            if (!IsEnglishSteamLanguage(preferredLanguage))
+            {
+                // The appcache schema holds every language; take the plugin's own first.
+                var localized = AsSteamKvString(GetSteamKvValue(dict, preferredLanguage.Trim()));
+                if (!string.IsNullOrWhiteSpace(localized))
+                {
+                    return localized;
+                }
             }
 
             var english = AsSteamKvString(GetSteamKvValue(dict, "english"));
@@ -3814,6 +3824,7 @@ namespace PlayniteAchievements.Providers.Local
 
         private List<SteamAppCacheSchemaSection> TryGetSteamAppCacheSchemaSections(int appId)
         {
+            var schemaLanguage = GetSteamLanguage();
             foreach (var schemaPath in GetSteamAppCacheSchemaFilePaths(appId))
             {
                 try
@@ -3885,13 +3896,13 @@ namespace PlayniteAchievements.Providers.Local
                                 var token = tokens[index];
                                 if (string.Equals(token, "display", StringComparison.OrdinalIgnoreCase))
                                 {
-                                    entry.DisplayName = ParseLocalizedTokenValue(tokens, ref index);
+                                    entry.DisplayName = ParseLocalizedTokenValue(tokens, ref index, schemaLanguage);
                                     continue;
                                 }
 
                                 if (string.Equals(token, "desc", StringComparison.OrdinalIgnoreCase))
                                 {
-                                    entry.Description = ParseLocalizedTokenValue(tokens, ref index);
+                                    entry.Description = ParseLocalizedTokenValue(tokens, ref index, schemaLanguage);
                                     continue;
                                 }
 
@@ -4256,9 +4267,12 @@ namespace PlayniteAchievements.Providers.Local
             }
         }
 
-        private static string ParseLocalizedTokenValue(IReadOnlyList<string> tokens, ref int index)
+        private static string ParseLocalizedTokenValue(IReadOnlyList<string> tokens, ref int index, string preferredLanguage = null)
         {
             string fallback = null;
+            string english = null;
+            string preferred = null;
+            var wantsLocalized = !IsEnglishSteamLanguage(preferredLanguage);
             index++;
 
             if (index < tokens.Count && string.Equals(tokens[index], "name", StringComparison.OrdinalIgnoreCase))
@@ -4290,21 +4304,29 @@ namespace PlayniteAchievements.Providers.Local
                 }
 
                 var value = tokens[index + 1];
-                if (string.Equals(language, "english", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(value))
+                if (!string.IsNullOrWhiteSpace(value))
                 {
-                    index += 2;
-                    return value;
-                }
+                    // The appcache schema holds every language; take the plugin's own first.
+                    if (wantsLocalized && preferred == null &&
+                        string.Equals(language, preferredLanguage, StringComparison.OrdinalIgnoreCase))
+                    {
+                        preferred = value;
+                    }
+                    else if (english == null && string.Equals(language, "english", StringComparison.OrdinalIgnoreCase))
+                    {
+                        english = value;
+                    }
 
-                if (string.IsNullOrWhiteSpace(fallback) && !string.IsNullOrWhiteSpace(value))
-                {
-                    fallback = value;
+                    if (fallback == null)
+                    {
+                        fallback = value;
+                    }
                 }
 
                 index += 2;
             }
 
-            return fallback;
+            return preferred ?? english ?? fallback;
         }
 
         private static bool IsSchemaFieldToken(string token)
