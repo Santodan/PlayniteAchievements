@@ -1735,6 +1735,7 @@
     <sys:String x:Key="LOCPlayAch_YearReview_MetricInGame">{0} in {1}</sys:String>
     <sys:String x:Key="LOCPlayAch_YearReview_AverageRateInGame">average unlock rate in {0}</sys:String>
     <!-- YearReview_CardClassic, CardPoster, CardBanner: styles of the shareable card -->
+    <sys:String x:Key="LOCPlayAch_YearReview_ShowInOverview">Show in Overview</sys:String>
     <sys:String x:Key="LOCPlayAch_YearReview_CardClassic">Classic</sys:String>
     <sys:String x:Key="LOCPlayAch_YearReview_CardPoster">Poster</sys:String>
     <sys:String x:Key="LOCPlayAch_YearReview_CardBanner">Banner</sys:String>
