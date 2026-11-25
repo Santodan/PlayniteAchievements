@@ -12,6 +12,7 @@ namespace PlayniteAchievements.Models.Settings
         CollectionScore = 4,
         PrestigeLevel = 5,
         CollectionLevel = 6,
-        Alphabetical = 7
+        Alphabetical = 7,
+        CompletedGames = 8
     }
 }

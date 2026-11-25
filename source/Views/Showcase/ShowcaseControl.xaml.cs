@@ -2579,8 +2579,9 @@ namespace PlayniteAchievements.Views.Showcase
         private void OpenWidgetPicker(ShowcaseBlockSettings block, FrameworkElement target)
         {
             var menu = new ContextMenu();
+            var friendsEnabled = PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.EnableFriendsFeatures == true;
             foreach (var definition in ShowcaseWidgetCatalog.Definitions.Where(definition =>
-                         !definition.Hidden && _host.IsKindAllowed(definition.Kind)))
+                         definition.IsOffered(friendsEnabled) && _host.IsKindAllowed(definition.Kind)))
             {
                 var captured = definition;
                 var item = WidgetPickerItem(

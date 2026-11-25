@@ -392,6 +392,10 @@ namespace PlayniteAchievements.Services.Showcase
                     achievementOptions = gridOptions.GetAchievement(surfaceKey);
                     result.GridWidgetOptions = achievementOptions;
                 }
+                else if (ShowcaseGridSurfaces.IsFriendSummariesSurface(surfaceKey))
+                {
+                    result.GridWidgetOptions = gridOptions.GetFriendSummaries(surfaceKey);
+                }
                 else
                 {
                     gameOptions = gridOptions.GetGameSummaries(surfaceKey);
@@ -401,6 +405,13 @@ namespace PlayniteAchievements.Services.Showcase
 
             switch (instance.Kind)
             {
+                case ShowcaseWidgetKind.FriendUnlocks:
+                case ShowcaseWidgetKind.FriendLeaderboard:
+                case ShowcaseWidgetKind.FriendGames:
+                    // The friends widgets read the friend lists themselves; whether they have
+                    // rows is known only once the lists load.
+                    result.HasRows = true;
+                    break;
                 case ShowcaseWidgetKind.Profile:
                     // The library's statistics; the view model narrows them to its collection and
                     // control bar.

@@ -29,8 +29,28 @@ namespace PlayniteAchievements.Services
             FriendSummariesSortMode.PrestigeLevel => nameof(FriendSummaryItem.PrestigeLevel),
             FriendSummariesSortMode.CollectionLevel => nameof(FriendSummaryItem.CollectionLevel),
             FriendSummariesSortMode.Alphabetical => nameof(FriendSummaryItem.DisplayName),
+            FriendSummariesSortMode.CompletedGames => nameof(FriendSummaryItem.CompletedGamesCount),
             _ => nameof(FriendSummaryItem.LastUnlockUtc)
         };
+
+        /// <summary>The sort mode whose column is <paramref name="sortMemberPath"/>; false for a column no mode sorts by.</summary>
+        public static bool TryModeOf(string sortMemberPath, out FriendSummariesSortMode mode)
+        {
+            foreach (FriendSummariesSortMode candidate in Enum.GetValues(typeof(FriendSummariesSortMode)))
+            {
+                if (string.Equals(
+                        new FriendSummariesSortSpec(candidate, ListSortDirection.Descending).SortMemberPath,
+                        sortMemberPath,
+                        StringComparison.Ordinal))
+                {
+                    mode = candidate;
+                    return true;
+                }
+            }
+
+            mode = FriendSummariesSortMode.RecentUnlock;
+            return false;
+        }
 
         public string IndicatorSortMemberPath => Mode switch
         {
@@ -279,7 +299,26 @@ namespace PlayniteAchievements.Services
             return directions;
         }
 
-        private static Comparison<FriendSummaryItem> CreateComparison(string sortMemberPath, ListSortDirection direction)
+        /// <summary>
+        /// Sorts a ranking: by <paramref name="sortMemberPath"/> alone, favorites not pinned first.
+        /// False for a column no comparison sorts by.
+        /// </summary>
+        public static bool SortRanked(List<FriendSummaryItem> items, string sortMemberPath, ListSortDirection direction)
+        {
+            var comparison = items == null ? null : CreateComparison(sortMemberPath, direction, pinFavorites: false);
+            if (comparison == null)
+            {
+                return false;
+            }
+
+            items.Sort(comparison);
+            return true;
+        }
+
+        private static Comparison<FriendSummaryItem> CreateComparison(
+            string sortMemberPath,
+            ListSortDirection direction,
+            bool pinFavorites = true)
         {
             return sortMemberPath switch
             {
@@ -287,41 +326,55 @@ namespace PlayniteAchievements.Services
                     a,
                     b,
                     sortMemberPath,
+                    pinFavorites,
                     CompareDateTime(a?.LastUnlockUtc, b?.LastUnlockUtc, direction)),
                 nameof(FriendSummaryItem.SharedGamesCount) => (a, b) => CompareWithTieBreakers(
                     a,
                     b,
                     sortMemberPath,
+                    pinFavorites,
                     CompareInt(a?.SharedGamesCount ?? 0, b?.SharedGamesCount ?? 0, direction)),
                 nameof(FriendSummaryItem.UnlockedAchievementsCount) => (a, b) => CompareWithTieBreakers(
                     a,
                     b,
                     sortMemberPath,
+                    pinFavorites,
                     CompareInt(a?.UnlockedAchievementsCount ?? 0, b?.UnlockedAchievementsCount ?? 0, direction)),
                 nameof(FriendSummaryItem.PrestigeScore) => (a, b) => CompareWithTieBreakers(
                     a,
                     b,
                     sortMemberPath,
+                    pinFavorites,
                     CompareInt(a?.PrestigeScore ?? 0, b?.PrestigeScore ?? 0, direction)),
                 nameof(FriendSummaryItem.CollectionScore) => (a, b) => CompareWithTieBreakers(
                     a,
                     b,
                     sortMemberPath,
+                    pinFavorites,
                     CompareInt(a?.CollectionScore ?? 0, b?.CollectionScore ?? 0, direction)),
                 nameof(FriendSummaryItem.PrestigeLevel) => (a, b) => CompareWithTieBreakers(
                     a,
                     b,
                     sortMemberPath,
+                    pinFavorites,
                     CompareInt(a?.PrestigeLevel ?? 0, b?.PrestigeLevel ?? 0, direction)),
                 nameof(FriendSummaryItem.CollectionLevel) => (a, b) => CompareWithTieBreakers(
                     a,
                     b,
                     sortMemberPath,
+                    pinFavorites,
                     CompareInt(a?.CollectionLevel ?? 0, b?.CollectionLevel ?? 0, direction)),
+                nameof(FriendSummaryItem.CompletedGamesCount) => (a, b) => CompareWithTieBreakers(
+                    a,
+                    b,
+                    sortMemberPath,
+                    pinFavorites,
+                    CompareInt(a?.CompletedGamesCount ?? 0, b?.CompletedGamesCount ?? 0, direction)),
                 nameof(FriendSummaryItem.DisplayName) => (a, b) => CompareWithTieBreakers(
                     a,
                     b,
                     sortMemberPath,
+                    pinFavorites,
                     CompareString(a?.DisplayName, b?.DisplayName, direction)),
                 _ => null
             };
@@ -331,6 +384,7 @@ namespace PlayniteAchievements.Services
             FriendSummaryItem a,
             FriendSummaryItem b,
             string primarySortMemberPath,
+            bool pinFavorites,
             int primaryComparison)
         {
             if (ReferenceEquals(a, b))
@@ -349,7 +403,7 @@ namespace PlayniteAchievements.Services
             }
 
             // Favorites are pinned ahead of non-favorites regardless of the active sort column.
-            var favoriteComparison = b.IsFavorite.CompareTo(a.IsFavorite);
+            var favoriteComparison = pinFavorites ? b.IsFavorite.CompareTo(a.IsFavorite) : 0;
             if (favoriteComparison != 0)
             {
                 return favoriteComparison;

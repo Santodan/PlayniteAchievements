@@ -131,6 +131,22 @@
       "Id": "value",
       "Name": "value"
     },
+    "FriendSummaryGridOptions": {
+      "Columns": "GridColumnLayoutOptions",
+      "ControlBarItemOrder": {
+        "list": "value"
+      },
+      "HiddenControlBarItems": {
+        "list": "value"
+      },
+      "LastUnlockDateMode": "value",
+      "MaxRows": "value",
+      "RowHeight": "value",
+      "ShowColumnHeaders": "value",
+      "ShowControlBar": "value",
+      "SortDescending": "value",
+      "SortMode": "value"
+    },
     "GameCustomDataPortableFile": {
       "AchievementCategoryImageOverrides": {
         "map": "CategoryImageOverrideData"
@@ -474,6 +490,9 @@
       },
       "CategoryGridSurfaces": {
         "map": "CategorySummaryGridOptions"
+      },
+      "FriendGridSurfaces": {
+        "map": "FriendSummaryGridOptions"
       },
       "GameGridSurfaces": {
         "map": "GameSummaryGridOptions"

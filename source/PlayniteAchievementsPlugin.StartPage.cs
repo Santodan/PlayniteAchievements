@@ -40,11 +40,12 @@ namespace PlayniteAchievements
         {
             EnsureAchievementResourcesLoaded();
 
+            var friendsEnabled = Settings?.Persisted?.EnableFriendsFeatures == true;
             return new StartPageExtensionArgs
             {
                 ExtensionName = L("LOCPlayAch_Title_PluginName"),
                 Views = StartPageViewCatalog.Views
-                    .Where(view => !view.Hidden)
+                    .Where(view => view.IsOffered(friendsEnabled))
                     .Select(view => new StartPageViewArgsBase
                     {
                         ViewId = view.ViewId,

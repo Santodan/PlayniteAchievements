@@ -189,6 +189,11 @@ namespace PlayniteAchievements.Views.Settings.Controls
                 [ShowcaseGridSurfaces.RecentAchievements] = new GridDisplayRowCapabilities(
                     showControlBarRow: false,
                     showCategoryModeRow: true),
+                // The friend unlocks widget: newest first until a sort is picked, which can be
+                // by friend.
+                [ShowcaseGridSurfaces.FriendAchievements] = new GridDisplayRowCapabilities(
+                    showControlBarRow: false,
+                    showFriendColumnSortChoice: true),
                 // Sort stays off (the control sorts externally) and cover images do not apply,
                 // but the appearance rows now reach this grid's own record rather than the
                 // legacy Achievement[Default] one, so they are offered here.
@@ -230,14 +235,22 @@ namespace PlayniteAchievements.Views.Settings.Controls
                 [ShowcaseGridSurfaces.GameSummaries] = new GridDisplayRowCapabilities(
                     showControlBarRow: false,
                     showGameSortPinOrderChoice: true,
-                    showLibraryGameSortChoices: true)
+                    showLibraryGameSortChoices: true),
+                // The friends' games widget, over every picked friend's games at once.
+                [ShowcaseGridSurfaces.FriendGames] = new GridDisplayRowCapabilities(
+                    showControlBarRow: false,
+                    showFriendGameSortChoices: true,
+                    showPerGameStatSortChoices: false)
             };
 
         private static readonly Dictionary<string, GridDisplayRowCapabilities> FriendSummarySurfaces =
             new Dictionary<string, GridDisplayRowCapabilities>(StringComparer.OrdinalIgnoreCase)
             {
                 [GridOptionKeys.FriendSummaries.FriendsOverview] = AllRows,
-                [GridOptionKeys.FriendSummaries.ViewFriendsAchievements] = AllRows
+                [GridOptionKeys.FriendSummaries.ViewFriendsAchievements] = AllRows,
+                // The friends leaderboard widget; its settings show each control bar item.
+                [ShowcaseGridSurfaces.FriendSummaries] = new GridDisplayRowCapabilities(
+                    showControlBarRow: false)
             };
 
         // CategorySummaryGridOptions does not derive from GridCommonOptions, so the editor already

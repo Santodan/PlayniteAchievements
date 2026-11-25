@@ -41,6 +41,7 @@ namespace PlayniteAchievements.Views.Controls
                 ["FriendSummaryFriend"] = true,
                 ["FriendSummarySharedGames"] = true,
                 ["FriendSummaryUnlocks"] = true,
+                ["FriendSummaryCompletedGames"] = false,
                 ["FriendSummaryPrestigeScore"] = true,
                 ["FriendSummaryCollectionScore"] = true,
                 ["FriendSummaryPrestigeLevel"] = false,
