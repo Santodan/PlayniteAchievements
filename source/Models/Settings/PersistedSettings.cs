@@ -66,6 +66,7 @@ namespace PlayniteAchievements.Models.Settings
 
         private string _globalLanguage = "english";
         private bool _enablePeriodicUpdates = true;
+        private bool _showYearReviewInOverview = true;
         private bool _includeHiddenGamesInBulkScans = true;
         private bool _includeHiddenGamesInSummaries = true;
         private HashSet<Guid> _refreshExclusionFilterPresetIds = new HashSet<Guid>();
@@ -975,6 +976,16 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _yearReviewAvatarPath;
             set => SetValue(ref _yearReviewAvatarPath, value);
+        }
+
+        /// <summary>
+        /// Whether the Overview shows its Year in Review button in December and January. Set from
+        /// the Year in Review window.
+        /// </summary>
+        public bool ShowYearReviewInOverview
+        {
+            get => _showYearReviewInOverview;
+            set => SetValue(ref _showYearReviewInOverview, value);
         }
 
         /// <summary>
@@ -3449,6 +3460,7 @@ namespace PlayniteAchievements.Models.Settings
                 AutoCapstoneGameNameTemplate = this.AutoCapstoneGameNameTemplate,
                 YearReviewDisplayName = this.YearReviewDisplayName,
                 YearReviewAvatarPath = this.YearReviewAvatarPath,
+                ShowYearReviewInOverview = this.ShowYearReviewInOverview,
                 AutoCapstoneGameDescriptionTemplate = this.AutoCapstoneGameDescriptionTemplate,
                 AutoCapstoneCategoryNameTemplate = this.AutoCapstoneCategoryNameTemplate,
                 AutoCapstoneCategoryDescriptionTemplate = this.AutoCapstoneCategoryDescriptionTemplate,
