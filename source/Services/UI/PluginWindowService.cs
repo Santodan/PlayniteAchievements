@@ -1011,48 +1011,57 @@ namespace PlayniteAchievements.Services.UI
         /// Brings the open plugin window that hosts a <typeparamref name="T"/> to the front. False
         /// when none is open. Runs on the UI thread.
         /// </summary>
-        public bool TryActivateOpenWindowHosting<T>() where T : class
+        public bool TryActivateOpenWindowHosting<T>() where T : class =>
+            TryActivateOpenWindowHosting<T>(out _);
+
+        /// <summary>
+        /// Brings the open plugin window that hosts a <typeparamref name="T"/> to the front and
+        /// returns the hosted control. False when none is open. Runs on the UI thread.
+        /// </summary>
+        public bool TryActivateOpenWindowHosting<T>(out T control) where T : class
         {
+            control = null;
             var application = Application.Current;
-            var window = application?.Windows?
-                .OfType<Window>()
-                .FirstOrDefault(candidate => candidate != null
-                                             && candidate.IsVisible
-                                             && !ReferenceEquals(candidate, application.MainWindow)
-                                             && HostsControl<T>(candidate.Content));
-            if (window == null)
+            foreach (var candidate in application?.Windows?.OfType<Window>() ?? Enumerable.Empty<Window>())
             {
-                return false;
-            }
+                if (candidate == null
+                    || !candidate.IsVisible
+                    || ReferenceEquals(candidate, application.MainWindow))
+                {
+                    continue;
+                }
 
-            ActivateTrackedWindow(window);
-            return true;
-        }
-
-        /// <summary>Whether a window's content is, or directly wraps, a <typeparamref name="T"/>.</summary>
-        private static bool HostsControl<T>(object content) where T : class
-        {
-            if (content == null)
-            {
-                return false;
-            }
-
-            if (content is T)
-            {
-                return true;
-            }
-
-            if (content is FullscreenOverlayContainer overlay)
-            {
-                return HostsControl<T>(overlay.HostedContent);
-            }
-
-            if (content is ContentControl contentControl)
-            {
-                return HostsControl<T>(contentControl.Content);
+                control = FindHostedControl<T>(candidate.Content);
+                if (control != null)
+                {
+                    ActivateTrackedWindow(candidate);
+                    return true;
+                }
             }
 
             return false;
+        }
+
+        /// <summary>Whether a window's content is, or directly wraps, a <typeparamref name="T"/>.</summary>
+        private static bool HostsControl<T>(object content) where T : class =>
+            FindHostedControl<T>(content) != null;
+
+        /// <summary>A window's content when it is, or directly wraps, a <typeparamref name="T"/>; else null.</summary>
+        private static T FindHostedControl<T>(object content) where T : class
+        {
+            switch (content)
+            {
+                case null:
+                    return null;
+                case T control:
+                    return control;
+                case FullscreenOverlayContainer overlay:
+                    return FindHostedControl<T>(overlay.HostedContent);
+                case ContentControl contentControl:
+                    return FindHostedControl<T>(contentControl.Content);
+                default:
+                    return null;
+            }
         }
 
         private void TrackOverviewWindow(Window window)

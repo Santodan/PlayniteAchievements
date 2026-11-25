@@ -135,7 +135,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 ultra,
                 rareAndUltra,
                 selectedGameSummary,
-                latestAchievement);
+                latestAchievement,
+                AchievementTagStatsBuilder.Build(stats.Tags.Build(), gameId));
         }
 
         private static void ApplyAchievementPresentation(

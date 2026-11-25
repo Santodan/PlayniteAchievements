@@ -749,6 +749,11 @@ namespace PlayniteAchievements.Views
             ActiveSubView = OverviewSubView.Showcase;
         }
 
+        private void YearReviewButton_Click(object sender, RoutedEventArgs e)
+        {
+            PlayniteAchievementsPlugin.Instance?.OpenYearReviewWindow();
+        }
+
         private void ShowcaseGames_ItemUpdated(
             object sender,
             ItemUpdatedEventArgs<Playnite.SDK.Models.Game> e) =>

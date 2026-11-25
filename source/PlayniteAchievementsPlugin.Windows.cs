@@ -103,6 +103,21 @@ namespace PlayniteAchievements
             ShowLibraryEditorWindow();
         }
 
+        /// <summary>
+        /// The Achievement Editor locked to <paramref name="gameIds"/>, from a selection of games.
+        /// An open editor is locked to them and brought to the front.
+        /// </summary>
+        private void OpenLibraryEditorWindow(System.Collections.Generic.IReadOnlyCollection<Guid> gameIds)
+        {
+            if (_windowService.TryActivateOpenWindowHosting<Views.ManageAchievements.LibraryAchievementEditorControl>(out var open))
+            {
+                open.LockToGames(gameIds);
+                return;
+            }
+
+            ShowLibraryEditorWindow(gameIds);
+        }
+
         /// <summary>The Achievement Editor hotkey: opens the editor, or brings it forward, or closes it when it is the active window.</summary>
         private void ToggleLibraryEditorWindow()
         {
@@ -114,7 +129,7 @@ namespace PlayniteAchievements
             ShowLibraryEditorWindow();
         }
 
-        private void ShowLibraryEditorWindow()
+        private void ShowLibraryEditorWindow(System.Collections.Generic.IReadOnlyCollection<Guid> lockedGameIds = null)
         {
             Views.ManageAchievements.LibraryAchievementEditorControl view;
             try
@@ -125,7 +140,8 @@ namespace PlayniteAchievements
                     _achievementOverridesService,
                     _achievementDataService,
                     _settingsViewModel.Settings,
-                    _logger);
+                    _logger,
+                    lockedGameIds);
             }
             catch (Exception ex)
             {
@@ -149,6 +165,90 @@ namespace PlayniteAchievements
                     Height = 800
                 },
                 "LibraryAchievementEditor",
+                view.Cleanup);
+        }
+
+        /// <summary>
+        /// The Year in Review: one calendar year of unlocks as animated slides. One window at a
+        /// time; opening it again brings the open one to the front.
+        /// </summary>
+        internal void OpenYearReviewWindow()
+        {
+            if (!Services.YearReview.YearReviewAvailability.IsReleased(DateTime.Today))
+            {
+                return;
+            }
+
+            if (_windowService.TryActivateOpenWindowHosting<Views.YearReview.YearReviewControl>())
+            {
+                return;
+            }
+
+            Views.YearReview.YearReviewControl view;
+            try
+            {
+                EnsureAchievementResourcesLoaded();
+                var coordinator = GetStartPageDataCoordinator();
+                var reader = new Services.YearReview.YearReviewReader(
+                    _achievementDataService,
+                    _friendCacheManager,
+                    cancel => coordinator.GetSnapshotAsync(cancel),
+                    () => Settings?.Persisted,
+                    PlayniteApi,
+                    _logger);
+                view = new Views.YearReview.YearReviewControl(
+                    new ViewModels.YearReview.YearReviewViewModel(
+                        reader,
+                        _logger,
+                        () => (Settings?.Persisted?.YearReviewDisplayName, Settings?.Persisted?.YearReviewAvatarPath),
+                        (name, avatar) =>
+                        {
+                            var persisted = Settings?.Persisted;
+                            if (persisted == null)
+                            {
+                                return;
+                            }
+
+                            persisted.YearReviewDisplayName = name;
+                            persisted.YearReviewAvatarPath = avatar;
+                            SavePluginSettings(_settingsViewModel.Settings);
+                        },
+                        () => Settings?.Persisted?.ShowYearReviewInOverview ?? true,
+                        show =>
+                        {
+                            var persisted = Settings?.Persisted;
+                            if (persisted == null)
+                            {
+                                return;
+                            }
+
+                            persisted.ShowYearReviewInOverview = show;
+                            SavePluginSettings(_settingsViewModel.Settings);
+                        }),
+                    _logger);
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Failed to open the Year in Review.");
+                PlayniteApi?.Dialogs?.ShowErrorMessage(
+                    string.Format(ResourceProvider.GetString("LOCPlayAch_Status_Failed"), ex.Message),
+                    ResourceProvider.GetString("LOCPlayAch_Title_PluginName"));
+                return;
+            }
+
+            _windowService.OpenManagedPopout(
+                view.WindowTitle,
+                view,
+                new Views.Helpers.WindowOptions
+                {
+                    ShowMinimizeButton = true,
+                    ShowMaximizeButton = true,
+                    ShowCloseButton = true,
+                    CanBeResizable = true,
+                    Width = 1280,
+                    Height = 800
+                },
+                "YearReview",
                 view.Cleanup);
         }
 

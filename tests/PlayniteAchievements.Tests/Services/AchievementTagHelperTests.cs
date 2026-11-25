@@ -202,6 +202,19 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void ClassificationFilter_NoTagsKey_MatchesOnlyUntaggedRows()
+        {
+            var none = AchievementClassificationFilter.NoTagsKey;
+            Assert.IsTrue(AchievementClassificationFilter.Matches(null, null, none));
+            Assert.IsTrue(AchievementClassificationFilter.Matches("DLC", string.Empty, none), "a kind is not a tag");
+            Assert.IsTrue(AchievementClassificationFilter.Matches(null, "Hardcore", none), "the derived unlock modes are not tags");
+            Assert.IsTrue(AchievementClassificationFilter.Matches(null, "Softcore|Hardcore", none));
+            Assert.IsFalse(AchievementClassificationFilter.Matches(null, "Missable", none));
+            Assert.IsFalse(AchievementClassificationFilter.Matches(null, "Hardcore|Missable", none));
+            Assert.IsFalse(AchievementClassificationFilter.IsFilterKey(none), "no kind or tag takes the None key");
+        }
+
+        [TestMethod]
         public void LegacyCategoryTypes_KeepsTagsAndDropsKinds()
         {
             var entry = new AchievementOverride();

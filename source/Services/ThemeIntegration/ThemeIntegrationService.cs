@@ -94,7 +94,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         // The friend lists and the rows of the friend scope, read once a theme binds friend data,
         // and the library-wide achievement lists, each read once a theme binds it.
         private IReadScheduler _readScheduler;
-        private LiveQuery<FriendsOverviewLists> _friendLists;
+        private readonly FriendListsSource _friendLists;
         private PagedRows<FriendAchievementDisplayItem> _friendRows;
         private readonly Dictionary<string, LiveQuery<List<AchievementDetail>>> _libraryLists =
             new Dictionary<string, LiveQuery<List<AchievementDetail>>>(StringComparer.Ordinal);
@@ -140,6 +140,12 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _windowService = windowService ?? throw new ArgumentNullException(nameof(windowService));
             _logger = logger;
+            _friendLists = new FriendListsSource(
+                () => _friendCache?.FriendReads,
+                () => _settings?.Persisted,
+                () => ReadScheduler,
+                FriendReadWindow,
+                ex => _logger?.Error(ex, "Failed to load friend lists."));
             _settings.DynamicThemeDefaultsChanged += Settings_DynamicThemeDefaultsChanged;
 
             var openOverviewCommand = new RelayCommand(_ => OpenOverviewWindow());
@@ -467,6 +473,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             ApplyDynamicOptionBindings();
 
             _refreshService.CacheInvalidated += RefreshService_CacheInvalidated;
+            AchievementTagRegistry.Changed += AchievementTagRegistry_Changed;
             _captureLibrary = captureLibrary;
             if (_captureLibrary != null)
             {
@@ -488,6 +495,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             try { _settings.ModernTheme.CategorySummariesRequested = null; } catch { }
             try { _settings.DynamicThemeDefaultsChanged -= Settings_DynamicThemeDefaultsChanged; } catch { }
             try { _refreshService.CacheInvalidated -= RefreshService_CacheInvalidated; } catch { }
+            AchievementTagRegistry.Changed -= AchievementTagRegistry_Changed;
             try
             {
                 if (_captureLibrary != null)
@@ -496,7 +504,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 }
             }
             catch { }
-            _friendLists?.Dispose();
+            _friendLists.Changed -= FriendLists_Changed;
+            _friendLists.Dispose();
             _friendRows?.Dispose();
             foreach (var list in _libraryLists.Values)
             {
@@ -512,6 +521,16 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 _activeUpdateCts = null;
             }
 
+        }
+
+        // The tag counts carry each tag's name, color and icon. A game's own tags change with
+        // its custom data, which NotifyCustomDataChanged covers; the global list does not.
+        private void AchievementTagRegistry_Changed(object sender, AchievementTagsChangedEventArgs e)
+        {
+            if (e?.GameId == null)
+            {
+                NotifyCustomDataChanged(null);
+            }
         }
 
         public void NotifySelectionChanged(Guid? selectedGameId)
@@ -562,33 +581,29 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         // volatile-read fast path so it is safe on the UI thread during binding.
         public void EnsureFriendThemeDataLoaded()
         {
-            var reads = _friendCache?.FriendReads;
-            if (_hasFriendThemeConsumers || reads == null)
+            if (_hasFriendThemeConsumers || !_friendLists.Ensure())
             {
                 return;
             }
 
             _hasFriendThemeConsumers = true;
-            _friendLists = new LiveQuery<FriendsOverviewLists>(
-                reads.Feed,
-                AchievementQuery.AllFriends,
-                _ => FriendsOverviewLists.Load(reads, _settings?.Persisted),
-                ReadScheduler,
-                FriendReadWindow,
-                ex => _logger?.Error(ex, "Failed to load friend theme lists."));
-            _friendLists.PropertyChanged += (_, e) =>
+            _friendLists.Changed += FriendLists_Changed;
+            if (_friendLists.Current != null)
             {
-                if (e.PropertyName == nameof(LiveQuery<object>.Result))
-                {
-                    ApplyFriendState(new FriendRuntimeState(_friendLists.Result));
-                }
-            };
+                FriendLists_Changed(_friendLists, EventArgs.Empty);
+            }
         }
+
+        private void FriendLists_Changed(object sender, EventArgs e) =>
+            ApplyFriendState(new FriendRuntimeState(_friendLists.Current));
+
+        /// <summary>The friend lists shared by the theme and the friends widgets.</summary>
+        internal FriendListsSource FriendLists => _friendLists;
 
         /// <summary>Reads the friend lists and rows again, for a setting they show.</summary>
         public void ReloadFriendThemeData()
         {
-            _friendLists?.SetQuery(_friendLists.Query);
+            _friendLists.Reload();
             _friendRows?.SetQuery(_friendRows.Query);
         }
 
@@ -1977,6 +1992,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.ModernTheme.TotalUltraRare = library.TotalUltraRare;
             _settings.ModernTheme.TotalRareAndUltraRare = library.TotalRareAndUltraRare;
             _settings.ModernTheme.TotalOverall = library.TotalOverall;
+            _settings.ModernTheme.TotalTagStats = library.TotalTagStats;
             _settings.ModernTheme.CollectorScore = library.CollectorScore;
             _settings.ModernTheme.CollectorLevel = library.CollectorLevel;
             _settings.ModernTheme.CollectorLevelProgress = library.CollectorLevelProgress;
@@ -2087,6 +2103,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.ModernTheme.Rare = state.Rare;
             _settings.ModernTheme.UltraRare = state.UltraRare;
             _settings.ModernTheme.RareAndUltraRare = state.RareAndUltraRare;
+            _settings.ModernTheme.TagStats = state.TagStats;
             _settings.ModernTheme.SelectedGameSummary = state.SelectedGameSummary;
             _settings.ModernTheme.AchievementDefaultOrder = state.AchievementDefaultOrder;
             _settings.ModernTheme.AllAchievements = state.AllAchievements;
@@ -2146,6 +2163,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.ModernTheme.Rare = EmptyRarityStats;
             _settings.ModernTheme.UltraRare = EmptyRarityStats;
             _settings.ModernTheme.RareAndUltraRare = EmptyRarityStats;
+            _settings.ModernTheme.TagStats = new List<AchievementTagStats>();
             _settings.ModernTheme.SelectedGameSummary = null;
             _settings.LegacyTheme.HasData = false;
             _settings.LegacyTheme.Total = 0;
@@ -2649,7 +2667,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         private void UpdateFriendRowsQuery(FriendRuntimeState state)
         {
             var reads = _friendCache?.FriendReads;
-            if (_friendLists?.Result == null || reads == null)
+            if (_friendLists.Current == null || reads == null)
             {
                 return;
             }
@@ -2672,7 +2690,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 (read, keys) =>
                 {
                     var rows = reads.Rows(read, keys);
-                    (_friendLists?.Result ?? FriendsOverviewLists.Empty).StampIdentity(rows, _settings?.Persisted);
+                    (_friendLists.Current ?? FriendsOverviewLists.Empty).StampIdentity(rows, _settings?.Persisted);
                     AttachFriendAchievementCommands(rows);
                     return rows;
                 },

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Windows;
 using Playnite.SDK;
+using PlayniteAchievements.Services.Cache;
 using PlayniteAchievements.Services.Database;
 using PlayniteAchievements.Services.Overview;
 using PlayniteAchievements.ViewModels.Items;
@@ -17,19 +18,37 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         private static readonly ILogger Logger = LogManager.GetLogger();
 
         private readonly Action _loaded;
+        private readonly Func<AchievementDataFeed> _feed;
+        private readonly Func<AchievementQuery, IReadOnlyList<AchievementDisplayItem>> _load;
         private LiveQuery<IReadOnlyList<AchievementDisplayItem>> _live;
         private string _key;
 
+        /// <summary>The user's own achievement rows.</summary>
         /// <param name="loaded">Runs on the UI thread when a read lands.</param>
         public ShowcaseRows(Action loaded)
+            : this(
+                loaded,
+                () => PlayniteAchievementsPlugin.Instance?.AchievementDataService?.CacheReads?.Feed,
+                Load)
+        {
+        }
+
+        /// <summary>The rows <paramref name="load"/> reads, read again as <paramref name="feed"/> reports changes.</summary>
+        /// <param name="load">Runs off the UI thread.</param>
+        public ShowcaseRows(
+            Action loaded,
+            Func<AchievementDataFeed> feed,
+            Func<AchievementQuery, IReadOnlyList<AchievementDisplayItem>> load)
         {
             _loaded = loaded;
+            _feed = feed;
+            _load = load;
         }
 
         /// <summary>The rows of <paramref name="query"/> once read; until then the last query's.</summary>
         public IReadOnlyList<AchievementDisplayItem> For(AchievementQuery query)
         {
-            var feed = PlayniteAchievementsPlugin.Instance?.AchievementDataService?.CacheReads?.Feed;
+            var feed = _feed();
             var dispatcher = Application.Current?.Dispatcher;
             if (query == null || feed == null || dispatcher == null)
             {
@@ -42,7 +61,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 _live = new LiveQuery<IReadOnlyList<AchievementDisplayItem>>(
                     feed,
                     query,
-                    read => Load(read),
+                    _load,
                     new DispatcherReadScheduler(dispatcher),
                     onError: ex => Logger.Warn(ex, "Failed to read a widget's achievement rows."));
                 _live.PropertyChanged += (_, e) =>

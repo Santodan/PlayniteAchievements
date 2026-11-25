@@ -533,12 +533,21 @@ namespace PlayniteAchievements.Services.Workshop
                 var current = incoming;
                 if (baseline != null && incoming != null)
                 {
-                    var merged = GameCustomDataThreeWayMerge.Merge(baseline, previous, incoming, out var keptEdits);
-                    if (keptEdits > 0)
+                    // Merged against the record as stored at the write, under the store's write
+                    // lock, so a write made since the import (a linked file applying while the
+                    // game runs) is kept.
+                    var keptEdits = 0;
+                    store.Replace(gameId, stored =>
                     {
-                        store.Save(gameId, merged);
+                        var merged = GameCustomDataThreeWayMerge.Merge(baseline, previous, stored, out keptEdits);
+                        if (keptEdits == 0)
+                        {
+                            return null;
+                        }
+
                         current = merged;
-                    }
+                        return merged;
+                    });
 
                     var keptIcons = RestoreEditedIcons(editedIcons, iconDirectory, current);
                     if (keptEdits + keptIcons > 0)

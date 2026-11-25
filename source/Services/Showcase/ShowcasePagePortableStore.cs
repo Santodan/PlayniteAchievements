@@ -58,6 +58,10 @@ namespace PlayniteAchievements.Services.Showcase
         public Dictionary<string, GameSummaryGridOptions> GameGridSurfaces { get; set; } =
             new Dictionary<string, GameSummaryGridOptions>(StringComparer.OrdinalIgnoreCase);
 
+        /// <summary>Friends leaderboard grid settings keyed by exported widget instance id.</summary>
+        public Dictionary<string, FriendSummaryGridOptions> FriendGridSurfaces { get; set; } =
+            new Dictionary<string, FriendSummaryGridOptions>(StringComparer.OrdinalIgnoreCase);
+
         /// <summary>
         /// Recent achievements widgets' category list settings (category mode), keyed by
         /// exported widget instance id.
@@ -388,12 +392,13 @@ namespace PlayniteAchievements.Services.Showcase
         }
 
         /// <summary>
-        /// Removes what identifies the user from a widget: its pin collection, its control bars'
-        /// Game selections, and every part of a profile card but the background.
+        /// Removes what identifies the user from a widget: its pin collection, its picked friends,
+        /// its control bars' Game selections, and every part of a profile card but the background.
         /// </summary>
         internal static void StripUserOptions(ShowcaseWidgetInstanceSettings widget)
         {
             ShowcaseWidgetOptions.SetPinCollectionId(widget, null);
+            widget.Options.Remove(ShowcaseWidgetOptions.FriendAccountKeysOption);
             foreach (var key in widget.Options.Keys
                 .Where(ShowcaseWidgetOptions.IsControlBarState)
                 .ToList())
@@ -557,7 +562,8 @@ namespace PlayniteAchievements.Services.Showcase
         {
             return !string.IsNullOrWhiteSpace(key)
                    && (ShowcaseWidgetOptions.IsControlBarState(key)
-                       || string.Equals(key, ShowcaseWidgetOptions.PinCollectionId, StringComparison.OrdinalIgnoreCase));
+                       || string.Equals(key, ShowcaseWidgetOptions.PinCollectionId, StringComparison.OrdinalIgnoreCase)
+                       || string.Equals(key, ShowcaseWidgetOptions.FriendAccountKeysOption, StringComparison.OrdinalIgnoreCase));
         }
 
         private static void CaptureGridSurface(
@@ -591,6 +597,12 @@ namespace PlayniteAchievements.Services.Showcase
                      games != null)
             {
                 portable.GameGridSurfaces[widget.InstanceId] = games.Clone();
+            }
+            else if (ShowcaseGridSurfaces.IsFriendSummariesSurface(key) &&
+                     gridOptions.FriendSummaries.TryGetValue(key, out var friends) &&
+                     friends != null)
+            {
+                portable.FriendGridSurfaces[widget.InstanceId] = friends.Clone();
             }
         }
 
@@ -628,6 +640,12 @@ namespace PlayniteAchievements.Services.Showcase
                      portable.GameGridSurfaces.TryGetValue(sourceId, out var games))
             {
                 gridOptions.SetGameSummaries(key, games);
+            }
+            else if (ShowcaseGridSurfaces.IsFriendSummariesSurface(key) &&
+                     portable.FriendGridSurfaces != null &&
+                     portable.FriendGridSurfaces.TryGetValue(sourceId, out var friends))
+            {
+                gridOptions.SetFriendSummaries(key, friends);
             }
         }
     }

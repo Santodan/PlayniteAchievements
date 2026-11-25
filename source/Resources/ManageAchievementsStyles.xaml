@@ -222,17 +222,12 @@
                     <Style TargetType="TextBlock">
                         <Setter Property="FontFamily" Value="{DynamicResource PlayAch.FontFamily.Body}"/>
                         <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Body}"/>
-                        <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Subtle}"/>
                         <Style.Triggers>
-                            <DataTrigger Binding="{Binding Unlocked}" Value="True">
-                                <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Full}"/>
-                            </DataTrigger>
                             <DataTrigger Binding="{Binding IsTitleHidden}" Value="True">
                                 <Setter Property="FontStyle" Value="Italic"/>
                             </DataTrigger>
                             <DataTrigger Binding="{Binding IsSelected}" Value="True">
                                 <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                                <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Full}"/>
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>

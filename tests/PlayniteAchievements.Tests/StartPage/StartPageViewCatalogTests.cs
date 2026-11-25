@@ -43,9 +43,30 @@ namespace PlayniteAchievements.Tests.StartPage
                     StartPageViewCatalog.GameSummariesGridViewId,
                     StartPageViewCatalog.ShowcaseActivityCalendarViewId,
                     StartPageViewCatalog.ShowcaseImageViewId,
-                    StartPageViewCatalog.ShowcaseTextViewId
+                    StartPageViewCatalog.ShowcaseTextViewId,
+                    StartPageViewCatalog.ShowcaseFriendUnlocksViewId,
+                    StartPageViewCatalog.ShowcaseFriendLeaderboardViewId,
+                    StartPageViewCatalog.ShowcaseFriendGamesViewId
                 },
                 StartPageViewCatalog.Views.Where(view => !view.Hidden).Select(view => view.ViewId).ToArray());
+        }
+
+        [TestMethod]
+        public void Views_FriendsViewsAreOfferedOnlyWithFriendsFeatures()
+        {
+            var friendViews = new[]
+            {
+                StartPageViewCatalog.ShowcaseFriendUnlocksViewId,
+                StartPageViewCatalog.ShowcaseFriendLeaderboardViewId,
+                StartPageViewCatalog.ShowcaseFriendGamesViewId
+            };
+
+            var offeredWithout = StartPageViewCatalog.Views.Where(view => view.IsOffered(false)).Select(view => view.ViewId).ToList();
+            var offeredWith = StartPageViewCatalog.Views.Where(view => view.IsOffered(true)).Select(view => view.ViewId).ToList();
+
+            CollectionAssert.IsSubsetOf(friendViews, offeredWith);
+            Assert.IsFalse(friendViews.Any(offeredWithout.Contains));
+            Assert.AreEqual(offeredWith.Count - friendViews.Length, offeredWithout.Count);
         }
 
         [TestMethod]
@@ -78,6 +99,9 @@ namespace PlayniteAchievements.Tests.StartPage
         [DataRow(StartPageViewCatalog.ShowcaseActivityCalendarViewId, StartPageWidgetKind.ShowcaseActivityCalendar, ShowcaseWidgetKind.ActivityCalendar, false)]
         [DataRow(StartPageViewCatalog.ShowcaseImageViewId, StartPageWidgetKind.ShowcaseImage, ShowcaseWidgetKind.Image, false)]
         [DataRow(StartPageViewCatalog.ShowcaseTextViewId, StartPageWidgetKind.ShowcaseText, ShowcaseWidgetKind.Text, false)]
+        [DataRow(StartPageViewCatalog.ShowcaseFriendUnlocksViewId, StartPageWidgetKind.ShowcaseFriendUnlocks, ShowcaseWidgetKind.FriendUnlocks, false)]
+        [DataRow(StartPageViewCatalog.ShowcaseFriendLeaderboardViewId, StartPageWidgetKind.ShowcaseFriendLeaderboard, ShowcaseWidgetKind.FriendLeaderboard, false)]
+        [DataRow(StartPageViewCatalog.ShowcaseFriendGamesViewId, StartPageWidgetKind.ShowcaseFriendGames, ShowcaseWidgetKind.FriendGames, false)]
         public void TryGetDefinition_ResolvesEveryPlacedViewId(
             string viewId,
             StartPageWidgetKind widgetKind,
@@ -97,7 +121,7 @@ namespace PlayniteAchievements.Tests.StartPage
         {
             var views = StartPageViewCatalog.Views;
 
-            Assert.AreEqual(18, views.Count);
+            Assert.AreEqual(21, views.Count);
             Assert.AreEqual(views.Count, views.Select(view => view.ViewId).Distinct().Count());
         }
 

@@ -729,6 +729,9 @@
     <Compile Include="..\..\source\Services\Achievements\TimelineBucketing.cs" Link="Source\Services\Achievements\TimelineBucketing.cs" />
     <Compile Include="..\..\source\Services\Achievements\TimelineAxisTicks.cs" Link="Source\Services\Achievements\TimelineAxisTicks.cs" />
     <Compile Include="..\..\source\Services\Overview\UnlockDayCounts.cs" Link="Source\Services\Overview\UnlockDayCounts.cs" />
+    <Compile Include="..\..\source\Services\Achievements\UnlockStreaks.cs" Link="Source\Services\Achievements\UnlockStreaks.cs" />
+    <Compile Include="..\..\source\Models\YearReview\YearReviewModels.cs" Link="Source\Models\YearReview\YearReviewModels.cs" />
+    <Compile Include="..\..\source\Services\YearReview\YearReviewBuilder.cs" Link="Source\Services\YearReview\YearReviewBuilder.cs" />
     <Compile Include="..\..\source\Services\Overview\TimelinePlatformSeries.cs" Link="Source\Services\Overview\TimelinePlatformSeries.cs" />
     <Compile Include="..\..\source\Services\Overview\TimelineTierSeries.cs" Link="Source\Services\Overview\TimelineTierSeries.cs" />
     <Compile Include="..\..\source\Services\Overview\OverviewLinkedSnapshots.cs" Link="Source\Services\Overview\OverviewLinkedSnapshots.cs" />
@@ -801,6 +804,8 @@
     <Compile Include="..\..\source\Views\Helpers\VisualTreeHelpers.cs" Link="Source\Views\Helpers\VisualTreeHelpers.cs" />
     <Compile Include="..\..\source\Services\ThemeIntegration\LibraryRuntimeStateBuilder.cs" Link="Source\Services\ThemeIntegration\LibraryRuntimeStateBuilder.cs" />
     <Compile Include="..\..\source\Services\ThemeIntegration\SelectedGameRuntimeStateBuilder.cs" Link="Source\Services\ThemeIntegration\SelectedGameRuntimeStateBuilder.cs" />
+    <Compile Include="..\..\source\Services\ThemeIntegration\AchievementTagStatsBuilder.cs" Link="Source\Services\ThemeIntegration\AchievementTagStatsBuilder.cs" />
+    <Compile Include="..\..\source\Models\ThemeIntegration\AchievementTagStats.cs" Link="Source\Models\ThemeIntegration\AchievementTagStats.cs" />
     <Compile Include="..\..\source\Services\ThemeIntegration\DynamicThemeFilterEvaluator.cs" Link="Source\Services\ThemeIntegration\DynamicThemeFilterEvaluator.cs" />
     <Compile Include="..\..\source\Models\ThemeIntegration\DynamicThemeFilterExpression.cs" Link="Source\Models\ThemeIntegration\DynamicThemeFilterExpression.cs" />
     <Compile Include="..\..\source\Services\ThemeIntegration\DynamicThemeLabels.cs" Link="Source\Services\ThemeIntegration\DynamicThemeLabels.cs" />
@@ -828,6 +833,7 @@
     <Compile Include="..\..\source\Services\ProgressReporting\RefreshProgressReporter.cs" Link="Source\Services\ProgressReporting\RefreshProgressReporter.cs" />
     <Compile Include="..\..\source\Services\Friends\FriendCacheModels.cs" Link="Source\Services\Friends\FriendCacheModels.cs" />
     <Compile Include="..\..\source\Services\Friends\FriendsOverviewLists.cs" Link="Source\Services\Friends\FriendsOverviewLists.cs" />
+    <Compile Include="..\..\source\Services\Friends\FriendListsSource.cs" Link="Source\Services\Friends\FriendListsSource.cs" />
     <Compile Include="..\..\source\Services\Friends\FriendsOverviewReads.cs" Link="Source\Services\Friends\FriendsOverviewReads.cs" />
     <Compile Include="..\..\source\Services\Friends\FriendDisplayNameResolver.cs" Link="Source\Services\Friends\FriendDisplayNameResolver.cs" />
     <Compile Include="..\..\source\Services\Friends\FriendOverviewProjection.cs" Link="Source\Services\Friends\FriendOverviewProjection.cs" />

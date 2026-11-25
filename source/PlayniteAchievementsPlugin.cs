@@ -523,6 +523,9 @@ namespace PlayniteAchievements
         public TagSyncService TagSyncService => _tagSyncService;
         internal RefreshEntryPoint RefreshEntryPoint => _refreshCoordinator;
         internal Services.Friends.IFriendCacheManager FriendCacheManager => _friendCacheManager;
+
+        /// <summary>The friend lists the theme and the friends widgets read; null before the theme services start.</summary>
+        internal Services.Friends.FriendListsSource FriendLists => _themeIntegrationService?.FriendLists;
         public static PlayniteAchievementsPlugin Instance { get; private set; }
 
         /// <summary>
@@ -912,6 +915,7 @@ namespace PlayniteAchievements
             // Before the first scope below, so a traced session covers startup too.
             PerfScope.ConfigureTracing(pluginUserDataPath);
             MemoryDiagnostics.ConfigureTracing(pluginUserDataPath);
+            Services.YearReview.YearReviewAvailability.Configure(pluginUserDataPath);
             _logger = PluginLogger.GetLogger(nameof(PlayniteAchievementsPlugin));
             _themeControlRegistry = new ThemeControlRegistry();
             _resourceService = new AchievementResourceService(_logger);

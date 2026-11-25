@@ -102,6 +102,7 @@ namespace PlayniteAchievements.Tests.Models
             games.Options["ControlBar.Games"] = "{\"Games\":[\"" + Guid.NewGuid().ToString("D") + "\"]}";
             ShowcaseWidgetOptions.SetShowControlBar(recent, true);
             ShowcaseWidgetOptions.SetControlBarItemVisible(recent, ShowcaseControlBarItems.Rarity, true);
+            ShowcaseWidgetOptions.SetFriendAccountKeys(recent, new[] { "Steam|76561198000000000" });
             var background = Path.Combine(_tempDirectory, "banner.png");
             File.WriteAllBytes(background, new byte[] { 1, 2, 3, 4 });
             var profile = AddProfile(settings, page, new ShowcaseProfileSettings
@@ -138,6 +139,8 @@ namespace PlayniteAchievements.Tests.Models
                 ShowcaseWidgetOptions.GetControlBarItemVisible(exportedRecent, ShowcaseControlBarItems.Rarity),
                 "which items the bar shows is part of the page");
             Assert.AreEqual("custom-pins", ShowcaseWidgetOptions.GetPinCollectionId(recent), "source untouched");
+            Assert.AreEqual(0, ShowcaseWidgetOptions.GetFriendAccountKeys(exportedRecent).Count, "picked friends stay behind");
+            Assert.AreEqual(1, ShowcaseWidgetOptions.GetFriendAccountKeys(recent).Count, "source untouched");
 
             var exportedProfile = portable.Widgets.Single(w => w.Kind == ShowcaseWidgetKind.Profile).Profile;
             Assert.AreEqual("images/banner.png", exportedProfile.BackgroundPath);
@@ -364,6 +367,28 @@ namespace PlayniteAchievements.Tests.Models
             var categoriesKey = ShowcaseGridSurfaces.ResolveCategorySurface(recentKey);
             Assert.IsTrue(grids.CategorySummaries.ContainsKey(categoriesKey));
             Assert.IsTrue(grids.CategorySummaries[categoriesKey].ShowNameAboveProgress);
+        }
+
+        [TestMethod]
+        public void Import_CarriesTheFriendsLeaderboardsGridToTheNewInstance()
+        {
+            var (settings, grids, page, _, _) = BuildSource();
+            var leaderboard = ShowcaseLayoutService.CreateWidget(settings, ShowcaseWidgetKind.FriendLeaderboard);
+            var blocks = ShowcaseLayoutService.DenseBlocks(page);
+            Assert.IsTrue(ShowcaseLayoutService.PlaceWidget(settings, page.PageId, blocks[3].BlockId, leaderboard.InstanceId));
+            grids.GetFriendSummaries(ShowcaseGridSurfaces.ResolveWidgetSurface(leaderboard.Kind, leaderboard.InstanceId))
+                .SortMode = FriendSummariesSortMode.CompletedGames;
+            var path = Path.Combine(_tempDirectory, "friends.pashowcase");
+            ShowcasePagePortableStore.Write(path, ShowcasePagePortableStore.BuildPortable(settings, grids, page.PageId));
+
+            var imported = ShowcasePagePortableStore.ApplyPortable(settings, grids, ShowcasePagePortableStore.Read(path), page.PageId);
+            ShowcaseGridSurfaces.PruneOrphaned(grids, settings);
+
+            var key = ShowcaseGridSurfaces.ResolveWidgetSurface(
+                ShowcaseWidgetKind.FriendLeaderboard,
+                WidgetOf(settings, imported, ShowcaseWidgetKind.FriendLeaderboard).InstanceId);
+            Assert.IsTrue(grids.FriendSummaries.ContainsKey(key));
+            Assert.AreEqual(FriendSummariesSortMode.CompletedGames, grids.FriendSummaries[key].SortMode);
         }
 
         [TestMethod]

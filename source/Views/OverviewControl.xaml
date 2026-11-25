@@ -10,6 +10,7 @@
              xmlns:rootModels="clr-namespace:PlayniteAchievements.Models"
              xmlns:lvc="clr-namespace:LiveCharts.Wpf;assembly=LiveCharts.Wpf"
              xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
+             xmlns:yearReview="clr-namespace:PlayniteAchievements.Views.YearReview"
              xmlns:sys="clr-namespace:System;assembly=mscorlib"
              mc:Ignorable="d"
              d:DesignHeight="700" d:DesignWidth="900"
@@ -424,6 +425,29 @@
                                     </Style.Triggers>
                                 </Style>
                             </Button.Style>
+                        </Button>
+
+                        <!-- Opens the Year in Review window: a small sparkle over turning rays. Its
+                             negative margins keep its layout height at the view buttons' 24, so
+                             they do not stretch and drop their underline. -->
+                        <Button x:Name="YearReviewButton"
+                                Click="YearReviewButton_Click"
+                                Visibility="{Binding ShowYearReviewButton, Converter={StaticResource BoolToVis}}"
+                                Margin="18,-3,0,-3"
+                                Width="30"
+                                Height="30"
+                                Padding="0"
+                                VerticalAlignment="Center"
+                                Style="{StaticResource PlayAch.Button.ToolbarIconStyle}"
+                                Background="Transparent"
+                                BorderBrush="Transparent"
+                                ToolTip="{DynamicResource LOCPlayAch_YearReview_Title}"
+                                AutomationProperties.Name="{DynamicResource LOCPlayAch_YearReview_Title}">
+                            <yearReview:YearReviewSparkle Width="24"
+                                                          Height="24"
+                                                          Fill="{DynamicResource PlayAch.Brush.Accent}"
+                                                          Outline="{DynamicResource PlayAch.Brush.Text}"
+                                                          IsHot="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Button}}"/>
                         </Button>
                     </StackPanel>
 

@@ -80,7 +80,9 @@ namespace PlayniteAchievements.Views.Controls
         // current user shares with friends.
         private static readonly string[] FriendGameOnlyColumnKeys =
         {
-            "GameSummaryOwned"
+            "GameSummaryOwned",
+            "GameSummaryFriendCount",
+            "GameSummaryFriendUnlocks"
         };
 
         // Columns kept in the codebase for other surfaces but not wanted on the aggregate
@@ -190,6 +192,14 @@ namespace PlayniteAchievements.Views.Controls
                 // attach time since category rows are plain GameSummaryItem.
                 ["ShowcasePinnedGames"] = CreateGameSummaryVisibility(),
                 ["ShowcaseGameSummaries"] = CreateGameSummaryVisibility(lastUnlock: true),
+                // The friends' games widget: who plays each game and how far they got together.
+                [ShowcaseGridSurfaces.FriendGames] = CreateGameSummaryVisibility(
+                    platform: true,
+                    lastUnlock: true,
+                    progress: false,
+                    total: false,
+                    friendCount: true,
+                    friendUnlocks: true),
                 ["ViewAchievementsCategorySummaries"] = CreateCategorySummaryVisibility(),
                 ["OverviewSelectedGameCategorySummaries"] = CreateCategorySummaryVisibility(),
                 ["FriendsOverviewCategorySummaries"] = CreateCategorySummaryVisibility(),
@@ -230,7 +240,9 @@ namespace PlayniteAchievements.Views.Controls
             bool collectionScore = false,
             bool prestigeScore = false,
             bool points = false,
-            bool captures = false)
+            bool captures = false,
+            bool friendCount = false,
+            bool friendUnlocks = false)
         {
             return new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
             {
@@ -250,7 +262,9 @@ namespace PlayniteAchievements.Views.Controls
                 ["GameSummaryCollectionScore"] = collectionScore,
                 ["GameSummaryPrestigeScore"] = prestigeScore,
                 ["GameSummaryPoints"] = points,
-                ["Captures"] = captures
+                ["Captures"] = captures,
+                ["GameSummaryFriendCount"] = friendCount,
+                ["GameSummaryFriendUnlocks"] = friendUnlocks
             };
         }
 
@@ -1533,6 +1547,16 @@ namespace PlayniteAchievements.Views.Controls
             if (ShowcaseGridSurfaces.IsAchievementCategorySurface(ColumnSettingsKey))
             {
                 return GridSurface.ShowcaseCategory;
+            }
+
+            // The friends' games widget lists every picked friend's games at once, as the
+            // Friends Overview's games list does, and takes its column rules.
+            if (string.Equals(
+                    ShowcaseGridSurfaces.GetBaseKey(ColumnSettingsKey),
+                    ShowcaseGridSurfaces.FriendGames,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return GridSurface.FriendsOverview;
             }
 
             if (string.Equals(ColumnSettingsKey, "StartPageGameSummaries", StringComparison.OrdinalIgnoreCase) ||

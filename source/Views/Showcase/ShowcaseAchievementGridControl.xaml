@@ -9,6 +9,7 @@
     <controls:AchievementDataGridControl x:Name="InnerGrid"
                                          ItemsSource="{Binding ItemsSource, RelativeSource={RelativeSource AncestorType=showcase:ShowcaseGridHostBase}}"
                                          ShowGameColumn="True"
+                                         ShowFriendColumn="{Binding ShowFriendColumn, RelativeSource={RelativeSource AncestorType=showcase:ShowcaseAchievementGridControl}}"
                                          UseCoverImages="{Binding UseCoverImages, RelativeSource={RelativeSource AncestorType=showcase:ShowcaseGridHostBase}}"
                                          ShowColumnHeaders="{Binding ShowColumnHeaders, RelativeSource={RelativeSource AncestorType=showcase:ShowcaseGridHostBase}}"
                                          FixedRowHeight="{Binding FixedRowHeight, RelativeSource={RelativeSource AncestorType=showcase:ShowcaseGridHostBase}}"

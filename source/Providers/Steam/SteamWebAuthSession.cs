@@ -1,5 +1,6 @@
 using System;
 using System.Text.RegularExpressions;
+using Newtonsoft.Json.Linq;
 using PlayniteAchievements.Models;
 
 namespace PlayniteAchievements.Providers.Steam
@@ -102,6 +103,41 @@ namespace PlayniteAchievements.Providers.Steam
                 ?? SteamWebAuthSession.NormalizeSteamId64(cookieSteamId64);
             var token = ExtractWebApiToken(source);
             return new SteamWebAuthSession(steamId, token, hasSteamSessionCookies);
+        }
+
+        /// <summary>
+        /// The session from the community client token response, a JSON object carrying
+        /// <c>logged_in</c>, <c>steamid</c> and <c>token</c>. A signed-out or unreadable response
+        /// gives a session without a token.
+        /// </summary>
+        public static SteamWebAuthSession ParseClientToken(
+            string json,
+            string cookieSteamId64 = null,
+            bool hasSteamSessionCookies = false)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return SteamWebAuthSession.Empty(hasSteamSessionCookies);
+            }
+
+            try
+            {
+                var root = JObject.Parse(json);
+                if (root.Value<bool?>("logged_in") != true)
+                {
+                    return SteamWebAuthSession.Empty(hasSteamSessionCookies);
+                }
+
+                // As with a page's g_steamID, the response names the account the community
+                // session renders as, so it wins over a cookie-derived ID.
+                var steamId = SteamWebAuthSession.NormalizeSteamId64(root.Value<string>("steamid"))
+                    ?? SteamWebAuthSession.NormalizeSteamId64(cookieSteamId64);
+                return new SteamWebAuthSession(steamId, root.Value<string>("token"), hasSteamSessionCookies);
+            }
+            catch (Exception)
+            {
+                return SteamWebAuthSession.Empty(hasSteamSessionCookies);
+            }
         }
 
         public static string ExtractSteamId64(string source)
