@@ -67,12 +67,35 @@ namespace PlayniteAchievements.ViewModels.YearReview
             YearReviewReader reader,
             ILogger logger,
             Func<(string Name, string AvatarPath)> savedProfile = null,
-            Action<string, string> saveProfile = null)
+            Action<string, string> saveProfile = null,
+            Func<bool> showInOverview = null,
+            Action<bool> saveShowInOverview = null)
         {
             _reader = reader;
             _logger = logger;
             _savedProfile = savedProfile;
             _saveProfile = saveProfile;
+            _showInOverview = showInOverview;
+            _saveShowInOverview = saveShowInOverview;
+        }
+
+        private readonly Func<bool> _showInOverview;
+        private readonly Action<bool> _saveShowInOverview;
+
+        /// <summary>Whether the Overview offers this window around the turn of the year; saved on change.</summary>
+        public bool ShowInOverview
+        {
+            get => _showInOverview?.Invoke() ?? true;
+            set
+            {
+                if (value == ShowInOverview)
+                {
+                    return;
+                }
+
+                _saveShowInOverview?.Invoke(value);
+                OnPropertyChanged();
+            }
         }
 
         public IReadOnlyList<int> Years
