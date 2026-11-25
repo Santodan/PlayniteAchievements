@@ -430,6 +430,7 @@
                         <!-- Opens the Year in Review window: a small sparkle over turning rays. -->
                         <Button x:Name="YearReviewButton"
                                 Click="YearReviewButton_Click"
+                                Visibility="{Binding ShowYearReviewButton, Converter={StaticResource BoolToVis}}"
                                 Margin="18,0,0,0"
                                 Width="30"
                                 Height="30"
