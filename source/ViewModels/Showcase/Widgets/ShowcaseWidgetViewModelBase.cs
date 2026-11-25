@@ -253,10 +253,49 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             // grid alone.
             if (!SameRows(visible))
             {
-                Items.ReplaceAll(visible);
+                if (ReplacesRowsInPlace && visible.Count <= MaxInPlaceRows)
+                {
+                    ReplaceRowsInPlace(visible);
+                }
+                else
+                {
+                    Items.ReplaceAll(visible);
+                }
             }
 
             OnItemsRefreshed();
+        }
+
+        /// <summary>
+        /// True for a widget whose every read hands back new row objects: its rows are swapped
+        /// one position at a time instead of resetting the grid, which keeps the grid's scroll
+        /// position and the rows that did not move.
+        /// </summary>
+        protected virtual bool ReplacesRowsInPlace => false;
+
+        // Past this many rows one reset costs less than a notification per row.
+        private const int MaxInPlaceRows = 200;
+
+        private void ReplaceRowsInPlace(IReadOnlyList<TItem> visible)
+        {
+            var shared = Math.Min(Items.Count, visible.Count);
+            for (var i = 0; i < shared; i++)
+            {
+                if (!ReferenceEquals(Items[i], visible[i]))
+                {
+                    Items[i] = visible[i];
+                }
+            }
+
+            while (Items.Count > visible.Count)
+            {
+                Items.RemoveAt(Items.Count - 1);
+            }
+
+            for (var i = Items.Count; i < visible.Count; i++)
+            {
+                Items.Add(visible[i]);
+            }
         }
 
         /// <summary>Runs after every <see cref="RefreshItems"/>, with <see cref="Items"/> current.</summary>

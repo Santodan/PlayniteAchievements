@@ -84,6 +84,8 @@ namespace PlayniteAchievements.Models.Settings
         {
             new GridSortColumn("SortingName", "LOCPlayAch_Column_Game"),
             new GridSortColumn("Owned", "LOCPlayAch_Column_Owned", GridSortColumnScope.FriendGames),
+            new GridSortColumn("FriendCount", "LOCPlayAch_Settings_Friends", GridSortColumnScope.FriendGames),
+            new GridSortColumn("UniqueFriendUnlockedAchievementsCount", "LOCPlayAch_Column_Unlocks", GridSortColumnScope.FriendGames),
             new GridSortColumn("LastPlayed", "LOCPlayAch_Common_LastPlayed"),
             new GridSortColumn("LastUnlockUtc", "LOCPlayAch_Common_LastUnlock"),
             new GridSortColumn("PlaytimeSeconds", "LOCPlayAch_Common_Label_Playtime", GridSortColumnScope.Library),

@@ -821,6 +821,82 @@
                                                  AppearanceOptions="{Binding GridOptions, FallbackValue={x:Null}}"/>
     </DataTemplate>
 
+    <!-- FriendUnlocks: the shared achievement grid over the picked friends' unlocks. -->
+    <DataTemplate DataType="{x:Type widgets:FriendUnlocksWidgetViewModel}">
+        <Grid>
+            <showcase:ShowcaseAchievementGridControl ItemsSource="{Binding Items}"
+                                                     ShowFriendColumn="True"
+                                                     ColumnSettingsKey="{Binding ColumnSettingsKey}"
+                                                     ControlBar="{Binding ControlBar}"
+                                                     ShowControlBar="{Binding ShowControlBar}"
+                                                     ShowColumnHeaders="{Binding GridOptions.ShowColumnHeaders, FallbackValue=True}"
+                                                     FixedRowHeight="{Binding GridOptions.RowHeight, FallbackValue={x:Null}}"
+                                                     UseCoverImages="{Binding GridOptions.UseCoverImages, FallbackValue=False}"
+                                                     ShowRarityGlow="{Binding GridOptions.ShowRarityGlow, FallbackValue=True}"
+                                                     ColorRarityColumnsByRarity="{Binding GridOptions.ColorRarityColumnsByRarity, FallbackValue=False}"
+                                                     AppearanceOptions="{Binding GridOptions, FallbackValue={x:Null}}"/>
+            <TextBlock Text="{DynamicResource LOCPlayAch_FriendsOverview_NoData}"
+                       Visibility="{Binding HasNoFriendData, Converter={StaticResource BoolToVis}}"
+                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                       FontSize="12"
+                       Opacity="0.62"
+                       TextWrapping="Wrap"
+                       TextAlignment="Center"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       IsHitTestVisible="False"/>
+        </Grid>
+    </DataTemplate>
+
+    <!-- FriendLeaderboard: the shared friend summaries grid over the picked friends and the user. -->
+    <DataTemplate DataType="{x:Type widgets:FriendLeaderboardWidgetViewModel}">
+        <Grid>
+            <showcase:ShowcaseFriendSummariesGridControl ItemsSource="{Binding Items}"
+                                                         ColumnSettingsKey="{Binding ColumnSettingsKey}"
+                                                         ControlBar="{Binding ControlBar}"
+                                                         ShowControlBar="{Binding ShowControlBar}"
+                                                         ShowColumnHeaders="{Binding GridOptions.ShowColumnHeaders, FallbackValue=True}"
+                                                         FixedRowHeight="{Binding GridOptions.RowHeight, FallbackValue={x:Null}}"/>
+            <TextBlock Text="{DynamicResource LOCPlayAch_FriendsOverview_NoData}"
+                       Visibility="{Binding HasNoFriendData, Converter={StaticResource BoolToVis}}"
+                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                       FontSize="12"
+                       Opacity="0.62"
+                       TextWrapping="Wrap"
+                       TextAlignment="Center"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       IsHitTestVisible="False"/>
+        </Grid>
+    </DataTemplate>
+
+    <!-- FriendGames: the shared game-summaries grid over the picked friends' games. -->
+    <DataTemplate DataType="{x:Type widgets:FriendGamesWidgetViewModel}">
+        <Grid>
+            <showcase:ShowcaseGameGridControl ItemsSource="{Binding Items}"
+                                              ColumnSettingsKey="{Binding ColumnSettingsKey}"
+                                              ControlBar="{Binding ControlBar}"
+                                              ShowControlBar="{Binding ShowControlBar}"
+                                              ShowColumnHeaders="{Binding GridOptions.ShowColumnHeaders, FallbackValue=True}"
+                                              FixedRowHeight="{Binding GridOptions.RowHeight, FallbackValue={x:Null}}"
+                                              UseCoverImages="{Binding GridOptions.UseCoverImages, FallbackValue=False}"
+                                              ShowCompletionGlow="{Binding GridOptions.ShowCompletionGlow, FallbackValue=True}"
+                                              ShowMetadataPlatform="{Binding GridOptions.ShowMetadataPlatform, FallbackValue=True}"
+                                              ShowMetadataPlaytime="{Binding GridOptions.ShowMetadataPlaytime, FallbackValue=True}"
+                                              ShowMetadataRegion="{Binding GridOptions.ShowMetadataRegion, FallbackValue=True}"/>
+            <TextBlock Text="{DynamicResource LOCPlayAch_FriendsOverview_NoData}"
+                       Visibility="{Binding HasNoFriendData, Converter={StaticResource BoolToVis}}"
+                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                       FontSize="12"
+                       Opacity="0.62"
+                       TextWrapping="Wrap"
+                       TextAlignment="Center"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       IsHitTestVisible="False"/>
+        </Grid>
+    </DataTemplate>
+
     <!-- GameSummaries: the shared game-summaries grid over the whole library. -->
     <DataTemplate DataType="{x:Type widgets:GameSummariesWidgetViewModel}">
         <showcase:ShowcaseGameGridControl ItemsSource="{Binding Items}"

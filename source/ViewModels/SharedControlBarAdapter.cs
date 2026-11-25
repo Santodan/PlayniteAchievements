@@ -449,5 +449,8 @@ namespace PlayniteAchievements.ViewModels
 
         /// <summary>False when an achievement grid's Hidden toggle is off; null while it is on.</summary>
         public bool? ShowHidden { get; set; }
+
+        /// <summary>True when a friends widget's Favorites toggle is on; null while it is off.</summary>
+        public bool? FavoritesOnly { get; set; }
     }
 }

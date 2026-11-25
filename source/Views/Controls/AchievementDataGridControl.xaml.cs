@@ -158,7 +158,14 @@ namespace PlayniteAchievements.Views.Controls
                     friend: true,
                     unlockDate: true),
                 ["ShowcasePinnedAchievements"] = CreateAchievementVisibility(status: false, game: true),
-                ["ShowcaseRecentAchievements"] = CreateAchievementVisibility(status: false, game: true)
+                ["ShowcaseRecentAchievements"] = CreateAchievementVisibility(status: false, game: true),
+                // The unlock date cell carries the user's own state of each friend unlock.
+                [ShowcaseGridSurfaces.FriendAchievements] = CreateAchievementVisibility(
+                    status: false,
+                    game: true,
+                    friendAvatar: true,
+                    friend: true,
+                    unlockDate: true)
             };
 
         private static IReadOnlyDictionary<string, bool> CreateAchievementVisibility(
@@ -237,6 +244,11 @@ namespace PlayniteAchievements.Views.Controls
                     ["Status"] = 0
                 },
                 ["StartPageFriendAchievements"] = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["Avatar"] = 0,
+                    ["Friend"] = 1
+                },
+                [ShowcaseGridSurfaces.FriendAchievements] = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
                 {
                     ["Avatar"] = 0,
                     ["Friend"] = 1
@@ -3186,7 +3198,8 @@ namespace PlayniteAchievements.Views.Controls
         {
             return columnSettingsKey != null &&
                    (columnSettingsKey.StartsWith("FriendsOverview", StringComparison.OrdinalIgnoreCase) ||
-                    columnSettingsKey.StartsWith("ViewFriendsAchievements", StringComparison.OrdinalIgnoreCase));
+                    columnSettingsKey.StartsWith("ViewFriendsAchievements", StringComparison.OrdinalIgnoreCase) ||
+                    ShowcaseGridSurfaces.IsFriendSurface(columnSettingsKey));
         }
 
         private static void SetForcedColumnCollapsed(
@@ -3823,7 +3836,7 @@ namespace PlayniteAchievements.Views.Controls
                 case "StartPageFriendAchievements":
                     return false;
                 default:
-                    return true;
+                    return !ShowcaseGridSurfaces.IsFriendSurface(ColumnSettingsKey);
             }
         }
 
@@ -3917,7 +3930,9 @@ namespace PlayniteAchievements.Views.Controls
             PlayniteAchievementsSettings settings,
             Dictionary<string, int> map)
         {
-            if (!DefaultOrderByColumnSettingsKey.TryGetValue(ColumnSettingsKey ?? string.Empty, out var defaults) ||
+            // Per-instance showcase keys ("<BaseKey>:<instanceId>") share their base key's order.
+            if ((!DefaultOrderByColumnSettingsKey.TryGetValue(ColumnSettingsKey ?? string.Empty, out var defaults) &&
+                 !DefaultOrderByColumnSettingsKey.TryGetValue(ShowcaseGridSurfaces.GetBaseKey(ColumnSettingsKey) ?? string.Empty, out defaults)) ||
                 defaults == null ||
                 defaults.Count == 0)
             {

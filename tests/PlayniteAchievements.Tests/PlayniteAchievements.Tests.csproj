@@ -831,6 +831,7 @@
     <Compile Include="..\..\source\Services\ProgressReporting\RefreshProgressReporter.cs" Link="Source\Services\ProgressReporting\RefreshProgressReporter.cs" />
     <Compile Include="..\..\source\Services\Friends\FriendCacheModels.cs" Link="Source\Services\Friends\FriendCacheModels.cs" />
     <Compile Include="..\..\source\Services\Friends\FriendsOverviewLists.cs" Link="Source\Services\Friends\FriendsOverviewLists.cs" />
+    <Compile Include="..\..\source\Services\Friends\FriendListsSource.cs" Link="Source\Services\Friends\FriendListsSource.cs" />
     <Compile Include="..\..\source\Services\Friends\FriendsOverviewReads.cs" Link="Source\Services\Friends\FriendsOverviewReads.cs" />
     <Compile Include="..\..\source\Services\Friends\FriendDisplayNameResolver.cs" Link="Source\Services\Friends\FriendDisplayNameResolver.cs" />
     <Compile Include="..\..\source\Services\Friends\FriendOverviewProjection.cs" Link="Source\Services\Friends\FriendOverviewProjection.cs" />

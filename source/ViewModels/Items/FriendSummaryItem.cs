@@ -108,6 +108,11 @@ namespace PlayniteAchievements.ViewModels.Items
         // pinned ahead of non-favorites in every friend list regardless of the active sort.
         public bool IsFavorite { get; set; }
 
+        /// <summary>True for the user's own row, which the friends leaderboard ranks among friends.</summary>
+        [DontSerialize]
+        [IgnoreDataMember]
+        public bool IsSelf { get; set; }
+
         [DontSerialize]
         [IgnoreDataMember]
         public bool IsMergedFriend => !string.IsNullOrWhiteSpace(MergedFriendId);

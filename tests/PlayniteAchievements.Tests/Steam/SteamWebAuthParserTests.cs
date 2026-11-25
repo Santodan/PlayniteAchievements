@@ -102,5 +102,62 @@ namespace PlayniteAchievements.Steam.Tests
             Assert.IsFalse(session.HasWebApiToken);
             Assert.IsFalse(session.IsComplete);
         }
+
+        [TestMethod]
+        public void ParseClientToken_SignedIn_IsComplete()
+        {
+            const string json =
+                "{\"logged_in\":true,\"steamid\":\"76561198000000000\",\"accountid\":39734272," +
+                "\"account_name\":\"name\",\"token\":\"eyJ0.eyJz-_x.sig\"}";
+
+            var session = SteamWebAuthParser.ParseClientToken(json, hasSteamSessionCookies: true);
+
+            Assert.IsTrue(session.IsComplete);
+            Assert.IsTrue(session.HasSteamSessionCookies);
+            Assert.AreEqual("76561198000000000", session.SteamId64);
+            Assert.AreEqual("eyJ0.eyJz-_x.sig", session.WebApiToken);
+        }
+
+        [TestMethod]
+        public void ParseClientToken_SignedOut_HasNoSession()
+        {
+            const string json =
+                "{\"logged_in\":false,\"steamid\":\"\",\"accountid\":0,\"account_name\":\"\",\"token\":\"\"}";
+
+            var session = SteamWebAuthParser.ParseClientToken(json, "76561198000000001", hasSteamSessionCookies: true);
+
+            Assert.IsFalse(session.HasSteamId);
+            Assert.IsFalse(session.HasWebApiToken);
+            Assert.IsTrue(session.HasSteamSessionCookies);
+        }
+
+        [TestMethod]
+        public void ParseClientToken_DoesNotCompleteSession_WhenTokenEmpty()
+        {
+            const string json = "{\"logged_in\":true,\"steamid\":\"76561198000000000\",\"token\":\"\"}";
+
+            var session = SteamWebAuthParser.ParseClientToken(json);
+
+            Assert.IsTrue(session.HasSteamId);
+            Assert.IsFalse(session.IsComplete);
+        }
+
+        [TestMethod]
+        public void ParseClientToken_PrefersResponseSteamId_OverCookieSteamId()
+        {
+            const string json = "{\"logged_in\":true,\"steamid\":\"76561198000000002\",\"token\":\"t\"}";
+
+            var session = SteamWebAuthParser.ParseClientToken(json, "76561198000000001");
+
+            Assert.AreEqual("76561198000000002", session.SteamId64);
+        }
+
+        [TestMethod]
+        public void ParseClientToken_UnreadableResponse_HasNoSession()
+        {
+            Assert.IsFalse(SteamWebAuthParser.ParseClientToken("<html>Sign In</html>").HasWebApiToken);
+            Assert.IsFalse(SteamWebAuthParser.ParseClientToken("[1,2]").HasWebApiToken);
+            Assert.IsFalse(SteamWebAuthParser.ParseClientToken(null).HasWebApiToken);
+        }
     }
 }

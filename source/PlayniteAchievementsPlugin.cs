@@ -523,6 +523,9 @@ namespace PlayniteAchievements
         public TagSyncService TagSyncService => _tagSyncService;
         internal RefreshEntryPoint RefreshEntryPoint => _refreshCoordinator;
         internal Services.Friends.IFriendCacheManager FriendCacheManager => _friendCacheManager;
+
+        /// <summary>The friend lists the theme and the friends widgets read; null before the theme services start.</summary>
+        internal Services.Friends.FriendListsSource FriendLists => _themeIntegrationService?.FriendLists;
         public static PlayniteAchievementsPlugin Instance { get; private set; }
 
         /// <summary>

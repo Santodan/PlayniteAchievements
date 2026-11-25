@@ -25,7 +25,7 @@ namespace PlayniteAchievements.Views.Showcase
     /// Shared option editor for Showcase and StartPage widget instances.
     /// Host-specific save and cancel behavior stays with the owning surface.
     /// </summary>
-    internal sealed class ShowcaseWidgetOptionsControl : UserControl
+    internal sealed partial class ShowcaseWidgetOptionsControl : UserControl
     {
         private readonly ShowcaseWidgetInstanceSettings _settings;
         private readonly Action _persist;
@@ -115,6 +115,9 @@ namespace PlayniteAchievements.Views.Showcase
                 case ShowcaseWidgetKind.ActivityCalendar:
                 case ShowcaseWidgetKind.Image:
                 case ShowcaseWidgetKind.Text:
+                case ShowcaseWidgetKind.FriendUnlocks:
+                case ShowcaseWidgetKind.FriendLeaderboard:
+                case ShowcaseWidgetKind.FriendGames:
                     return true;
                 default:
                     return false;
@@ -716,6 +719,15 @@ namespace PlayniteAchievements.Views.Showcase
                     AddCollectionChoice(contentRows, includeAchievementCollections: true);
                     AddControlBarRows<CrossGameAchievementControlBarAdapter>(barRows);
                     break;
+                case ShowcaseWidgetKind.FriendUnlocks:
+                    AddFriendWidgetRows<FriendUnlocksControlBarAdapter>(contentRows, barRows);
+                    break;
+                case ShowcaseWidgetKind.FriendLeaderboard:
+                    AddFriendWidgetRows<FriendLeaderboardControlBarAdapter>(contentRows, barRows);
+                    break;
+                case ShowcaseWidgetKind.FriendGames:
+                    AddFriendWidgetRows<FriendGamesControlBarAdapter>(contentRows, barRows);
+                    break;
                 case ShowcaseWidgetKind.ActivityCalendar:
                     AddCountChoice(contentRows);
                     AddRangeChoice(contentRows);
@@ -770,6 +782,11 @@ namespace PlayniteAchievements.Views.Showcase
                 // pinned grids, unlock recency for recent grids.
                 options = catalog.GetAchievement(surfaceKey);
                 editor.SurfaceKind = GridOptionKind.Achievement;
+            }
+            else if (ShowcaseGridSurfaces.IsFriendSummariesSurface(surfaceKey))
+            {
+                options = catalog.GetFriendSummaries(surfaceKey);
+                editor.SurfaceKind = GridOptionKind.FriendSummaries;
             }
             else
             {

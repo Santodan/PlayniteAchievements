@@ -716,6 +716,35 @@
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
 
+            <!-- Friend game rows only: how many friends have the game, and their unlocks in it. -->
+            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Settings_Friends}" SortMemberPath="FriendCount" helpers:ColumnVisibilityHelper.ColumnKey="GameSummaryFriendCount">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                        <ContentControl Style="{StaticResource OverviewCellFrameStyle}">
+                            <Grid>
+                                <TextBlock Style="{StaticResource GameSummaryGridTextStyle}"
+                                           Text="{Binding FriendCount, Mode=OneWay, StringFormat={}{0:N0}}"
+                                           Visibility="{Binding FriendCount, Converter={StaticResource IntToVis}}"/>
+                            </Grid>
+                        </ContentControl>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+
+            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Column_Unlocks}" SortMemberPath="UniqueFriendUnlockedAchievementsCount" helpers:ColumnVisibilityHelper.ColumnKey="GameSummaryFriendUnlocks">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                        <ContentControl Style="{StaticResource OverviewCellFrameStyle}">
+                            <Grid>
+                                <TextBlock Style="{StaticResource GameSummaryGridTextStyle}"
+                                           Text="{Binding UniqueFriendUnlockedAchievementsCount, Mode=OneWay, StringFormat={}{0:N0}}"
+                                           Visibility="{Binding UniqueFriendUnlockedAchievementsCount, Converter={StaticResource IntToVis}}"/>
+                            </Grid>
+                        </ContentControl>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+
             <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Common_Locked}" SortMemberPath="RemainingAchievements" helpers:ColumnVisibilityHelper.ColumnKey="GameSummaryRemaining">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
