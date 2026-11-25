@@ -174,6 +174,11 @@ namespace PlayniteAchievements
         /// </summary>
         internal void OpenYearReviewWindow()
         {
+            if (!Services.YearReview.YearReviewAvailability.IsReleased(DateTime.Today))
+            {
+                return;
+            }
+
             if (_windowService.TryActivateOpenWindowHosting<Views.YearReview.YearReviewControl>())
             {
                 return;
