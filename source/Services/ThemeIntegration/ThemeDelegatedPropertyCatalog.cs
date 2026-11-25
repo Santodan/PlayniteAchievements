@@ -40,6 +40,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             nameof(PlayniteAchievementsSettings.TotalUltraRare),
             nameof(PlayniteAchievementsSettings.TotalRareAndUltraRare),
             nameof(PlayniteAchievementsSettings.TotalOverall),
+            nameof(PlayniteAchievementsSettings.TotalTagStats),
             nameof(PlayniteAchievementsSettings.CollectorScore),
             nameof(PlayniteAchievementsSettings.CollectorLevel),
             nameof(PlayniteAchievementsSettings.CollectorLevelProgress),
@@ -291,6 +292,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             nameof(PlayniteAchievementsSettings.Rare),
             nameof(PlayniteAchievementsSettings.UltraRare),
             nameof(PlayniteAchievementsSettings.RareAndUltraRare),
+            nameof(PlayniteAchievementsSettings.TagStats),
             nameof(PlayniteAchievementsSettings.ListAchievements),
             nameof(PlayniteAchievementsSettings.ListAchUnlockDateAsc),
             nameof(PlayniteAchievementsSettings.ListAchUnlockDateDesc)
