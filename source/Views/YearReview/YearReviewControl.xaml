@@ -259,6 +259,16 @@
             </Button>
         </Grid>
 
+        <!-- Whether the Overview offers this window in December and January. -->
+        <CheckBox Grid.Row="2"
+                  Style="{StaticResource PlayAch.CheckBox.BaseStyle}"
+                  Content="{DynamicResource LOCPlayAch_YearReview_ShowInOverview}"
+                  IsChecked="{Binding ShowInOverview}"
+                  Focusable="False"
+                  VerticalAlignment="Center"
+                  HorizontalAlignment="Left"
+                  Margin="24,0,0,0"/>
+
         <StackPanel Grid.Row="2"
                     Orientation="Horizontal"
                     VerticalAlignment="Center"
