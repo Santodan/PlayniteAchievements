@@ -102,6 +102,7 @@ namespace PlayniteAchievements.Tests.Models
             games.Options["ControlBar.Games"] = "{\"Games\":[\"" + Guid.NewGuid().ToString("D") + "\"]}";
             ShowcaseWidgetOptions.SetShowControlBar(recent, true);
             ShowcaseWidgetOptions.SetControlBarItemVisible(recent, ShowcaseControlBarItems.Rarity, true);
+            ShowcaseWidgetOptions.SetFriendAccountKeys(recent, new[] { "Steam|76561198000000000" });
             var background = Path.Combine(_tempDirectory, "banner.png");
             File.WriteAllBytes(background, new byte[] { 1, 2, 3, 4 });
             var profile = AddProfile(settings, page, new ShowcaseProfileSettings
@@ -138,6 +139,8 @@ namespace PlayniteAchievements.Tests.Models
                 ShowcaseWidgetOptions.GetControlBarItemVisible(exportedRecent, ShowcaseControlBarItems.Rarity),
                 "which items the bar shows is part of the page");
             Assert.AreEqual("custom-pins", ShowcaseWidgetOptions.GetPinCollectionId(recent), "source untouched");
+            Assert.AreEqual(0, ShowcaseWidgetOptions.GetFriendAccountKeys(exportedRecent).Count, "picked friends stay behind");
+            Assert.AreEqual(1, ShowcaseWidgetOptions.GetFriendAccountKeys(recent).Count, "source untouched");
 
             var exportedProfile = portable.Widgets.Single(w => w.Kind == ShowcaseWidgetKind.Profile).Profile;
             Assert.AreEqual("images/banner.png", exportedProfile.BackgroundPath);
