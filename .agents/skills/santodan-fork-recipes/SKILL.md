@@ -25,7 +25,7 @@ A clean run prints only the Helper and PlayniteAchievements `->` lines.
 dotnet test tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj --configuration Release --filter 'FullyQualifiedName~ClassA|FullyQualifiedName~ClassB' 2>&1 | Select-String -Pattern ' error |Passed!|Failed!|^\s+Failed ' | Select-Object -First 20
 ```
 
-- Full suite: drop `--filter` and add `--no-build` after a build (about 6,150 tests, ~80 s).
+- Full suite: drop `--filter` and add `--no-build` after a build (about 6,400 tests, ~75 s).
 - The test project **links** production files explicitly. A new production file that a
   test needs must be added as `<Compile Include="..\..\source\...cs" Link="Source\...cs" />`
   in `tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj`. Test files

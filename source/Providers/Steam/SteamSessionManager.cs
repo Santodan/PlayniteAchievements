@@ -28,9 +28,12 @@ namespace PlayniteAchievements.Providers.Steam
         private readonly ILogger _logger;
 
         private const string CommunityEditInfoUrl = "https://steamcommunity.com/my/edit/info";
-        // Plain text on the community origin: the auth probe opens it, then reads the edit-info
-        // page with an in-page fetch so the page itself is never rendered.
+        // Plain text on the community origin: the auth probe opens it, then reads the client
+        // token address with an in-page fetch so no page is rendered.
         private const string CommunityAnchorUrl = "https://steamcommunity.com/robots.txt";
+        // The address the community pages name as TOKEN_URL in their config: a JSON object with
+        // logged_in, steamid and token for the signed-in session.
+        private const string CommunityClientTokenUrl = "https://steamcommunity.com/chat/clientjstoken";
 
         // Temporary state for interactive login dialog coordination
         private SteamWebAuthSession _authResult;
@@ -197,6 +200,7 @@ namespace PlayniteAchievements.Providers.Steam
                     }
                 }));
                 windowOpened = true;
+                _logger?.Info("[SteamAuth] Sign-in window opened.");
 
                 progress?.Report(AuthProgressStep.WaitingForUserLogin);
                 var completed = await Task.WhenAny(
@@ -208,6 +212,7 @@ namespace PlayniteAchievements.Providers.Steam
                     CloseInteractiveLoginView();
                     await Task.WhenAny(loginTcs.Task, Task.Delay(3000)).ConfigureAwait(false);
                     progress?.Report(AuthProgressStep.Failed);
+                    _logger?.Info("[SteamAuth] Sign-in ended: TimedOut.");
                     return AuthProbeResult.TimedOut(windowOpened);
                 }
 
@@ -223,11 +228,14 @@ namespace PlayniteAchievements.Providers.Steam
                 if (session?.IsComplete != true)
                 {
                     progress?.Report(AuthProgressStep.Failed);
+                    _logger?.Info(
+                        $"[SteamAuth] Sign-in ended: Cancelled (hasId={session?.HasSteamId == true} hasToken={session?.HasWebApiToken == true}).");
                     return AuthProbeResult.Cancelled(windowOpened);
                 }
 
                 PersistSteamUserId(session.SteamId64);
                 progress?.Report(AuthProgressStep.Completed);
+                _logger?.Info("[SteamAuth] Sign-in ended: Authenticated.");
 
                 return AuthProbeResult.Authenticated(session.SteamId64, windowOpened: windowOpened);
             }
@@ -343,10 +351,10 @@ namespace PlayniteAchievements.Providers.Steam
                 ct.ThrowIfCancellationRequested();
                 return await _offscreenViews.WithNavigableViewAsync(async view =>
                 {
-                    // A complete session from the fetch is final; anything else is confirmed by
-                    // loading the page, as the probe always did.
+                    // The fetch is final when it gives a complete session or a signed-out one; a
+                    // failed fetch or a session without a token is confirmed by loading the page.
                     var fetched = await TryResolveWebAuthSessionByFetchAsync(view, ct).ConfigureAwait(false);
-                    if (fetched?.IsComplete == true)
+                    if (fetched != null && (fetched.IsComplete || !fetched.HasSteamId))
                     {
                         return fetched;
                     }
@@ -361,7 +369,7 @@ namespace PlayniteAchievements.Providers.Steam
                         SteamWebAuthSession session = null;
                         try
                         {
-                            session = await ResolveWebAuthSessionFromViewAsync(view).ConfigureAwait(false);
+                            session = await ResolveWebAuthSessionFromViewAsync(view, ct).ConfigureAwait(false);
                         }
                         catch (Exception inspectEx)
                         {
@@ -382,7 +390,7 @@ namespace PlayniteAchievements.Providers.Steam
                     }
 
                     await Task.Delay(500, ct).ConfigureAwait(false);
-                    return await ResolveWebAuthSessionFromViewAsync(view).ConfigureAwait(false);
+                    return await ResolveWebAuthSessionFromViewAsync(view, ct).ConfigureAwait(false);
                 }, ct).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
@@ -402,23 +410,26 @@ namespace PlayniteAchievements.Providers.Steam
         }
 
         /// <summary>
-        /// The web auth session from the edit-info page read with an in-page fetch from
-        /// <see cref="CommunityAnchorUrl"/>; null when the fetch failed or was sent to sign-in. The
-        /// values the parser reads (g_steamID, the webapi tokens) are server-rendered, so the
-        /// fetched source carries them without the page's scripts running.
+        /// The web auth session from the client token address, read with an in-page fetch from
+        /// <see cref="CommunityAnchorUrl"/>; null when the fetch failed.
         /// </summary>
         private async Task<SteamWebAuthSession> TryResolveWebAuthSessionByFetchAsync(IWebView view, CancellationToken ct)
         {
             try
             {
                 await view.NavigateAndWaitAsync(CommunityAnchorUrl, timeoutMs: 15000).ConfigureAwait(false);
-                var response = await InPageFetch.FetchAsync(view, CommunityEditInfoUrl, ct, 15000).ConfigureAwait(false);
-                if (response == null || !response.IsSuccess || !IsCommunityEditInfoUrl(response.Url))
+                var cookies = view.GetCookies();
+                var session = await TryFetchClientTokenSessionAsync(
+                    view,
+                    TryExtractSteamId64FromCookies(cookies),
+                    HasSteamSessionCookies(cookies),
+                    ct).ConfigureAwait(false);
+                if (session != null)
                 {
-                    return null;
+                    ClearStaleSteamPoweredCookies(view, cookies, session.SteamId64);
                 }
 
-                return await ResolveWebAuthSessionFromViewAsync(view, response.Body).ConfigureAwait(false);
+                return session;
             }
             catch (OperationCanceledException)
             {
@@ -426,36 +437,83 @@ namespace PlayniteAchievements.Providers.Steam
             }
             catch (Exception ex)
             {
-                _logger?.Debug(ex, "[SteamAuth] Edit-info fetch failed; loading the page instead.");
+                _logger?.Debug(ex, "[SteamAuth] Client token fetch failed; loading the page instead.");
                 return null;
             }
         }
 
-        /// <param name="source">The page source when already read; otherwise the view's page is read.</param>
-        private async Task<SteamWebAuthSession> ResolveWebAuthSessionFromViewAsync(IWebView view, string source = null)
+        /// <summary>
+        /// The session <see cref="CommunityClientTokenUrl"/> reports, read with an in-page fetch;
+        /// the view must be on a steamcommunity.com page. Null when the request failed or the
+        /// answer is not that address's JSON, as when it is sent to sign-in.
+        /// </summary>
+        private async Task<SteamWebAuthSession> TryFetchClientTokenSessionAsync(
+            IWebView view,
+            string cookieSteamId,
+            bool hasSessionCookies,
+            CancellationToken ct)
+        {
+            var response = await InPageFetch.FetchAsync(view, CommunityClientTokenUrl, ct, 15000).ConfigureAwait(false);
+            var isTokenResponse = response != null &&
+                response.IsSuccess &&
+                response.Url.IndexOf("/chat/clientjstoken", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                response.Body.TrimStart().StartsWith("{", StringComparison.Ordinal);
+            if (!isTokenResponse)
+            {
+                _logger?.Debug(
+                    $"[SteamAuth] Client token read gave no answer (status={response?.Status.ToString() ?? "none"} cookies={hasSessionCookies}).");
+                return null;
+            }
+
+            var session = SteamWebAuthParser.ParseClientToken(response.Body, cookieSteamId, hasSessionCookies);
+            _logger?.Debug(
+                $"[SteamAuth] Session source=clientToken status={response.Status} cookies={hasSessionCookies} hasId={session.HasSteamId} hasToken={session.HasWebApiToken}");
+            return session;
+        }
+
+        /// <summary>
+        /// The session of the page the view shows: the page's own ID and token, then the client
+        /// token address when the page carries no token.
+        /// </summary>
+        private async Task<SteamWebAuthSession> ResolveWebAuthSessionFromViewAsync(IWebView view, CancellationToken ct = default)
         {
             if (view == null)
             {
                 return SteamWebAuthSession.Empty();
             }
 
+            // Read before the first await: the sign-in window's view answers on the UI thread.
+            var address = view.GetCurrentAddress();
             var cookies = view.GetCookies();
             var hasSessionCookies = HasSteamSessionCookies(cookies);
             var cookieSteamId = TryExtractSteamId64FromCookies(cookies);
+            string source = null;
 
-            if (source == null)
+            try
             {
-                try
-                {
-                    source = await view.GetPageSourceAsync().ConfigureAwait(true);
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Debug(ex, "[SteamAuth] Failed to read Steam WebView page source.");
-                }
+                source = await view.GetPageSourceAsync().ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "[SteamAuth] Failed to read Steam WebView page source.");
             }
 
             var session = SteamWebAuthParser.Parse(source, cookieSteamId, hasSessionCookies);
+            _logger?.Debug(
+                $"[SteamAuth] Session source=page address={DescribeAddress(address)} cookies={hasSessionCookies} hasId={session.HasSteamId} hasToken={session.HasWebApiToken}");
+
+            if (!session.HasWebApiToken && IsCommunityPageUrl(address) && !IsLoginPageUrl(address))
+            {
+                var fetched = await TryFetchClientTokenSessionAsync(view, cookieSteamId, hasSessionCookies, ct).ConfigureAwait(true);
+                if (fetched != null)
+                {
+                    session = new SteamWebAuthSession(
+                        fetched.SteamId64 ?? session.SteamId64,
+                        fetched.WebApiToken,
+                        hasSessionCookies);
+                }
+            }
+
             ClearStaleSteamPoweredCookies(view, cookies, session.SteamId64);
             return session;
         }
@@ -627,6 +685,24 @@ namespace PlayniteAchievements.Providers.Steam
             if (string.IsNullOrWhiteSpace(url)) return false;
             return url.IndexOf("steamcommunity.com", StringComparison.OrdinalIgnoreCase) >= 0 &&
                    url.IndexOf("/edit/info", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static bool IsCommunityPageUrl(string url)
+        {
+            return Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+                   string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) &&
+                   string.Equals(uri.Host, "steamcommunity.com", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>An address as host and path for the log, without the profile it names or its query.</summary>
+        private static string DescribeAddress(string url)
+        {
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            {
+                return "none";
+            }
+
+            return uri.Host + Regex.Replace(uri.AbsolutePath, @"^/(id|profiles)/[^/]+", "/$1/~", RegexOptions.IgnoreCase);
         }
 
         private static bool IsSteamDomain(string domain)

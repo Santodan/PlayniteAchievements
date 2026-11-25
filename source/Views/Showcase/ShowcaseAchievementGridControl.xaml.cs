@@ -42,6 +42,20 @@ namespace PlayniteAchievements.Views.Showcase
             set => SetValue(AppearanceOptionsProperty, value);
         }
 
+        /// <summary>True for friend rows: the grid offers the friend avatar and name columns.</summary>
+        public static readonly DependencyProperty ShowFriendColumnProperty =
+            DependencyProperty.Register(
+                nameof(ShowFriendColumn),
+                typeof(bool),
+                typeof(ShowcaseAchievementGridControl),
+                new PropertyMetadata(false));
+
+        public bool ShowFriendColumn
+        {
+            get => (bool)GetValue(ShowFriendColumnProperty);
+            set => SetValue(ShowFriendColumnProperty, value);
+        }
+
         public static readonly DependencyProperty ColorRarityColumnsByRarityProperty =
             DependencyProperty.Register(
                 nameof(ColorRarityColumnsByRarity),

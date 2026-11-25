@@ -996,6 +996,9 @@ namespace PlayniteAchievements.Models
         public AchievementRarityStats RareAndUltraRare => ModernTheme.RareAndUltraRare ?? EmptyRarityStats;
 
         [DontSerialize]
+        public List<AchievementTagStats> TagStats => ModernTheme.TagStats;
+
+        [DontSerialize]
         public List<AchievementDetail> DynamicAchievements => ModernTheme.DynamicAchievements ?? EmptyAchievementList;
 
         [DontSerialize]
@@ -2177,6 +2180,13 @@ namespace PlayniteAchievements.Models
         {
             get => ModernTheme.TotalOverall ?? EmptyRarityStats;
             set => ModernTheme.TotalOverall = value;
+        }
+
+        [DontSerialize]
+        public List<AchievementTagStats> TotalTagStats
+        {
+            get => ModernTheme.TotalTagStats;
+            set => ModernTheme.TotalTagStats = value;
         }
 
         [DontSerialize]

@@ -1,8 +1,8 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-11-25T07:48:40.2150495Z",
-    "baselineRef":  "v4.3.2",
-    "baselineCommit":  "9ae07a4dcae40c13c9c6246ba3598e9414f0766f",
+    "generatedUtc":  "2026-11-25T07:58:10.4114222Z",
+    "baselineRef":  "v4.3.3",
+    "baselineCommit":  "94b75cf11bace4e1253133a5f451e808f499dfd9",
     "protectedPaths":  [
                            "AddonDBManifest.yaml",
                            "README.md",
@@ -11,7 +11,7 @@
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "85A5F9D04DF6EB12FBE11299417C66DAFD6B549BF020984E6780693D15D5EE9C"
+                  "sha256":  "59607839B7C2DC38C2FA9EAD2AF969F93142CC7E1095C1C9334E440E30E5B638"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",
@@ -46,7 +46,7 @@
                          },
                          {
                              "path":  ".agents/skills/santodan-fork-recipes/SKILL.md",
-                             "sha256":  "AE3CA3B985A1215AC9D642A2BE263E2632C33CB718D78F15336BA60F209438AB"
+                             "sha256":  "E744A61BEE2370E80360E3263DD24082FD551A54515512656D612F5650E74ACC"
                          },
                          {
                              "path":  ".agents/skills/santodan-fork-settings-ui/SKILL.md",
@@ -214,7 +214,7 @@
                          },
                          {
                              "path":  "source/Providers/Local/Santodan/AWN_SYNC.md",
-                             "sha256":  "13E7473AE8770B9535ADA1C00C1AD352FF41E63DCBEF72B6508EB8E65850FCC2"
+                             "sha256":  "594F38D35B7C36BF15DE9DE46365F4B28D30DE482DF0E591DECD6D61D66C0B14"
                          },
                          {
                              "path":  "source/Providers/Local/Santodan/LocalOfflineSchemaCache.cs",

@@ -340,6 +340,20 @@ namespace PlayniteAchievements.Views.Helpers
             return themeData;
         }
 
+        private static List<AchievementTagStats> CreatePreviewTagStats() =>
+            new[] { (Key: "Progression", Unlocked: 2, Total: 3), (Key: "Missable", Unlocked: 0, Total: 1) }
+                .Select(tag => new AchievementTagStats
+                {
+                    Key = tag.Key,
+                    Name = AchievementTagRegistry.GetName(tag.Key),
+                    Color = AchievementTagHelper.NormalizeColor(AchievementTagRegistry.Resolve(tag.Key)?.Color),
+                    Icon = AchievementTagHelper.IconGlyph(AchievementTagRegistry.Resolve(tag.Key)?.Icon),
+                    Unlocked = tag.Unlocked,
+                    Total = tag.Total,
+                    Locked = tag.Total - tag.Unlocked
+                })
+                .ToList();
+
         private static ModernThemeBindings CreatePreviewThemeData()
         {
             var themeData = new ModernThemeBindings
@@ -365,6 +379,8 @@ namespace PlayniteAchievements.Views.Helpers
             themeData.TotalUltraRare = new AchievementRarityStats { Unlocked = 1, Locked = 0, Total = 1 };
             themeData.TotalRareAndUltraRare = new AchievementRarityStats { Unlocked = 2, Locked = 0, Total = 2 };
             themeData.TotalOverall = new AchievementRarityStats { Unlocked = 2, Locked = 3, Total = 5 };
+            themeData.TagStats = CreatePreviewTagStats();
+            themeData.TotalTagStats = CreatePreviewTagStats();
             themeData.SelectedGameSummary = CreatePreviewGameSummary(themeData.AllAchievements);
             PopulateOrderedAchievementLists(themeData);
 

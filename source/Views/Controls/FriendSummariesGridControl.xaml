@@ -123,7 +123,13 @@
         </DataGrid.CellStyle>
         <DataGrid.RowStyle>
             <Style TargetType="DataGridRow"
-                   BasedOn="{StaticResource FriendSummariesGridRowStyle}"/>
+                   BasedOn="{StaticResource FriendSummariesGridRowStyle}">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsSelf}" Value="True">
+                        <Setter Property="FontWeight" Value="Bold"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
         </DataGrid.RowStyle>
         <DataGrid.Columns>
             <DataGridTemplateColumn Width="44" MinWidth="32" MaxWidth="96" CanUserResize="True"
@@ -204,6 +210,12 @@
                                 SortMemberPath="UnlockedAchievementsCount"
                                 ElementStyle="{StaticResource FriendSummaryTextStyle}"
                                 helpers:ColumnVisibilityHelper.ColumnKey="FriendSummaryUnlocks"/>
+            <DataGridTextColumn Width="*" MinWidth="56" CanUserResize="True"
+                                Header="{DynamicResource LOCPlayAch_Completed}"
+                                Binding="{Binding CompletedGamesCount, Converter={StaticResource BlankZeroNumber}}"
+                                SortMemberPath="CompletedGamesCount"
+                                ElementStyle="{StaticResource FriendSummaryTextStyle}"
+                                helpers:ColumnVisibilityHelper.ColumnKey="FriendSummaryCompletedGames"/>
             <DataGridTextColumn Width="*" MinWidth="72" CanUserResize="True"
                                 Header="{DynamicResource LOCPlayAch_Score_Prestige}"
                                 Binding="{Binding PrestigeScore, Converter={StaticResource BlankZeroNumber}}"

@@ -73,6 +73,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             var collectorScore = 0;
             var prestigeScore = 0;
             var platformScores = new PlatformScoreTotals();
+            var tags = new AchievementTallyBuilder();
 
             for (var i = 0; i < summaryData.Games.Count; i++)
             {
@@ -99,6 +100,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 AddRarityStats(state.TotalUncommon, uncommon);
                 AddRarityStats(state.TotalRare, rare);
                 AddRarityStats(state.TotalUltraRare, ultraRare);
+                tags.AddAll(game.Tallies);
 
                 var rareAndUltraRare = AchievementRarityStatsCombiner.Combine(rare, ultraRare);
                 var overall = AchievementRarityStatsCombiner.Combine(common, uncommon, rare, ultraRare);
@@ -139,6 +141,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             }
 
             ApplySummaryListsAndTotals(state, allGames);
+            state.TotalTagStats = AchievementTagStatsBuilder.Build(tags.Build(), null);
             PopulateProviderLists(state, allGames);
 
             var scoreSnapshot = AchievementScoreCalculator.CreateModernScoreSnapshot(collectorScore, prestigeScore);

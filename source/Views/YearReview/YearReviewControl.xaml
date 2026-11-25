@@ -1,0 +1,301 @@
+<UserControl x:Class="PlayniteAchievements.Views.YearReview.YearReviewControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
+             xmlns:vm="clr-namespace:PlayniteAchievements.ViewModels.YearReview"
+             xmlns:local="clr-namespace:PlayniteAchievements.Views.YearReview"
+             Focusable="True"
+             FocusVisualStyle="{x:Null}"
+             UseLayoutRounding="True">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <helpers:SharedResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Views/YearReview/YearReviewSlideTemplates.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- Bare glyphs that take the button chrome only while hovered or pressed. -->
+            <Style x:Key="YearReview.NavButton" TargetType="Button" BasedOn="{StaticResource PlayAch.Button.ToolbarIconStyle}">
+                <Setter Property="Width" Value="36"/>
+                <Setter Property="Height" Value="36"/>
+                <Setter Property="Padding" Value="0"/>
+                <Setter Property="Margin" Value="6,0,0,0"/>
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="BorderBrush" Value="Transparent"/>
+                <Setter Property="ContentTemplate" Value="{StaticResource PlayAch.ButtonContent.Glyph}"/>
+            </Style>
+
+            <!-- Next: an accent ring, the one control that always stands out. -->
+            <Style x:Key="YearReview.NextButton" TargetType="Button">
+                <Setter Property="Width" Value="46"/>
+                <Setter Property="Height" Value="46"/>
+                <Setter Property="Margin" Value="10,0,0,0"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Focusable" Value="False"/>
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Grid>
+                                <Ellipse x:Name="Ring"
+                                         Fill="Transparent"
+                                         Stroke="{DynamicResource PlayAch.Brush.Accent}"
+                                         StrokeThickness="2"/>
+                                <TextBlock Text="{TemplateBinding Content}"
+                                           FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                                           FontSize="20"
+                                           Foreground="{TemplateBinding Foreground}"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Margin="2,0,0,0"/>
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Ring" Property="Fill" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
+                                    <Setter TargetName="Ring" Property="StrokeThickness" Value="3"/>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Ring" Property="Fill" Value="{DynamicResource PlayAch.Brush.Button.Background.Pressed}"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <!-- An opaque backdrop: some themes leave the window surface transparent. -->
+    <Grid Background="{DynamicResource PlayAch.Brush.PopupSurface}" ClipToBounds="True">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- The slide's art again, blurred behind the whole window so the bars and the space
+             around the slide carry it too, then dimmed so the controls stay readable. -->
+        <Border x:Name="WindowBackdrop" Grid.RowSpan="3" Opacity="0.55" IsHitTestVisible="False" Margin="-80">
+            <Border.CacheMode>
+                <BitmapCache RenderAtScale="0.5"/>
+            </Border.CacheMode>
+            <Image Stretch="UniformToFill"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"
+                   helpers:AsyncImage.Uri="{Binding CurrentSlide.ShownBackdropPath}"
+                   helpers:AsyncImage.DecodePixel="480">
+                <Image.Effect>
+                    <BlurEffect Radius="60" KernelType="Gaussian" RenderingBias="Performance"/>
+                </Image.Effect>
+            </Image>
+        </Border>
+        <Rectangle Grid.RowSpan="3" Fill="{DynamicResource PlayAch.Brush.PopupSurface}" Opacity="0.55" IsHitTestVisible="False"/>
+
+        <!-- The slide area. Slides are laid out at 1280 x 770 and scaled to the window. A click
+             anywhere on it moves to the next slide. -->
+        <Grid x:Name="Deck" Grid.Row="1" Background="Transparent" PreviewMouseLeftButtonDown="Deck_PreviewMouseLeftButtonDown" PreviewMouseLeftButtonUp="Deck_PreviewMouseLeftButtonUp" MouseLeftButtonUp="Deck_MouseLeftButtonUp" Cursor="Hand">
+            <Viewbox Stretch="Uniform" Margin="20,2,20,2">
+                <Viewbox.Style>
+                    <Style TargetType="Viewbox">
+                        <Style.Triggers>
+                            <!-- The slide fades back while another year loads. -->
+                            <DataTrigger Binding="{Binding IsLoading}" Value="True">
+                                <Setter Property="Opacity" Value="0.25"/>
+                                <Setter Property="IsHitTestVisible" Value="False"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Viewbox.Style>
+                <!-- The stage is what Save image captures: backdrop and slide together. -->
+                <!-- Text here is laid out at 1280 x 770 and scaled with the window, so it uses
+                     the scale-friendly Ideal formatting with fixed hinting. Display formatting
+                     snaps glyphs to the unscaled pixel grid and blurs once scaled. ClearType
+                     stays on over the opaque stage. -->
+                <!-- The slide sits on the window's art as a rounded card. The rounding and the
+                     outline are outside the stage, so saved images stay square. -->
+                <Grid helpers:RoundedClip.Radius="18" ClipToBounds="True">
+                <Grid x:Name="SlideStage" Width="1280" Height="770" ClipToBounds="True"
+                      Background="{DynamicResource PlayAch.Brush.PopupSurface}"
+                      TextOptions.TextFormattingMode="Ideal"
+                      TextOptions.TextHintingMode="Fixed"
+                      TextOptions.TextRenderingMode="ClearType"
+                      RenderOptions.ClearTypeHint="Enabled">
+                    <!-- The slide's game art, blurred. The blur is rasterized once into the
+                         element's bitmap cache, so only the fade animates. -->
+                    <Border x:Name="Backdrop" Opacity="0.4" IsHitTestVisible="False" Margin="-60">
+                        <Border.CacheMode>
+                            <BitmapCache RenderAtScale="1"/>
+                        </Border.CacheMode>
+                        <Image Stretch="UniformToFill"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               helpers:AsyncImage.Uri="{Binding CurrentSlide.ShownBackdropPath}"
+                               helpers:AsyncImage.DecodePixel="640">
+                            <Image.Effect>
+                                <BlurEffect Radius="36" KernelType="Gaussian" RenderingBias="Performance"/>
+                            </Image.Effect>
+                        </Image>
+                    </Border>
+                    <Rectangle Fill="{DynamicResource PlayAch.Brush.PopupSurface}" IsHitTestVisible="False">
+                        <Rectangle.OpacityMask>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0.4">
+                                <GradientStop Offset="0" Color="#C0000000"/>
+                                <GradientStop Offset="0.55" Color="#50000000"/>
+                                <GradientStop Offset="1" Color="#10000000"/>
+                            </LinearGradientBrush>
+                        </Rectangle.OpacityMask>
+                    </Rectangle>
+                    <ContentPresenter x:Name="OutgoingHost" IsHitTestVisible="False"/>
+                    <ContentPresenter x:Name="CurrentHost"/>
+                </Grid>
+                <Border BorderBrush="{DynamicResource PlayAch.Brush.Border}" BorderThickness="2" CornerRadius="18" IsHitTestVisible="False"/>
+                </Grid>
+            </Viewbox>
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Width="260"
+                        Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}">
+                <TextBlock Text="{DynamicResource LOCPlayAch_Status_LoadingAchievements}"
+                           HorizontalAlignment="Center"
+                           FontSize="{DynamicResource PlayAch.FontSize.Body}"
+                           Foreground="{DynamicResource PlayAch.Brush.Text}"/>
+                <ProgressBar Height="4" IsIndeterminate="True" Margin="0,10,0,0"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Where you are, progress through the slides, and the year. -->
+        <Grid Grid.Row="0" Margin="24,10,20,4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock VerticalAlignment="Center" Margin="0,0,18,0">
+                <Run Text="{Binding Position, Mode=OneWay}"
+                     FontFamily="{StaticResource YearReview.DisplayFont}"
+                     FontSize="30"
+                     Foreground="{DynamicResource PlayAch.Brush.Accent}"/>
+                <Run Text="/"
+                     FontSize="{DynamicResource PlayAch.FontSize.Caption}"
+                     Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"/>
+                <Run Text="{Binding Total, Mode=OneWay}"
+                     FontSize="{DynamicResource PlayAch.FontSize.Caption}"
+                     Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"/>
+            </TextBlock>
+            <!-- One segment per slide; clicking one goes to that slide. Passed slides keep a
+                 soft accent, the current one is full accent and thicker. The clickable band
+                 around each bar is taller than the bar. -->
+            <ItemsControl Grid.Column="1" ItemsSource="{Binding Segments}" VerticalAlignment="Center">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Rows="1"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type vm:YearReviewProgressSegment}">
+                        <Button Click="Segment_Click" Cursor="Hand" Focusable="False"
+                                ToolTip="{Binding Title}"
+                                AutomationProperties.Name="{Binding Title}">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="Transparent" Padding="3,10">
+                                        <Border x:Name="Bar" Height="4" CornerRadius="3" VerticalAlignment="Center">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Border}"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsReached}" Value="True">
+                                                            <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                                                            <Setter Property="Opacity" Value="0.45"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                            <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                                                            <Setter Property="Opacity" Value="1"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                        </Border>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                            <Setter TargetName="Bar" Property="Height" Value="6"/>
+                                        </DataTrigger>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Bar" Property="Height" Value="8"/>
+                                            <Setter TargetName="Bar" Property="Opacity" Value="1"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <!-- The year: a button opening the list of years, like the slides' view pickers.
+                 Set in the display face, with chrome only while hovered. -->
+            <Button Grid.Column="2"
+                    x:Name="YearButton"
+                    Style="{StaticResource PlayAch.Button.BaseStyle}"
+                    Background="Transparent"
+                    BorderBrush="Transparent"
+                    Padding="12,0,10,0"
+                    Margin="14,0,0,0"
+                    Click="YearButton_Click"
+                    IsEnabled="{Binding IsLoading, Converter={StaticResource InvertBoolConverter}}"
+                    ToolTip="{DynamicResource LOCPlayAch_YearReview_Year}"
+                    AutomationProperties.Name="{DynamicResource LOCPlayAch_YearReview_Year}">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{Binding SelectedYear}"
+                               FontFamily="{StaticResource YearReview.DisplayFont}"
+                               FontSize="30"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               VerticalAlignment="Center"/>
+                    <TextBlock Text="&#xEAB2;"
+                               FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                               FontSize="16"
+                               Foreground="{DynamicResource PlayAch.Brush.Accent}"
+                               VerticalAlignment="Center"
+                               Margin="8,2,0,0"/>
+                </StackPanel>
+            </Button>
+        </Grid>
+
+        <!-- Whether the Overview offers this window in December and January. -->
+        <CheckBox Grid.Row="2"
+                  Style="{StaticResource PlayAch.CheckBox.BaseStyle}"
+                  Content="{DynamicResource LOCPlayAch_YearReview_ShowInOverview}"
+                  IsChecked="{Binding ShowInOverview}"
+                  Focusable="False"
+                  VerticalAlignment="Center"
+                  HorizontalAlignment="Left"
+                  Margin="24,0,0,0"/>
+
+        <StackPanel Grid.Row="2"
+                    Orientation="Horizontal"
+                    VerticalAlignment="Center"
+                    HorizontalAlignment="Right"
+                    Margin="0,6,20,10">
+            <Button Content="&#xEDEA;"
+                    Command="{x:Static local:YearReviewControl.CopyImageCommand}"
+                    Style="{StaticResource YearReview.NavButton}"
+                    ToolTip="{DynamicResource LOCPlayAch_Common_Copy}"
+                    AutomationProperties.Name="{DynamicResource LOCPlayAch_Common_Copy}"
+                    Margin="0"/>
+            <Button Content="&#xEF08;"
+                    Click="SaveImage_Click"
+                    Style="{StaticResource YearReview.NavButton}"
+                    ToolTip="{DynamicResource LOCPlayAch_YearReview_SaveImage}"
+                    AutomationProperties.Name="{DynamicResource LOCPlayAch_YearReview_SaveImage}"/>
+            <Rectangle Width="1" Height="22" Margin="14,0,8,0" VerticalAlignment="Center" Fill="{DynamicResource PlayAch.Brush.Border}"/>
+            <Button Content="&#xEAB5;"
+                    Click="Previous_Click"
+                    Style="{StaticResource YearReview.NavButton}"
+                    ToolTip="{DynamicResource LOCPlayAch_Common_Previous}"
+                    AutomationProperties.Name="{DynamicResource LOCPlayAch_Common_Previous}"/>
+            <Button Content="&#xEAB8;"
+                    Click="Next_Click"
+                    Style="{StaticResource YearReview.NextButton}"
+                    ToolTip="{DynamicResource LOCPlayAch_Common_Next}"
+                    AutomationProperties.Name="{DynamicResource LOCPlayAch_Common_Next}"/>
+        </StackPanel>
+    </Grid>
+</UserControl>

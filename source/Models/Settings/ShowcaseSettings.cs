@@ -22,7 +22,10 @@ namespace PlayniteAchievements.Models.Settings
         GameSummaries = 11,
         ActivityCalendar = 13,
         Image = 14,
-        Text = 15
+        Text = 15,
+        FriendUnlocks = 16,
+        FriendLeaderboard = 17,
+        FriendGames = 18
     }
 
     public enum ShowcasePageTemplate

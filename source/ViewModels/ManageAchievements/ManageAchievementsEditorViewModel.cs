@@ -6795,15 +6795,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             var components = AchievementTagHelper.GetComponents(
                 row.EffectiveTagsValue);
+            var untagged = true;
             for (var i = 0; i < components.Count; i++)
             {
                 if (_selectedTypeFilters.Contains(components[i]))
                 {
                     return true;
                 }
+
+                untagged &= AchievementTagHelper.IsDerivedTag(components[i]);
             }
 
-            return false;
+            return untagged && _selectedTypeFilters.Contains(AchievementClassificationFilter.NoTagsKey);
         }
 
         /// <summary>
@@ -7097,13 +7100,22 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
                 var components = AchievementTagHelper.GetComponents(
                     row.EffectiveTagsValue);
+                var untagged = true;
                 for (var i = 0; i < components.Count; i++)
                 {
                     present.Add(components[i]);
+                    untagged &= AchievementTagHelper.IsDerivedTag(components[i]);
+                }
+
+                if (untagged)
+                {
+                    present.Add(AchievementClassificationFilter.NoTagsKey);
                 }
             }
 
-            var options = AchievementTagRegistry.GetAssignableKeys(_gameId)
+            // None first, offered while some row has no tag.
+            var options = new[] { AchievementClassificationFilter.NoTagsKey }
+                .Concat(AchievementTagRegistry.GetAssignableKeys(_gameId))
                 .Concat(new[] { AchievementTagHelper.Softcore, AchievementTagHelper.Hardcore })
                 .Where(present.Contains)
                 .ToList();

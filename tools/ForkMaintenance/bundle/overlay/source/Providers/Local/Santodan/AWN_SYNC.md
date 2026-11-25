@@ -7,7 +7,7 @@ compatibility. Compare against it on every upstream update (see the
 ## Last compared
 
 - AWN commit: `f9903eb404f0eedf152144c576f197dcd96e2950` (2026-11-22, version 3.12.8)
-- Compared on: 2026-11-23
+- Compared on: 2026-11-25 (unchanged since the last comparison; no new AWN commits)
 
 ## Coverage map (AWN source -> fork implementation)
 

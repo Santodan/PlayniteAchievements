@@ -575,6 +575,10 @@ namespace PlayniteAchievements.Services.Library
             {
                 grid.SetGameSummaries(key, value.ToObject<GameSummaryGridOptions>(Serializer));
             }
+            else if (ShowcaseGridSurfaces.IsFriendSummariesSurface(key))
+            {
+                grid.SetFriendSummaries(key, value.ToObject<FriendSummaryGridOptions>(Serializer));
+            }
         }
 
         private static void WriteCategoryGrid(GridOptionsCatalog grid, ShowcaseWidgetInstanceSettings widget, JToken merged, JToken current)
@@ -704,6 +708,11 @@ namespace PlayniteAchievements.Services.Library
                 return JObject.FromObject(games, Serializer);
             }
 
+            if (ShowcaseGridSurfaces.IsFriendSummariesSurface(key) && grid.FriendSummaries.TryGetValue(key, out var friends) && friends != null)
+            {
+                return JObject.FromObject(friends, Serializer);
+            }
+
             return null;
         }
 
@@ -730,6 +739,14 @@ namespace PlayniteAchievements.Services.Library
                 && games != null)
             {
                 return JObject.FromObject(games, Serializer);
+            }
+
+            if (ShowcaseGridSurfaces.IsFriendSummariesSurface(key)
+                && portable.FriendGridSurfaces != null
+                && portable.FriendGridSurfaces.TryGetValue(id, out var friends)
+                && friends != null)
+            {
+                return JObject.FromObject(friends, Serializer);
             }
 
             return null;

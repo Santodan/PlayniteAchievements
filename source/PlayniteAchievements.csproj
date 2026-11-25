@@ -278,6 +278,12 @@
     <Resource Include="Resources\BrandingIcon.png" />
     <Resource Include="Resources\HiddenAchIcon.png" />
     <Resource Include="Resources\UnlockedAchIcon.png" />
+    <!-- Display face for the Year in Review numbers. The licence ships beside the plugin, as the
+         SIL Open Font License requires. -->
+    <Resource Include="Resources\Fonts\BigShouldersDisplay-900.ttf" />
+    <Content Include="Resources\Fonts\BigShouldersDisplay-OFL.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <!-- UnlockedAchIcon is needed as a loose file too: HoyoverseDefinitionClient resolves it by path
          as the icon fallback. HiddenAchIcon is only ever loaded through its pack:// URI, so it ships
          as a Resource alone. -->

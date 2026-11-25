@@ -117,6 +117,9 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
+- v4.3.3 merge
+- Fixed Local achievement names and descriptions falling back to English from the Steam appcache schema #96
+
 ## 2026-11-24 - v4.3.2.1
 
 - v4.3.2 merge

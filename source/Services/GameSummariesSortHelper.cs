@@ -458,6 +458,19 @@ namespace PlayniteAchievements.Services
                     b,
                     sortMemberPath,
                     CompareBool(a?.Owned ?? false, b?.Owned ?? false, direction)),
+                nameof(FriendGameSummaryItem.FriendCount) => (a, b) => CompareWithTieBreakers(
+                    a,
+                    b,
+                    sortMemberPath,
+                    CompareInt((a as FriendGameSummaryItem)?.FriendCount ?? 0, (b as FriendGameSummaryItem)?.FriendCount ?? 0, direction)),
+                nameof(FriendGameSummaryItem.UniqueFriendUnlockedAchievementsCount) => (a, b) => CompareWithTieBreakers(
+                    a,
+                    b,
+                    sortMemberPath,
+                    CompareInt(
+                        (a as FriendGameSummaryItem)?.UniqueFriendUnlockedAchievementsCount ?? 0,
+                        (b as FriendGameSummaryItem)?.UniqueFriendUnlockedAchievementsCount ?? 0,
+                        direction)),
                 "SortingName" => (a, b) => CompareWithTieBreakers(
                     a,
                     b,

@@ -213,7 +213,17 @@ namespace PlayniteAchievements.ViewModels
         /// The name the current user's side of a comparison shows under: the account's username
         /// for the provider, or the localized "Me" when the provider has no stored account name.
         /// </summary>
-        private protected static string GetSelfName(FriendIdentity identity)
+        private protected static string GetSelfName(FriendIdentity identity) => FriendSelfName.Of(identity);
+    }
+
+    /// <summary>The name the current user's side of a friend comparison shows under.</summary>
+    internal static class FriendSelfName
+    {
+        /// <summary>
+        /// The account's username for the provider, or the localized "Me" when the provider has
+        /// no stored account name.
+        /// </summary>
+        internal static string Of(FriendIdentity identity)
         {
             return identity != null && IsRealIdentityName(identity)
                 ? identity.DisplayName.Trim()

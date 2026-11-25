@@ -1,5 +1,26 @@
 # Fork maintenance bundle
 
+## v4.3.3 integration - 2026-11-25
+
+Integrated upstream v4.3.3 (`94b75cf11bace4e1253133a5f451e808f499dfd9`) with the
+in-place Update; v4.3.3 is the pending merge parent. The fork extension and helper
+versions are `4.3.3.1`. Upstream added Year in Review (Overview button, opt-in file,
+release-date gate), theme tag stats (`TagStats`/`TotalTagStats`), the Steam client
+token read fix and Showcase friend-pick export fixes. The bundle patch applied
+cleanly except for the helper version files (`Helper/Properties/AssemblyInfo.cs`,
+`Helper/app.manifest`), resolved to `4.3.3.1`. No fork hook needed porting.
+
+AWN `main` was still at `f9903eb` (3.12.8), the last compared commit; nothing new to port.
+
+Validation: Release rebuild passed (0 errors, the existing CS0649 warning); 6392 of
+6395 tests passed, one skipped, and the same two upstream failures as v4.3.2
+(`DayCounts_...`, `BundledToastTemplate_...`). Exported against v4.3.3 (274 overlays,
+three localization recipes); clean three-way preflight and actual replay on a clean
+v4.3.3 clone passed, and all 479 captured paths matched the working tree (newline
+normalized). Among protected files only `source/extension.yaml` changed. Live Playnite checks
+remain for every Santodan-Fork sub-tab, the Overview with the new Year in Review button,
+and Steam authentication.
+
 ## v4.3.2 integration - 2026-11-23
 
 Integrated upstream v4.3.2 (`9ae07a4dcae40c13c9c6246ba3598e9414f0766f`) with the

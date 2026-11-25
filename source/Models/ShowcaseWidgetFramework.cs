@@ -63,6 +63,15 @@ namespace PlayniteAchievements.Models
         /// widgets. NativePoints is parked here as underbaked rather than deleted.
         /// </summary>
         public bool Hidden { get; set; }
+
+        /// <summary>
+        /// Kinds that show friends data; the add-widget pickers leave them out while friends
+        /// features are off, and already-placed ones keep rendering (empty).
+        /// </summary>
+        public bool RequiresFriends { get; set; }
+
+        /// <summary>True when an add-widget picker offers this kind.</summary>
+        public bool IsOffered(bool friendsEnabled) => !Hidden && (friendsEnabled || !RequiresFriends);
     }
 
     public static class ShowcaseWidgetCatalog
@@ -82,7 +91,10 @@ namespace PlayniteAchievements.Models
                 Define(ShowcaseWidgetKind.GameSummaries, "LOCPlayAch_Showcase_Widget_GameSummaries"),
                 Define(ShowcaseWidgetKind.ActivityCalendar, "LOCPlayAch_Showcase_Widget_ActivityCalendar"),
                 Define(ShowcaseWidgetKind.Image, "LOCPlayAch_Showcase_Widget_Image"),
-                Define(ShowcaseWidgetKind.Text, "LOCPlayAch_Showcase_Widget_Text")
+                Define(ShowcaseWidgetKind.Text, "LOCPlayAch_Showcase_Widget_Text"),
+                Define(ShowcaseWidgetKind.FriendUnlocks, "LOCPlayAch_Showcase_Widget_FriendUnlocks", requiresFriends: true),
+                Define(ShowcaseWidgetKind.FriendLeaderboard, "LOCPlayAch_Showcase_Widget_FriendLeaderboard", requiresFriends: true),
+                Define(ShowcaseWidgetKind.FriendGames, "LOCPlayAch_Showcase_Widget_FriendGames", requiresFriends: true)
             };
 
         public static IReadOnlyList<ShowcaseWidgetDefinition> Definitions => DefinitionsValue;
@@ -95,13 +107,15 @@ namespace PlayniteAchievements.Models
         private static ShowcaseWidgetDefinition Define(
             ShowcaseWidgetKind kind,
             string nameKey,
-            bool hidden = false)
+            bool hidden = false,
+            bool requiresFriends = false)
         {
             return new ShowcaseWidgetDefinition
             {
                 Kind = kind,
                 NameKey = nameKey,
-                Hidden = hidden
+                Hidden = hidden,
+                RequiresFriends = requiresFriends
             };
         }
     }
@@ -114,6 +128,11 @@ namespace PlayniteAchievements.Models
     {
         public const string RecentAchievements = "ShowcaseRecentAchievements";
         public const string GameSummaries = "ShowcaseGameSummaries";
+
+        /// <summary>The friends widgets' grids: friend unlocks, the friends leaderboard and friends' games.</summary>
+        public const string FriendAchievements = "ShowcaseFriendAchievements";
+        public const string FriendSummaries = "ShowcaseFriendSummaries";
+        public const string FriendGames = "ShowcaseFriendGames";
 
         /// <summary>An achievement grid widget's category list, which category mode shows.</summary>
         public const string AchievementCategories = "ShowcaseAchievementCategories";
@@ -138,21 +157,25 @@ namespace PlayniteAchievements.Models
             return separator < 0 ? columnSettingsKey : columnSettingsKey.Substring(0, separator);
         }
 
-        public static bool IsAchievementSurface(string columnSettingsKey)
-        {
-            return string.Equals(
-                GetBaseKey(columnSettingsKey),
-                RecentAchievements,
-                StringComparison.OrdinalIgnoreCase);
-        }
+        /// <summary>A widget's achievement grid surface: the achievement grid's or the friend unlocks grid's.</summary>
+        public static bool IsAchievementSurface(string columnSettingsKey) =>
+            IsBase(columnSettingsKey, RecentAchievements) || IsBase(columnSettingsKey, FriendAchievements);
 
-        public static bool IsGameSurface(string columnSettingsKey)
-        {
-            return string.Equals(
-                GetBaseKey(columnSettingsKey),
-                GameSummaries,
-                StringComparison.OrdinalIgnoreCase);
-        }
+        /// <summary>A widget's game grid surface: the game grid's or the friends' games grid's.</summary>
+        public static bool IsGameSurface(string columnSettingsKey) =>
+            IsBase(columnSettingsKey, GameSummaries) || IsBase(columnSettingsKey, FriendGames);
+
+        public static bool IsFriendSummariesSurface(string columnSettingsKey) =>
+            IsBase(columnSettingsKey, FriendSummaries);
+
+        /// <summary>A surface of one of the friends widgets.</summary>
+        public static bool IsFriendSurface(string columnSettingsKey) =>
+            IsBase(columnSettingsKey, FriendAchievements) ||
+            IsBase(columnSettingsKey, FriendSummaries) ||
+            IsBase(columnSettingsKey, FriendGames);
+
+        private static bool IsBase(string columnSettingsKey, string baseKey) =>
+            string.Equals(GetBaseKey(columnSettingsKey), baseKey, StringComparison.OrdinalIgnoreCase);
 
         public static bool IsAchievementCategorySurface(string columnSettingsKey)
         {
@@ -168,7 +191,7 @@ namespace PlayniteAchievements.Models
         /// </summary>
         public static string ResolveCategorySurface(string achievementSurfaceKey)
         {
-            if (!IsAchievementSurface(achievementSurfaceKey))
+            if (!IsBase(achievementSurfaceKey, RecentAchievements))
             {
                 return null;
             }
@@ -204,6 +227,12 @@ namespace PlayniteAchievements.Models
                     return ForInstance(RecentAchievements, instanceId);
                 case ShowcaseWidgetKind.GameSummaries:
                     return ForInstance(GameSummaries, instanceId);
+                case ShowcaseWidgetKind.FriendUnlocks:
+                    return ForInstance(FriendAchievements, instanceId);
+                case ShowcaseWidgetKind.FriendLeaderboard:
+                    return ForInstance(FriendSummaries, instanceId);
+                case ShowcaseWidgetKind.FriendGames:
+                    return ForInstance(FriendGames, instanceId);
                 default:
                     return null;
             }
@@ -234,13 +263,21 @@ namespace PlayniteAchievements.Models
             if (IsAchievementSurface(sourceKey) && IsAchievementSurface(targetKey))
             {
                 catalog.SetAchievement(targetKey, catalog.GetAchievement(sourceKey));
-                catalog.SetCategorySummaries(
-                    ResolveCategorySurface(targetKey),
-                    catalog.GetCategorySummaries(ResolveCategorySurface(sourceKey)));
+                var sourceCategories = ResolveCategorySurface(sourceKey);
+                if (sourceCategories != null)
+                {
+                    catalog.SetCategorySummaries(
+                        ResolveCategorySurface(targetKey),
+                        catalog.GetCategorySummaries(sourceCategories));
+                }
             }
             else if (IsGameSurface(sourceKey) && IsGameSurface(targetKey))
             {
                 catalog.SetGameSummaries(targetKey, catalog.GetGameSummaries(sourceKey));
+            }
+            else if (IsFriendSummariesSurface(sourceKey) && IsFriendSummariesSurface(targetKey))
+            {
+                catalog.SetFriendSummaries(targetKey, catalog.GetFriendSummaries(sourceKey));
             }
         }
 
@@ -285,6 +322,13 @@ namespace PlayniteAchievements.Models
                 .ToList())
             {
                 catalog.RemoveGameSummaries(key);
+            }
+
+            foreach (var key in catalog.FriendSummaries.Keys
+                .Where(key => IsOrphanedInstanceKey(key, IsFriendSummariesSurface, live))
+                .ToList())
+            {
+                catalog.RemoveFriendSummaries(key);
             }
 
             foreach (var key in catalog.CategorySummaries.Keys
@@ -2020,6 +2064,27 @@ namespace PlayniteAchievements.Models
 
         public static void SetFontFamily(ShowcaseWidgetInstanceSettings settings, string value) =>
             SetString(settings, FontFamilyOption, value);
+
+        /// <summary>
+        /// The friends a friends widget shows, as one member account key
+        /// (<c>provider|externalId</c>) per friend; empty shows every friend. A merged friend is
+        /// named by one of its accounts, so the choice survives merging and unmerging.
+        /// </summary>
+        public static IReadOnlyList<string> GetFriendAccountKeys(ShowcaseWidgetInstanceSettings settings) =>
+            (GetString(settings, FriendAccountKeysOption) ?? string.Empty)
+                .Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(key => key.Trim())
+                .Where(key => key.Length > 0)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+        public static void SetFriendAccountKeys(ShowcaseWidgetInstanceSettings settings, IEnumerable<string> keys) =>
+            SetString(settings, FriendAccountKeysOption, string.Join("\n", (keys ?? Enumerable.Empty<string>())
+                .Where(key => !string.IsNullOrWhiteSpace(key))
+                .Select(key => key.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)));
+
+        internal const string FriendAccountKeysOption = "FriendAccountKeys";
 
         private static string GetString(ShowcaseWidgetInstanceSettings settings, string key, bool trim = true)
         {

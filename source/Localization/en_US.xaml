@@ -1693,7 +1693,7 @@ Continue?</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Stat_CompletedGames">Completions</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Stat_ActiveDayRate">Unlocks / active day</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Stat_ThirtyDayRate">30-day rate</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_Stat_AverageGlobalUnlock">Average global unlock</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_Stat_AverageGlobalUnlock">Average rarity</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Stat_CurrentStreak">Current streak</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Stat_LongestStreak">Longest streak</sys:String>
 
@@ -1719,6 +1719,63 @@ Continue?</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Widget_ActivityCalendar">Activity Calendar</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Widget_Image">Image</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Widget_Text">Text</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_Widget_FriendUnlocks">Friend Unlocks</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_Widget_FriendLeaderboard">Friend Leaderboard</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_Widget_FriendGames">Friend Games</sys:String>
+
+    <!-- ================================================================= -->
+    <!-- Year in Review: story slides recapping one calendar year of unlocks -->
+    <!-- ================================================================= -->
+    <!-- DayStreak, DaysApart, UnlockedFirst, UnlockedBeforeFriend and FriendUnlockedFirst are captions shown under a large number. -->
+    <sys:String x:Key="LOCPlayAch_YearReview_Title">Year in Review</sys:String>
+    <!-- YearReview_DateRange: {0} is the start date, {1} is the end date -->
+    <sys:String x:Key="LOCPlayAch_YearReview_DateRange">{0} to {1}</sys:String>
+    <sys:String x:Key="LOCPlayAch_YearReview_ClickToStart">Click anywhere to start</sys:String>
+    <sys:String x:Key="LOCPlayAch_YearReview_AchievementsUnlocked">Achievements unlocked</sys:String>
+    <sys:String x:Key="LOCPlayAch_YearReview_SaveCard">Save card</sys:String>
+    <sys:String x:Key="LOCPlayAch_YearReview_GamesWithUnlocks">Games with unlocks</sys:String>
+    <sys:String x:Key="LOCPlayAch_YearReview_ByMonth">Month by month</sys:String>
+    <!-- YearReview_BusiestDay: {0} is a date and its count or score -->
+    <sys:String x:Key="LOCPlayAch_YearReview_BusiestDay">Busiest day: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_YearReview_DayStreak">day streak</sys:String>
+    <sys:String x:Key="LOCPlayAch_YearReview_EveryDay">Every day</sys:String>
+    <sys:String x:Key="LOCPlayAch_YearReview_TopGames">Top games</sys:String>
+    <sys:String x:Key="LOCPlayAch_YearReview_GamesCompleted">Games completed</sys:String>
+    <sys:String x:Key="LOCPlayAch_YearReview_RarestUnlock">Rarest unlock</sys:String>
+    <!-- YearReview_RarestDetail: {0} is a game name, {1} is a date, {2} is a percentage -->
+    <sys:String x:Key="LOCPlayAch_YearReview_RarestDetail">{0}, unlocked {1}. Earned by {2} of players.</sys:String>
+    <sys:String x:Key="LOCPlayAch_YearReview_UnlocksByRarity">Unlocks by rarity</sys:String>
+    <sys:String x:Key="LOCPlayAch_YearReview_UnlocksInTotal">{0} unlocks in total</sys:String>
+    <sys:String x:Key="LOCPlayAch_YearReview_UnlocksByPlatform">Unlocks by platform</sys:String>
+    <sys:String x:Key="LOCPlayAch_YearReview_FirstAndLatest">First and latest unlock</sys:String>
+    <!-- YearReview_FirstUnlockOfYear: {0} is a year -->
+    <sys:String x:Key="LOCPlayAch_YearReview_FirstUnlockOfYear">First unlock of {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_YearReview_LatestUnlock">Latest unlock</sys:String>
+    <sys:String x:Key="LOCPlayAch_YearReview_DaysApart">days apart</sys:String>
+    <sys:String x:Key="LOCPlayAch_YearReview_UnlockedFirst">achievements you unlocked before a friend did</sys:String>
+    <sys:String x:Key="LOCPlayAch_YearReview_GamesInCommon">{0} games in common this year</sys:String>
+    <sys:String x:Key="LOCPlayAch_YearReview_SaveImage">Save image</sys:String>
+    <sys:String x:Key="LOCPlayAch_YearReview_TopGame">Top game</sys:String>
+    <!-- YearReview_NoUnlocks: {0} is a year -->
+    <sys:String x:Key="LOCPlayAch_YearReview_NoUnlocks">No unlocks in {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Previous">Previous</sys:String>
+    <sys:String x:Key="LOCPlayAch_YearReview_Year">Year</sys:String>
+    <!-- YearReview_PngImage: file type name in the save dialog -->
+    <sys:String x:Key="LOCPlayAch_YearReview_PngImage">PNG image</sys:String>
+    <sys:String x:Key="LOCPlayAch_YearReview_Rarest">Rarest</sys:String>
+    <sys:String x:Key="LOCPlayAch_YearReview_TopFiveRarest">Top 5 rarest</sys:String>
+    <sys:String x:Key="LOCPlayAch_YearReview_RarestPerPlatform">Rarest per platform</sys:String>
+    <!-- YearReview_UnlockedBeforeFriend, YearReview_FriendUnlockedFirst: {0} is a friend's name -->
+    <sys:String x:Key="LOCPlayAch_YearReview_UnlockedBeforeFriend">achievements you unlocked before {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_YearReview_FriendUnlockedFirst">achievements {0} unlocked before you</sys:String>
+    <!-- YearReview_MetricInGame: {0} is a measure such as Unlocks or Collection Score, {1} is a game name. YearReview_AverageRateInGame: {0} is a game name -->
+    <sys:String x:Key="LOCPlayAch_YearReview_MetricInGame">{0} in {1}</sys:String>
+    <sys:String x:Key="LOCPlayAch_YearReview_AverageRateInGame">average unlock rate in {0}</sys:String>
+    <!-- YearReview_CardClassic, CardPoster, CardBanner: styles of the shareable card -->
+    <sys:String x:Key="LOCPlayAch_YearReview_ShowInOverview">Show in Overview</sys:String>
+    <sys:String x:Key="LOCPlayAch_YearReview_CardClassic">Classic</sys:String>
+    <sys:String x:Key="LOCPlayAch_YearReview_CardPoster">Poster</sys:String>
+    <sys:String x:Key="LOCPlayAch_YearReview_CardBanner">Banner</sys:String>
 
     <!-- ================================================================= -->
     <!-- 19 Workshop -->

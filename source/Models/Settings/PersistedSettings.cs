@@ -73,6 +73,7 @@ namespace PlayniteAchievements.Models.Settings
 
         private string _globalLanguage = "english";
         private bool _enablePeriodicUpdates = true;
+        private bool _showYearReviewInOverview = true;
         private bool _includeHiddenGamesInBulkScans = true;
         private bool _includeHiddenGamesInSummaries = true;
         private HashSet<Guid> _refreshExclusionFilterPresetIds = new HashSet<Guid>();
@@ -83,6 +84,8 @@ namespace PlayniteAchievements.Models.Settings
         private bool _enableInGamePolling = true;
         private bool _enableAutoCapstoneGeneration = false;
         private string _autoCapstoneGameNameTemplate;
+        private string _yearReviewDisplayName;
+        private string _yearReviewAvatarPath;
         private string _autoCapstoneGameDescriptionTemplate;
         private string _autoCapstoneCategoryNameTemplate;
         private string _autoCapstoneCategoryDescriptionTemplate;
@@ -963,6 +966,36 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _autoCapstoneGameNameTemplate;
             set => SetValue(ref _autoCapstoneGameNameTemplate, value);
+        }
+
+        /// <summary>
+        /// The name on the Year in Review card, as edited there; null to use the profile widget's
+        /// name or the platform identity's.
+        /// </summary>
+        public string YearReviewDisplayName
+        {
+            get => _yearReviewDisplayName;
+            set => SetValue(ref _yearReviewDisplayName, value);
+        }
+
+        /// <summary>
+        /// The picture on the Year in Review card, as chosen there; null to use the profile
+        /// widget's avatar or the platform identity's.
+        /// </summary>
+        public string YearReviewAvatarPath
+        {
+            get => _yearReviewAvatarPath;
+            set => SetValue(ref _yearReviewAvatarPath, value);
+        }
+
+        /// <summary>
+        /// Whether the Overview shows its Year in Review button in December and January. Set from
+        /// the Year in Review window.
+        /// </summary>
+        public bool ShowYearReviewInOverview
+        {
+            get => _showYearReviewInOverview;
+            set => SetValue(ref _showYearReviewInOverview, value);
         }
 
         /// <summary>
@@ -3490,6 +3523,9 @@ namespace PlayniteAchievements.Models.Settings
                 EnableInGamePolling = this.EnableInGamePolling,
                 EnableAutoCapstoneGeneration = this.EnableAutoCapstoneGeneration,
                 AutoCapstoneGameNameTemplate = this.AutoCapstoneGameNameTemplate,
+                YearReviewDisplayName = this.YearReviewDisplayName,
+                YearReviewAvatarPath = this.YearReviewAvatarPath,
+                ShowYearReviewInOverview = this.ShowYearReviewInOverview,
                 AutoCapstoneGameDescriptionTemplate = this.AutoCapstoneGameDescriptionTemplate,
                 AutoCapstoneCategoryNameTemplate = this.AutoCapstoneCategoryNameTemplate,
                 AutoCapstoneCategoryDescriptionTemplate = this.AutoCapstoneCategoryDescriptionTemplate,

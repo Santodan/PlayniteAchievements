@@ -1141,6 +1141,11 @@ namespace PlayniteAchievements.ViewModels
 
         public bool EnableFriendsFeatures => _settings?.Persisted?.EnableFriendsFeatures ?? true;
 
+        /// <summary>The Year in Review button: around the turn of the year, unless turned off in its window.</summary>
+        public bool ShowYearReviewButton =>
+            Services.YearReview.YearReviewAvailability.IsSeason(DateTime.Today)
+            && (_settings?.Persisted?.ShowYearReviewInOverview ?? true);
+
         public bool ShowOverviewGameMetadataPlatform => _settings?.Persisted?.ShowOverviewGameMetadataPlatform ?? true;
 
         public bool ShowOverviewGameMetadataPlaytime => _settings?.Persisted?.ShowOverviewGameMetadataPlaytime ?? true;
@@ -2720,6 +2725,7 @@ namespace PlayniteAchievements.ViewModels
                 OnPropertyChanged(nameof(IncludeUnplayedGames));
                 RaiseOverviewScoreCardVisibilityChanged();
                 OnPropertyChanged(nameof(EnableFriendsFeatures));
+                OnPropertyChanged(nameof(ShowYearReviewButton));
                 OnPropertyChanged(nameof(ShowOverviewGameMetadataPlatform));
                 OnPropertyChanged(nameof(ShowOverviewGameMetadataPlaytime));
                 OnPropertyChanged(nameof(ShowOverviewGameMetadataRegion));
@@ -2798,6 +2804,10 @@ namespace PlayniteAchievements.ViewModels
             else if (propertyName == nameof(PersistedSettings.EnableFriendsFeatures))
             {
                 OnPropertyChanged(nameof(EnableFriendsFeatures));
+            }
+            else if (propertyName == nameof(PersistedSettings.ShowYearReviewInOverview))
+            {
+                OnPropertyChanged(nameof(ShowYearReviewButton));
             }
             else if (propertyName == nameof(PersistedSettings.ShowOverviewGameMetadataPlatform))
             {
