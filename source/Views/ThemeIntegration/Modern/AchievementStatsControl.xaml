@@ -144,6 +144,55 @@
                 <Run Text="{Binding Common.Total, Mode=OneWay, StringFormat={}{0:N0}}"/>
             </TextBlock>
         </Grid>
+
+        <!-- One row per tag the game's achievements carry -->
+        <ItemsControl ItemsSource="{Binding TagStats}"
+                      Focusable="False">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0"
+                                   Text="{Binding Icon, Mode=OneWay}"
+                                   FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                                   FontSize="14"
+                                   Width="18"
+                                   TextAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Margin="{StaticResource PlayAch.Thickness.Right.Sm}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasColor}" Value="True">
+                                            <Setter Property="Foreground" Value="{Binding Color}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <TextBlock Grid.Column="1"
+                                   Text="{Binding Name, Mode=OneWay}"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                   TextTrimming="CharacterEllipsis"
+                                   VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="2"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                   VerticalAlignment="Center">
+                            <Run Text="{Binding Unlocked, Mode=OneWay, StringFormat={}{0:N0}}"/>
+                            <Run Text="/"/>
+                            <Run Text="{Binding Total, Mode=OneWay, StringFormat={}{0:N0}}"/>
+                        </TextBlock>
+                    </Grid>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
     </StackPanel>
 </base:ThemeControlBase>
 

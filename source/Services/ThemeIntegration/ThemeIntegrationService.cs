@@ -473,6 +473,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             ApplyDynamicOptionBindings();
 
             _refreshService.CacheInvalidated += RefreshService_CacheInvalidated;
+            AchievementTagRegistry.Changed += AchievementTagRegistry_Changed;
             _captureLibrary = captureLibrary;
             if (_captureLibrary != null)
             {
@@ -494,6 +495,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             try { _settings.ModernTheme.CategorySummariesRequested = null; } catch { }
             try { _settings.DynamicThemeDefaultsChanged -= Settings_DynamicThemeDefaultsChanged; } catch { }
             try { _refreshService.CacheInvalidated -= RefreshService_CacheInvalidated; } catch { }
+            AchievementTagRegistry.Changed -= AchievementTagRegistry_Changed;
             try
             {
                 if (_captureLibrary != null)
@@ -519,6 +521,16 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 _activeUpdateCts = null;
             }
 
+        }
+
+        // The tag counts carry each tag's name, color and icon. A game's own tags change with
+        // its custom data, which NotifyCustomDataChanged covers; the global list does not.
+        private void AchievementTagRegistry_Changed(object sender, AchievementTagsChangedEventArgs e)
+        {
+            if (e?.GameId == null)
+            {
+                NotifyCustomDataChanged(null);
+            }
         }
 
         public void NotifySelectionChanged(Guid? selectedGameId)
@@ -1980,6 +1992,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.ModernTheme.TotalUltraRare = library.TotalUltraRare;
             _settings.ModernTheme.TotalRareAndUltraRare = library.TotalRareAndUltraRare;
             _settings.ModernTheme.TotalOverall = library.TotalOverall;
+            _settings.ModernTheme.TotalTagStats = library.TotalTagStats;
             _settings.ModernTheme.CollectorScore = library.CollectorScore;
             _settings.ModernTheme.CollectorLevel = library.CollectorLevel;
             _settings.ModernTheme.CollectorLevelProgress = library.CollectorLevelProgress;
@@ -2090,6 +2103,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.ModernTheme.Rare = state.Rare;
             _settings.ModernTheme.UltraRare = state.UltraRare;
             _settings.ModernTheme.RareAndUltraRare = state.RareAndUltraRare;
+            _settings.ModernTheme.TagStats = state.TagStats;
             _settings.ModernTheme.SelectedGameSummary = state.SelectedGameSummary;
             _settings.ModernTheme.AchievementDefaultOrder = state.AchievementDefaultOrder;
             _settings.ModernTheme.AllAchievements = state.AllAchievements;
@@ -2149,6 +2163,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.ModernTheme.Rare = EmptyRarityStats;
             _settings.ModernTheme.UltraRare = EmptyRarityStats;
             _settings.ModernTheme.RareAndUltraRare = EmptyRarityStats;
+            _settings.ModernTheme.TagStats = new List<AchievementTagStats>();
             _settings.ModernTheme.SelectedGameSummary = null;
             _settings.LegacyTheme.HasData = false;
             _settings.LegacyTheme.Total = 0;

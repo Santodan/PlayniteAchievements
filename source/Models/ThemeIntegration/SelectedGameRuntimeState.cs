@@ -29,6 +29,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         public AchievementRarityStats Rare { get; }
         public AchievementRarityStats UltraRare { get; }
         public AchievementRarityStats RareAndUltraRare { get; }
+        public List<AchievementTagStats> TagStats { get; }
         public GameSummaryItem SelectedGameSummary { get; }
         public AchievementDetail LatestAchievementData { get; }
 
@@ -79,7 +80,8 @@ namespace PlayniteAchievements.Models.ThemeIntegration
             AchievementRarityStats ultraRare,
             AchievementRarityStats rareAndUltraRare,
             GameSummaryItem selectedGameSummary = null,
-            AchievementDetail latestAchievementData = null)
+            AchievementDetail latestAchievementData = null,
+            List<AchievementTagStats> tagStats = null)
         {
             GameId = gameId;
             LastUpdatedUtc = lastUpdatedUtc;
@@ -103,6 +105,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
             RareAndUltraRare = rareAndUltraRare ?? new AchievementRarityStats();
             SelectedGameSummary = selectedGameSummary;
             LatestAchievementData = latestAchievementData;
+            TagStats = tagStats ?? new List<AchievementTagStats>();
         }
     }
 }
