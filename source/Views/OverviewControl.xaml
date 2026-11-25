@@ -10,6 +10,7 @@
              xmlns:rootModels="clr-namespace:PlayniteAchievements.Models"
              xmlns:lvc="clr-namespace:LiveCharts.Wpf;assembly=LiveCharts.Wpf"
              xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
+             xmlns:yearReview="clr-namespace:PlayniteAchievements.Views.YearReview"
              xmlns:sys="clr-namespace:System;assembly=mscorlib"
              mc:Ignorable="d"
              d:DesignHeight="700" d:DesignWidth="900"
@@ -424,6 +425,26 @@
                                     </Style.Triggers>
                                 </Style>
                             </Button.Style>
+                        </Button>
+
+                        <!-- Opens the Year in Review window: a small sparkle over turning rays. -->
+                        <Button x:Name="YearReviewButton"
+                                Click="YearReviewButton_Click"
+                                Margin="18,0,0,0"
+                                Width="30"
+                                Height="30"
+                                Padding="0"
+                                VerticalAlignment="Center"
+                                Style="{StaticResource PlayAch.Button.ToolbarIconStyle}"
+                                Background="Transparent"
+                                BorderBrush="Transparent"
+                                ToolTip="{DynamicResource LOCPlayAch_YearReview_Title}"
+                                AutomationProperties.Name="{DynamicResource LOCPlayAch_YearReview_Title}">
+                            <yearReview:YearReviewSparkle Width="24"
+                                                          Height="24"
+                                                          Fill="{DynamicResource PlayAch.Brush.Accent}"
+                                                          Outline="{DynamicResource PlayAch.Brush.Text}"
+                                                          IsHot="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Button}}"/>
                         </Button>
                     </StackPanel>
 

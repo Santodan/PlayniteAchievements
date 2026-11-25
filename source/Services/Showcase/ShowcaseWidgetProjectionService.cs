@@ -692,7 +692,7 @@ namespace PlayniteAchievements.Services.Showcase
             var rarityCount = snapshot.Unlocks.Sum(fact => fact.PercentCount);
             var raritySum = snapshot.Unlocks.Sum(fact => fact.PercentSum);
 
-            CalculateStreaks(counts, now.Date, out var currentStreak, out var longestStreak);
+            UnlockStreaks.Calculate(counts, now.Date, out var currentStreak, out var longestStreak);
 
             var playedGames = 0;
             var totalPlaytime = 0d;
@@ -1643,37 +1643,6 @@ namespace PlayniteAchievements.Services.Showcase
                 Value = ordered.Skip(topN).Sum(entry => entry.Value)
             });
             return result;
-        }
-
-        private static void CalculateStreaks(
-            IDictionary<DateTime, int> counts,
-            DateTime today,
-            out int current,
-            out int longest)
-        {
-            var dates = new HashSet<DateTime>(
-                (counts ?? new Dictionary<DateTime, int>())
-                    .Where(pair => pair.Value > 0)
-                    .Select(pair => pair.Key.Date));
-            longest = 0;
-            var running = 0;
-            DateTime? previous = null;
-            foreach (var date in dates.OrderBy(date => date))
-            {
-                running = previous.HasValue && date == previous.Value.AddDays(1)
-                    ? running + 1
-                    : 1;
-                longest = Math.Max(longest, running);
-                previous = date;
-            }
-
-            current = 0;
-            var cursor = dates.Contains(today) ? today : today.AddDays(-1);
-            while (dates.Contains(cursor))
-            {
-                current++;
-                cursor = cursor.AddDays(-1);
-            }
         }
 
         private static ShowcaseStatistic Stat(

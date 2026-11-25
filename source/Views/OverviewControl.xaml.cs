@@ -89,6 +89,11 @@ namespace PlayniteAchievements.Views
         public OverviewControl()
         {
             InitializeComponent();
+
+            // The Overview offers the Year in Review around the turn of the year only; the main
+            // menu item opens it in any month.
+            var month = DateTime.Today.Month;
+            YearReviewButton.Visibility = month == 12 || month == 1 ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private readonly Common.KeySequenceMatcher _keySequence = new Common.KeySequenceMatcher("jeshibu");
@@ -747,6 +752,11 @@ namespace PlayniteAchievements.Views
         private void ShowcaseSubViewButton_Click(object sender, RoutedEventArgs e)
         {
             ActiveSubView = OverviewSubView.Showcase;
+        }
+
+        private void YearReviewButton_Click(object sender, RoutedEventArgs e)
+        {
+            PlayniteAchievementsPlugin.Instance?.OpenYearReviewWindow();
         }
 
         private void ShowcaseGames_ItemUpdated(

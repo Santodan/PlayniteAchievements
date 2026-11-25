@@ -729,6 +729,9 @@
     <Compile Include="..\..\source\Services\Achievements\TimelineBucketing.cs" Link="Source\Services\Achievements\TimelineBucketing.cs" />
     <Compile Include="..\..\source\Services\Achievements\TimelineAxisTicks.cs" Link="Source\Services\Achievements\TimelineAxisTicks.cs" />
     <Compile Include="..\..\source\Services\Overview\UnlockDayCounts.cs" Link="Source\Services\Overview\UnlockDayCounts.cs" />
+    <Compile Include="..\..\source\Services\Achievements\UnlockStreaks.cs" Link="Source\Services\Achievements\UnlockStreaks.cs" />
+    <Compile Include="..\..\source\Models\YearReview\YearReviewModels.cs" Link="Source\Models\YearReview\YearReviewModels.cs" />
+    <Compile Include="..\..\source\Services\YearReview\YearReviewBuilder.cs" Link="Source\Services\YearReview\YearReviewBuilder.cs" />
     <Compile Include="..\..\source\Services\Overview\TimelinePlatformSeries.cs" Link="Source\Services\Overview\TimelinePlatformSeries.cs" />
     <Compile Include="..\..\source\Services\Overview\TimelineTierSeries.cs" Link="Source\Services\Overview\TimelineTierSeries.cs" />
     <Compile Include="..\..\source\Services\Overview\OverviewLinkedSnapshots.cs" Link="Source\Services\Overview\OverviewLinkedSnapshots.cs" />

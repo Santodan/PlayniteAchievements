@@ -492,6 +492,16 @@ namespace PlayniteAchievements
 
             yield return new MainMenuItem
             {
+                Description = ResourceProvider.GetString("LOCPlayAch_YearReview_Title"),
+                MenuSection = PluginMainMenuSection,
+                Action = (a) =>
+                {
+                    OpenYearReviewWindow();
+                }
+            };
+
+            yield return new MainMenuItem
+            {
                 Description = ResourceProvider.GetString("LOCPlayAch_Common_Settings"),
                 MenuSection = PluginMainMenuSection,
                 Action = (a) =>
