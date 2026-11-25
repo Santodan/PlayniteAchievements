@@ -976,7 +976,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
                 [nameof(ModernThemeBindings.Uncommon)] = nameof(Uncommon),
                 [nameof(ModernThemeBindings.Rare)] = nameof(Rare),
                 [nameof(ModernThemeBindings.UltraRare)] = nameof(UltraRare),
-                [nameof(ModernThemeBindings.RareAndUltraRare)] = nameof(RareAndUltraRare)
+                [nameof(ModernThemeBindings.RareAndUltraRare)] = nameof(RareAndUltraRare),
+                [nameof(ModernThemeBindings.TagStats)] = nameof(TagStats)
             };
 
         private static readonly string[] ForwardedModernProperties =
@@ -1161,7 +1162,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
             nameof(Uncommon),
             nameof(Rare),
             nameof(UltraRare),
-            nameof(RareAndUltraRare)
+            nameof(RareAndUltraRare),
+            nameof(TagStats)
         };
 
         private readonly PlayniteAchievementsSettings _settings;
@@ -2072,6 +2074,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
         public AchievementRarityStats UltraRare => _modernThemeOverride?.UltraRare ?? _settings?.UltraRare ?? EmptyRarityStats;
 
         public AchievementRarityStats RareAndUltraRare => _modernThemeOverride?.RareAndUltraRare ?? _settings?.RareAndUltraRare ?? EmptyRarityStats;
+
+        public List<AchievementTagStats> TagStats => _modernThemeOverride?.TagStats ?? _settings?.TagStats;
 
         public System.Windows.Input.ICommand SetDynamicAchievementsGameCommand => _settings?.SetDynamicAchievementsGameCommand;
 
