@@ -490,15 +490,18 @@ namespace PlayniteAchievements
                 }
             };
 
-            yield return new MainMenuItem
+            if (Services.YearReview.YearReviewAvailability.IsReleased(DateTime.Today))
             {
-                Description = ResourceProvider.GetString("LOCPlayAch_YearReview_Title"),
-                MenuSection = PluginMainMenuSection,
-                Action = (a) =>
+                yield return new MainMenuItem
                 {
-                    OpenYearReviewWindow();
-                }
-            };
+                    Description = ResourceProvider.GetString("LOCPlayAch_YearReview_Title"),
+                    MenuSection = PluginMainMenuSection,
+                    Action = (a) =>
+                    {
+                        OpenYearReviewWindow();
+                    }
+                };
+            }
 
             yield return new MainMenuItem
             {
