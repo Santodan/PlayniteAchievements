@@ -1,5 +1,22 @@
 # Fork maintenance bundle
 
+## Local Steam Community language and schema token - 2026-11-25
+
+Preserve two Local schema fixes for #96. Steam now redirects
+`/stats/{appId}/achievements?l=<lang>` to `/achievements/{appId}` and drops the language,
+so the English Community text was merged over the localized schema. Both Local Community
+fetches go through `GetSteamCommunityAchievementsHtmlAsync` (direct URL plus the
+`Steam_Language` cookie). The Local schema token (`SteamDataProvider` wiring of
+`SteamApiTokenService.GetSessionTokenAsync`) falls back to upstream's v4.3.3 client-token
+session when the store token request returns 403.
+
+Refreshed against the unchanged v4.3.3 baseline (`94b75cf11bace4e1253133a5f451e808f499dfd9`).
+Clean three-way preflight and actual replay on a fresh v4.3.3 clone passed (274 overlays,
+three localization recipes); all 438 captured non-protected paths matched the working tree
+(newline normalized) and the bundle skills match `.agents/skills`. Release rebuild passed and
+432 Steam/Local tests passed. Live check pending: a non-English Local refresh of a game with
+Steam translations (for example Injustice 2).
+
 ## v4.3.3 integration - 2026-11-25
 
 Integrated upstream v4.3.3 (`94b75cf11bace4e1253133a5f451e808f499dfd9`) with the

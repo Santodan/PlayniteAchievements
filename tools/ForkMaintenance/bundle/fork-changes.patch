@@ -2649,7 +2649,7 @@ index d031fd75ebd821a7e9c4547ffea8f6fdceb28ca7..c1af364cb0dbbb9e1bd0fc9d56c2bb61
          {
              if (appId <= 0)
 diff --git a/source/Providers/Steam/SteamDataProvider.cs b/source/Providers/Steam/SteamDataProvider.cs
-index 94498842b1b0217224b2107e57691f08493b254e..54914e871ef6ec57c46d9cf3c1ee8c3d24922045 100644
+index 94498842b1b0217224b2107e57691f08493b254e..3c87939bc60690d155fd1e7f6f216e2474cff544 100644
 --- a/source/Providers/Steam/SteamDataProvider.cs
 +++ b/source/Providers/Steam/SteamDataProvider.cs
 @@ -1,3 +1,4 @@
@@ -2691,7 +2691,7 @@ index 94498842b1b0217224b2107e57691f08493b254e..54914e871ef6ec57c46d9cf3c1ee8c3d
              _sessionManager = new SteamSessionManager(api, logger);
  
              // Create Steam-specific dependencies
-@@ -99,10 +103,15 @@ public SteamDataProvider(
+@@ -99,10 +103,19 @@ public SteamDataProvider(
                  steamHuntersApiClient,
                  logger,
                  categoryArtDownloader);
@@ -2702,12 +2702,16 @@ index 94498842b1b0217224b2107e57691f08493b254e..54914e871ef6ec57c46d9cf3c1ee8c3d
              _friendsProvider = new SteamFriendsProvider(settings, _steamClient, steamApiClient, _scanner, _tokenResolver, _steamHuntersCategoryEnricher, _sessionManager, logger);
 +            if (steamApiTokenService != null)
 +            {
-+                steamApiTokenService.GetSessionTokenAsync = _steamClient.GetWebApiTokenAsync;
++                // Steam now answers the store token request with 403; fall back to upstream's
++                // client token session so the Local schema keeps the localized Web API path.
++                steamApiTokenService.GetSessionTokenAsync = async ct =>
++                    await _steamClient.GetWebApiTokenAsync(ct).ConfigureAwait(false)
++                    ?? (await _tokenResolver.ResolveBrowserAsync(ct).ConfigureAwait(false))?.Token;
 +            }
          }
  
          /// <summary>The app's schema in English; the schema service answers without an access token.</summary>
-@@ -241,6 +250,54 @@ internal static bool TryGetSteamAppId(Game game, out int appId)
+@@ -241,6 +254,54 @@ internal static bool TryGetSteamAppId(Game game, out int appId)
              return SteamGameIdentity.TryGetSteamAppId(game, out appId);
          }
  
@@ -2762,7 +2766,7 @@ index 94498842b1b0217224b2107e57691f08493b254e..54914e871ef6ec57c46d9cf3c1ee8c3d
          private static bool TryGetPositiveId(string value, out int id)
          {
              return int.TryParse(
-@@ -265,6 +322,27 @@ public async Task<RebuildPayload> RefreshAsync(
+@@ -265,6 +326,27 @@ public async Task<RebuildPayload> RefreshAsync(
              }
          }
  
@@ -2790,7 +2794,7 @@ index 94498842b1b0217224b2107e57691f08493b254e..54914e871ef6ec57c46d9cf3c1ee8c3d
          InGameProgressRegistration IInGameProgressSource.TryRegister(
              Game game,
              GameAchievementData cachedSchema)
-@@ -436,7 +514,7 @@ private void LogProgressChange(
+@@ -436,7 +518,7 @@ private void LogProgressChange(
          }
  
          /// <inheritdoc />
@@ -2799,7 +2803,7 @@ index 94498842b1b0217224b2107e57691f08493b254e..54914e871ef6ec57c46d9cf3c1ee8c3d
  
          public void Dispose()
          {
-@@ -446,6 +524,7 @@ public void Dispose()
+@@ -446,6 +528,7 @@ public void Dispose()
          public void BeginRefreshAuthContext(RefreshAuthContext context)
          {
              _steamHuntersCategoryEnricher?.ClearCache();

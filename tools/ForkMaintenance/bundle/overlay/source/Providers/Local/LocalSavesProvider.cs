@@ -9879,6 +9879,25 @@ namespace PlayniteAchievements.Providers.Local
             }
         }
 
+        /// <summary>
+        /// Steam now redirects /stats/{appId}/achievements to /achievements/{appId} and drops the
+        /// ?l= parameter on the way, so the page came back in English. Request the current page
+        /// directly and also send Steam's language cookie so a later redirect keeps the language.
+        /// </summary>
+        private static async Task<string> GetSteamCommunityAchievementsHtmlAsync(HttpClient httpClient, int appId, string language)
+        {
+            var url = $"https://steamcommunity.com/achievements/{appId}?l={Uri.EscapeDataString(language)}";
+            using (var request = new HttpRequestMessage(HttpMethod.Get, url))
+            {
+                request.Headers.TryAddWithoutValidation("Cookie", $"Steam_Language={language}");
+                using (var response = await httpClient.SendAsync(request).ConfigureAwait(false))
+                {
+                    response.EnsureSuccessStatusCode();
+                    return await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                }
+            }
+        }
+
         private async Task<SchemaAndPercentages> TryGetSteamCommunityStatsSchemaAsync(HttpClient httpClient, int appId, string languageOverride = null)
         {
             if (httpClient == null || appId <= 0)
@@ -9889,8 +9908,7 @@ namespace PlayniteAchievements.Providers.Local
             try
             {
                 var language = NormalizeSteamLanguage(languageOverride ?? GetSteamLanguage());
-                var url = $"https://steamcommunity.com/stats/{appId}/achievements?l={language}";
-                var html = await httpClient.GetStringAsync(url).ConfigureAwait(false);
+                var html = await GetSteamCommunityAchievementsHtmlAsync(httpClient, appId, language).ConfigureAwait(false);
                 if (string.IsNullOrWhiteSpace(html))
                 {
                     Log($"STEAM COMMUNITY SCHEMA: appId={appId} fetch=empty");
@@ -10388,8 +10406,7 @@ namespace PlayniteAchievements.Providers.Local
 
             try
             {
-                var url = $"https://steamcommunity.com/stats/{appId}/achievements?l={GetSteamLanguage()}";
-                var html = await httpClient.GetStringAsync(url).ConfigureAwait(false);
+                var html = await GetSteamCommunityAchievementsHtmlAsync(httpClient, appId, NormalizeSteamLanguage(GetSteamLanguage())).ConfigureAwait(false);
                 if (string.IsNullOrWhiteSpace(html))
                 {
                     return;

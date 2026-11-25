@@ -110,7 +110,11 @@ namespace PlayniteAchievements.Providers.Steam
             _friendsProvider = new SteamFriendsProvider(settings, _steamClient, steamApiClient, _scanner, _tokenResolver, _steamHuntersCategoryEnricher, _sessionManager, logger);
             if (steamApiTokenService != null)
             {
-                steamApiTokenService.GetSessionTokenAsync = _steamClient.GetWebApiTokenAsync;
+                // Steam now answers the store token request with 403; fall back to upstream's
+                // client token session so the Local schema keeps the localized Web API path.
+                steamApiTokenService.GetSessionTokenAsync = async ct =>
+                    await _steamClient.GetWebApiTokenAsync(ct).ConfigureAwait(false)
+                    ?? (await _tokenResolver.ResolveBrowserAsync(ct).ConfigureAwait(false))?.Token;
             }
         }
 

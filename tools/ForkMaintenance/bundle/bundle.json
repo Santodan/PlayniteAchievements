@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-11-25T07:58:10.4114222Z",
+    "generatedUtc":  "2026-11-25T17:25:07.9855252Z",
     "baselineRef":  "v4.3.3",
     "baselineCommit":  "94b75cf11bace4e1253133a5f451e808f499dfd9",
     "protectedPaths":  [
@@ -11,7 +11,7 @@
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "59607839B7C2DC38C2FA9EAD2AF969F93142CC7E1095C1C9334E440E30E5B638"
+                  "sha256":  "6D525C798B8068AA65D1BC9092A4886B3E581F58FD33567452EF683AF8B71E20"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",
@@ -34,7 +34,7 @@
                          },
                          {
                              "path":  ".agents/skills/santodan-fork-local-provider/SKILL.md",
-                             "sha256":  "9656354451D2655E6BC1067F4057F60FA3D852B3BD4A6E76CFBECD073A33D053"
+                             "sha256":  "BF40A99AEB245583BF457E340CC8DD8F31813EAB731A9872568CDDA05D587CB6"
                          },
                          {
                              "path":  ".agents/skills/santodan-fork-maintenance/SKILL.md",
@@ -190,7 +190,7 @@
                          },
                          {
                              "path":  "source/Providers/Local/LocalSavesProvider.cs",
-                             "sha256":  "08D2E29284B1DEF60E182E28743BAC7A5888495BACBA73CF5A7F0A870704FB7B"
+                             "sha256":  "4F7E40F397EB769106E31C518E7A268A992E25C862B4DF01DA2D4AD66F927FA5"
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettings.cs",

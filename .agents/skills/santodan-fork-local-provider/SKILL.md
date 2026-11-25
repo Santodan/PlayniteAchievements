@@ -93,6 +93,13 @@ Options and defaults: `source/Views/Settings/General/ForkPerformanceSettingsSect
   (`ParseLocalizedTokenValue`, `ResolveSteamKvLocalizedField`) take `GetSteamLanguage()`
   first, then `english`. Never hardcode English there: an appcache-only schema (SteamHunters
   down) is cached in memory and offline under the user's language.
+- Steam Community achievements pages: fetch only through `GetSteamCommunityAchievementsHtmlAsync`
+  (`/achievements/{appId}?l=<lang>` plus the `Steam_Language` cookie). The old
+  `/stats/{appId}/achievements?l=` URL redirects and drops the language, and its English text is
+  merged over the localized schema with `preferSourceText` (#96).
+- Local schema Steam token (`SteamApiTokenService.GetSessionTokenAsync`, wired in
+  `SteamDataProvider`): the store async-config token is tried first; on failure (Steam now answers
+  403) it falls back to upstream's client-token session via `SteamWebApiTokenResolver.ResolveBrowserAsync`.
 
 User doc to keep in sync: `LOCAL_PROVIDER_TROUBLESHOOTING.md` (its Performance section
 mirrors the Performance tab). Checklist sections: `## Local provider and game overrides`,

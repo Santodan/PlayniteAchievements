@@ -802,6 +802,10 @@ Primary fork areas:
   as fallback. Revealing a locked hidden achievement uses the extension
   language rather than English, the Windows locale, or the Playnite UI
   language, while already-localized visible achievement text remains intact.
+- Local Steam Community schema/icon fetches request `/achievements/{appId}?l=<lang>`
+  with the `Steam_Language` cookie; the old `/stats/` URL redirects and returns English.
+  The Local schema token falls back to upstream's client-token session when the store
+  token request is refused.
 - Per-game Steam-account overrides use the correct account.
 - Owned-game imports retain metadata-source and overwrite/skip controls.
   Family-sharing discovery requires the Original browser account; API-key
