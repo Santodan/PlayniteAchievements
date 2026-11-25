@@ -92,8 +92,9 @@ namespace PlayniteAchievements.Views
 
             // The Overview offers the Year in Review around the turn of the year only; the main
             // menu item opens it in any month.
-            var month = DateTime.Today.Month;
-            YearReviewButton.Visibility = month == 12 || month == 1 ? Visibility.Visible : Visibility.Collapsed;
+            YearReviewButton.Visibility = Services.YearReview.YearReviewAvailability.IsSeason(DateTime.Today)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
         }
 
         private readonly Common.KeySequenceMatcher _keySequence = new Common.KeySequenceMatcher("jeshibu");
