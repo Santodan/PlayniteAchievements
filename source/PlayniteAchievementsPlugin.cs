@@ -915,6 +915,7 @@ namespace PlayniteAchievements
             // Before the first scope below, so a traced session covers startup too.
             PerfScope.ConfigureTracing(pluginUserDataPath);
             MemoryDiagnostics.ConfigureTracing(pluginUserDataPath);
+            Services.YearReview.YearReviewAvailability.Configure(pluginUserDataPath);
             _logger = PluginLogger.GetLogger(nameof(PlayniteAchievementsPlugin));
             _themeControlRegistry = new ThemeControlRegistry();
             _resourceService = new AchievementResourceService(_logger);
