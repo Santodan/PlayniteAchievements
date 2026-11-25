@@ -212,6 +212,18 @@ namespace PlayniteAchievements
                             persisted.YearReviewDisplayName = name;
                             persisted.YearReviewAvatarPath = avatar;
                             SavePluginSettings(_settingsViewModel.Settings);
+                        },
+                        () => Settings?.Persisted?.ShowYearReviewInOverview ?? true,
+                        show =>
+                        {
+                            var persisted = Settings?.Persisted;
+                            if (persisted == null)
+                            {
+                                return;
+                            }
+
+                            persisted.ShowYearReviewInOverview = show;
+                            SavePluginSettings(_settingsViewModel.Settings);
                         }),
                     _logger);
             }
