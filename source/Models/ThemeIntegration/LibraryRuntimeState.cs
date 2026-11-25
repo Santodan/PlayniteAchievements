@@ -46,6 +46,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         public AchievementRarityStats TotalUltraRare { get; set; } = new AchievementRarityStats();
         public AchievementRarityStats TotalRareAndUltraRare { get; set; } = new AchievementRarityStats();
         public AchievementRarityStats TotalOverall { get; set; } = new AchievementRarityStats();
+        public List<AchievementTagStats> TotalTagStats { get; set; } = new List<AchievementTagStats>();
         public int Score { get; set; }
         public int Level { get; set; }
         public double LevelProgress { get; set; }
