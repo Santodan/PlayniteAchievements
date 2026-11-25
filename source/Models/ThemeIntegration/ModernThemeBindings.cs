@@ -46,6 +46,8 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         [DontSerialize]
         private AchievementRarityStats _rareAndUltraRare = new AchievementRarityStats();
         [DontSerialize]
+        private List<AchievementTagStats> _tagStats = new List<AchievementTagStats>();
+        [DontSerialize]
         private GameSummaryItem _selectedGameSummary;
         [DontSerialize]
         private List<AchievementDetail> _allAchievements = new List<AchievementDetail>();
@@ -379,6 +381,8 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         [DontSerialize]
         private AchievementRarityStats _totalOverall = new AchievementRarityStats();
         [DontSerialize]
+        private List<AchievementTagStats> _totalTagStats = new List<AchievementTagStats>();
+        [DontSerialize]
         private int _collectorScore;
         [DontSerialize]
         private int _collectorLevel;
@@ -534,6 +538,13 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         {
             get => _rareAndUltraRare;
             set => SetValue(ref _rareAndUltraRare, value);
+        }
+
+        [DontSerialize]
+        public List<AchievementTagStats> TagStats
+        {
+            get => _tagStats;
+            set => SetValue(ref _tagStats, value);
         }
 
         [DontSerialize]
@@ -1648,6 +1659,13 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         {
             get => _totalOverall;
             set => SetValue(ref _totalOverall, value);
+        }
+
+        [DontSerialize]
+        public List<AchievementTagStats> TotalTagStats
+        {
+            get => _totalTagStats;
+            set => SetValue(ref _totalTagStats, value);
         }
 
         [DontSerialize]
