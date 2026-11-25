@@ -70,6 +70,7 @@ namespace PlayniteAchievements.Models.Settings
             target.AutoCapstoneGameNameTemplate = source.AutoCapstoneGameNameTemplate;
             target.YearReviewDisplayName = source.YearReviewDisplayName;
             target.YearReviewAvatarPath = source.YearReviewAvatarPath;
+            target.ShowYearReviewInOverview = source.ShowYearReviewInOverview;
             target.AutoCapstoneGameDescriptionTemplate = source.AutoCapstoneGameDescriptionTemplate;
             target.AutoCapstoneCategoryNameTemplate = source.AutoCapstoneCategoryNameTemplate;
             target.AutoCapstoneCategoryDescriptionTemplate = source.AutoCapstoneCategoryDescriptionTemplate;
