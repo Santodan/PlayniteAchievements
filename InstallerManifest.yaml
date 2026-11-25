@@ -1,6 +1,21 @@
 AddonId: PlayniteAchievements
 Packages:
 
+  - Version: 4.3.3
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-11-24
+    PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v4.3.3/PlayniteAchievements_4_3_3.pext
+    Changelog:
+    - "[New] A new surprise unlocks on December 1!"
+    - "[New] Friends widgets for Showcase pages and the start page: Friend Unlocks, Friend Leaderboard and Friend Games."
+    - "[Adjusted] The Achievement Editor can be opened on the selected games from the game menu."
+    - "[Adjusted] The editor's Tags filter can show achievements without tags."
+    - "[Adjusted] Friends can be sorted by completed games."
+    - "[Adjusted] The stats theme element lists a count for each achievement tag, and themes can show tag counts."
+    - "[Fixed] Steam sign-in no longer being recognized after a change to the Steam website."
+    - "[Fixed] Changes to a game's achievement settings occasionally being lost while a linked file was being read."
+    - "As always, many additional improvements and fixes behind the scenes."
+
   - Version: 4.3.2
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-11-22
