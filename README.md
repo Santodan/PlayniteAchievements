@@ -117,6 +117,8 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
+## 2026-11-26 - v4.3.3.1
+
 - v4.3.3 merge
 - Fixed Local achievement names and descriptions falling back to English from the Steam appcache schema #96
 
@@ -144,6 +146,9 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Fixed missing update notification for new extension's version
 - Added a `Offline Cache` in the `Local` platform to use the achievements cache when offline
 
+## Old Changelogs
+<details>
+
 ## 2026-11-07 - v4.2.1.1
 
 - v4.2.1 merge
@@ -152,9 +157,6 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Added `Debug` mode in `Santodan-Fork` --> `General`
 - Added a `Performance Tab` as a better performance polling mechanism with settings
 - Fixed account-free SteamHunters fetching for Local achievements
-
-## Old Changelogs
-<details>
 
 ## 2026-10-25 - v4.1.1.1
 
